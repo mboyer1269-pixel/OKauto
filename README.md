@@ -14,13 +14,13 @@ schema, and API contracts.
 
 ## What's in the box
 
-| Piece | Path | Description |
-|---|---|---|
-| Dealer dashboard + REST API | `apps/web` | Next.js 15 App Router; API under `/api/v1/*` |
-| Job worker | `apps/worker` | Feed polling, sold/price-change detection, notifications, email fan-out (BullMQ or inline scheduler) |
-| Chrome extension (MV3) | `apps/extension` | Popup + Marketplace fill-assist overlay |
-| Domain library | `packages/core` | VIN validation/decode, normalization, dedupe, CSV/feed mapping, sync diffing, compliant description generator, Marketplace field mapping, RBAC |
-| Data layer | `packages/db` | Prisma schema, migrations, seed, shared sync engine |
+| Piece                       | Path             | Description                                                                                                                                    |
+| --------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Dealer dashboard + REST API | `apps/web`       | Next.js 15 App Router; API under `/api/v1/*`                                                                                                   |
+| Job worker                  | `apps/worker`    | Feed polling, sold/price-change detection, notifications, email fan-out (BullMQ or inline scheduler)                                           |
+| Chrome extension (MV3)      | `apps/extension` | Popup + Marketplace fill-assist overlay                                                                                                        |
+| Domain library              | `packages/core`  | VIN validation/decode, normalization, dedupe, CSV/feed mapping, sync diffing, compliant description generator, Marketplace field mapping, RBAC |
+| Data layer                  | `packages/db`    | Prisma schema, migrations, seed, shared sync engine                                                                                            |
 
 ### Feature highlights
 
@@ -80,12 +80,12 @@ pnpm dev:worker                            # in a second terminal
 
 ### Demo logins (password `demo-password-123`)
 
-| Email | Role |
-|---|---|
-| `owner@sunrisemotors.test` | Dealership owner |
-| `manager@sunrisemotors.test` | Manager |
-| `alex@sunrisemotors.test`, `bri@sunrisemotors.test` | Salespeople |
-| `admin@lotpilot.test` | Platform admin |
+| Email                                               | Role             |
+| --------------------------------------------------- | ---------------- |
+| `owner@sunrisemotors.test`                          | Dealership owner |
+| `manager@sunrisemotors.test`                        | Manager          |
+| `alex@sunrisemotors.test`, `bri@sunrisemotors.test` | Salespeople      |
+| `admin@lotpilot.test`                               | Platform admin   |
 
 ### Chrome extension
 
@@ -122,14 +122,14 @@ CI (`.github/workflows/ci.yml`) runs lint → format → typecheck → unit test
 
 All configuration is environment-based — see [.env.example](./.env.example). Notable:
 
-| Variable | Purpose |
-|---|---|
-| `DATABASE_URL` | PostgreSQL connection string (required) |
-| `SESSION_SECRET` | Signs session JWTs (required in production) |
-| `REDIS_URL` | Enables BullMQ mode in the worker; omit for the inline scheduler |
-| `OPENAI_API_KEY` / `OPENAI_MODEL` / `OPENAI_BASE_URL` | Optional AI descriptions |
-| `SMTP_URL` / `EMAIL_FROM` | Optional email notifications (logged when unset) |
-| `VIN_DECODER_ONLINE` | Set `false` to force the offline VIN decoder |
+| Variable                                              | Purpose                                                          |
+| ----------------------------------------------------- | ---------------------------------------------------------------- |
+| `DATABASE_URL`                                        | PostgreSQL connection string (required)                          |
+| `SESSION_SECRET`                                      | Signs session JWTs (required in production)                      |
+| `REDIS_URL`                                           | Enables BullMQ mode in the worker; omit for the inline scheduler |
+| `OPENAI_API_KEY` / `OPENAI_MODEL` / `OPENAI_BASE_URL` | Optional AI descriptions                                         |
+| `SMTP_URL` / `EMAIL_FROM`                             | Optional email notifications (logged when unset)                 |
+| `VIN_DECODER_ONLINE`                                  | Set `false` to force the offline VIN decoder                     |
 
 ## Compliance & security posture
 
