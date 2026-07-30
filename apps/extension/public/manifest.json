@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "LotPilot — Marketplace Listing Assistant",
+  "version": "0.1.0",
+  "description": "Prepare dealership vehicle listings for Facebook Marketplace. You review and publish every listing yourself — LotPilot never posts automatically.",
+  "permissions": ["storage"],
+  "optional_host_permissions": ["https://*/*", "http://localhost/*", "http://127.0.0.1/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "LotPilot"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.facebook.com/marketplace/*", "https://facebook.com/marketplace/*"],
+      "js": ["content.js"],
+      "css": ["overlay.css"],
+      "run_at": "document_idle"
+    }
+  ]
+}
