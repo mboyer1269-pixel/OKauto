@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OKauto Listing Assistant</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header>
+      <h1>OKauto Assistant</h1>
+      <span id="status-pill" class="pill unknown">…</span>
+    </header>
+
+    <main>
+      <section id="unpaired" hidden>
+        <p>Pair this extension with your OKauto dashboard to see your listing queue.</p>
+        <button id="open-options" type="button">Open pairing settings</button>
+      </section>
+
+      <section id="queue-section" hidden>
+        <div class="row">
+          <h2>My listing queue</h2>
+          <button id="refresh" type="button" class="ghost" title="Refresh queue">↻</button>
+        </div>
+        <p id="org-line" class="muted"></p>
+        <ul id="queue" aria-live="polite"></ul>
+        <p id="empty" class="muted" hidden>Queue is empty — new listings assigned to you appear here.</p>
+      </section>
+
+      <p id="error" class="error" role="alert" hidden></p>
+    </main>
+
+    <footer>
+      <button id="open-dashboard" type="button" class="ghost">Open dashboard</button>
+      <button id="open-options-2" type="button" class="ghost">Settings</button>
+    </footer>
+
+    <script src="popup.js" type="module"></script>
+  </body>
+</html>

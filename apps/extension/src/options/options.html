@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OKauto Assistant — Settings</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <main>
+      <h1>OKauto Assistant settings</h1>
+
+      <section>
+        <h2>Pairing</h2>
+        <p class="muted">
+          In your OKauto dashboard open <strong>Settings → Extension</strong>, create a pairing token, and paste it here.
+          The token is stored locally and sent only to your API URL.
+        </p>
+        <label>
+          API URL
+          <input id="api-url" type="url" placeholder="http://localhost:4000" autocomplete="off" />
+        </label>
+        <label>
+          Pairing token
+          <input id="pat" type="password" placeholder="oka_ext_…" autocomplete="off" />
+        </label>
+        <div class="row">
+          <button id="save" type="button">Save</button>
+          <button id="test" type="button" class="ghost">Test connection</button>
+        </div>
+        <p id="result" role="status" aria-live="polite"></p>
+      </section>
+
+      <section>
+        <h2>How it works</h2>
+        <ol class="muted">
+          <li>Open the extension popup and pick a vehicle from your queue.</li>
+          <li>We open Marketplace and fill the form for you — you stay in control.</li>
+          <li><strong>You</strong> review and click Publish. We never submit forms for you.</li>
+          <li>The listing goes LIVE in your dashboard automatically.</li>
+        </ol>
+      </section>
+
+      <section>
+        <h2>Advanced — adapter config override</h2>
+        <p class="muted">Optional JSON override for Marketplace form selectors (support use only).</p>
+        <textarea id="adapter-config" rows="5" spellcheck="false" placeholder='{"title":[{"kind":"css","selector":"…"}]}'></textarea>
+        <div class="row">
+          <button id="save-adapter" type="button" class="ghost">Save override</button>
+          <button id="clear-adapter" type="button" class="ghost">Clear</button>
+        </div>
+      </section>
+    </main>
+    <script src="options.js" type="module"></script>
+  </body>
+</html>

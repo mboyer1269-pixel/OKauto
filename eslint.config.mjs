@@ -28,6 +28,27 @@ export default tseslint.config(
     },
   },
   {
+    files: ["**/*.ts", "**/*.tsx"],
+    rules: {
+      // TypeScript already performs undefined-name checking.
+      "no-undef": "off",
+    },
+  },
+  {
+    files: ["**/*.mjs", "**/*.cjs"],
+    languageOptions: {
+      globals: {
+        Buffer: "readonly",
+        console: "readonly",
+        process: "readonly",
+        setTimeout: "readonly",
+        clearTimeout: "readonly",
+        fetch: "readonly",
+        URL: "readonly",
+      },
+    },
+  },
+  {
     files: ["**/*.test.ts", "**/*.test.tsx", "**/test/**/*.ts"],
     rules: {
       "@typescript-eslint/no-explicit-any": "off",
