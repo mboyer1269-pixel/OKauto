@@ -1,0 +1,11 @@
+{
+  "name": "@okauto/extension",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "node -e \"console.log('Extension is static MV3; load apps/extension unpacked.')\"",
+    "lint": "node -e \"const fs=require('fs'); JSON.parse(fs.readFileSync('manifest.json','utf8')); console.log('manifest ok')\"",
+    "typecheck": "node -e \"process.exit(0)\"",
+    "test": "node ./test/adapters.test.js"
+  }
+}

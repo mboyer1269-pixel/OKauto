@@ -1,0 +1,39 @@
+{
+  "name": "okauto",
+  "private": true,
+  "version": "0.1.0",
+  "description": "OKauto — dealership Marketplace listing platform (clean-room)",
+  "packageManager": "pnpm@10.33.3",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "pnpm -r --filter=./packages/* build && pnpm --filter @okauto/api build && pnpm --filter @okauto/worker build && NODE_ENV=production pnpm --filter @okauto/web build",
+    "dev": "pnpm --parallel --filter @okauto/api --filter @okauto/web --filter @okauto/worker dev",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "test:e2e": "pnpm --filter @okauto/api test:e2e",
+    "db:generate": "pnpm --filter @okauto/db generate",
+    "db:migrate": "pnpm --filter @okauto/db migrate",
+    "db:migrate:deploy": "pnpm --filter @okauto/db migrate:deploy",
+    "db:seed": "pnpm --filter @okauto/db seed",
+    "db:reset": "pnpm --filter @okauto/db reset",
+    "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\" --ignore-path .gitignore"
+  },
+  "devDependencies": {
+    "prettier": "^3.5.3",
+    "typescript": "^5.8.3"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "prisma",
+      "esbuild",
+      "sharp",
+      "unrs-resolver",
+      "msgpackr-extract"
+    ]
+  }
+}

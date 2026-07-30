@@ -1,0 +1,3 @@
+vin,stockNumber,year,make,model,trim,price,mileage,exteriorColor,photoUrls,description
+1N4AL3AP8JC123456,C3001,2018,Nissan,Altima,SV,14990,61000,Silver,https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=1200,Clean one-owner Altima
+5YJ3E1EA7KF123456,C3002,2019,Tesla,Model 3,Standard Range Plus,27990,45000,Blue,https://images.unsplash.com/photo-1560958089-b8a1929cea89?w=1200,Well maintained Model 3

@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OKauto</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>OKauto</h1>
+        <p class="sub">Human-in-the-loop Marketplace assist</p>
+      </header>
+
+      <section id="login-view">
+        <label>
+          API URL
+          <input id="apiUrl" type="url" value="http://localhost:4000" />
+        </label>
+        <label>
+          Email
+          <input id="email" type="email" autocomplete="username" />
+        </label>
+        <label>
+          Password
+          <input id="password" type="password" autocomplete="current-password" />
+        </label>
+        <button id="loginBtn" type="button">Sign in</button>
+        <p id="loginError" class="error" hidden></p>
+      </section>
+
+      <section id="app-view" hidden>
+        <div class="row">
+          <strong id="userLabel"></strong>
+          <button id="logoutBtn" type="button" class="ghost">Sign out</button>
+        </div>
+        <label>
+          Search inventory
+          <input id="search" type="search" placeholder="VIN, stock, make…" />
+        </label>
+        <div id="vehicleList" class="list" role="listbox" aria-label="Vehicles"></div>
+        <div class="actions">
+          <button id="prepareBtn" type="button" disabled>Prepare listing</button>
+          <button id="fillBtn" type="button" disabled>Fill Marketplace form</button>
+        </div>
+        <p class="policy">
+          You must click Publish yourself. OKauto does not solve CAPTCHAs or bypass Meta controls.
+        </p>
+        <p id="status" class="status" aria-live="polite"></p>
+      </section>
+    </main>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>
