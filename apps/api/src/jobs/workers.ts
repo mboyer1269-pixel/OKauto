@@ -1,10 +1,10 @@
 import { and, eq, inArray, isNull, lt, sql } from "drizzle-orm";
 import type { Db } from "../db/client.js";
 import {
-  feedSources, listings, notifications, organizations, users, vehicles,
+  feedSources, listings, notifications, organizations, vehicles,
 } from "../db/schema.js";
 import type { AiService } from "../services/ai.js";
-import { formatUsd, generateDescription } from "@openlot/shared";
+import { formatUsd } from "@openlot/shared";
 import type { DescriptionTone } from "@openlot/shared";
 import { claimNextJob, completeJob, enqueueJob, failJob, type JobRow } from "./queue.js";
 

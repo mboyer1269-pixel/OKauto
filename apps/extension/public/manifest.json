@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "OpenLot Lister",
+  "version": "0.1.0",
+  "description": "List dealership inventory on Facebook Marketplace with human review: auto-filled forms, sold-vehicle alerts and activity tracking.",
+  "minimum_chrome_version": "120",
+  "permissions": ["storage", "tabs", "sidePanel", "alarms"],
+  "host_permissions": ["http://localhost:4000/*"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "OpenLot Lister",
+    "default_popup": "popup.html"
+  },
+  "side_panel": {
+    "default_path": "panel.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.facebook.com/*", "https://web.facebook.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>OpenLot Inventory</title>
+    <style>
+      :root { color-scheme: light; }
+      body { margin: 0; font: 13px/1.45 -apple-system, "Segoe UI", Roboto, sans-serif; color: #0f172a; background: #f8fafc; }
+      header { position: sticky; top: 0; background: #0f172a; color: #fff; padding: 10px 12px; z-index: 5; }
+      header h1 { font-size: 13px; margin: 0 0 6px; display: flex; align-items: center; justify-content: space-between; }
+      header input, header select { width: 100%; box-sizing: border-box; padding: 6px 8px; border-radius: 8px; border: 1px solid #334155;
+        background: #1e293b; color: #e2e8f0; font-size: 12px; margin-top: 6px; }
+      main { padding: 10px 12px 24px; }
+      .alert { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; border-radius: 10px; padding: 8px 10px;
+        font-size: 12px; margin-bottom: 8px; }
+      .alert button { margin-top: 4px; }
+      .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px; margin-bottom: 8px; }
+      .vt { font-weight: 700; font-size: 13px; }
+      .vs { color: #64748b; font-size: 11px; margin: 2px 0 6px; }
+      .price { color: #047857; font-weight: 700; }
+      button { border: 0; border-radius: 8px; padding: 6px 10px; font-size: 12px; font-weight: 600; cursor: pointer; }
+      .primary { background: #4f46e5; color: #fff; }
+      .primary:hover { background: #4338ca; }
+      .primary:disabled { background: #a5b4fc; cursor: default; }
+      .ghost { background: #f1f5f9; color: #334155; }
+      .muted { color: #94a3b8; font-size: 12px; text-align: center; padding: 20px 0; }
+      .badge { display: inline-block; border-radius: 999px; padding: 1px 7px; font-size: 10px; font-weight: 700; }
+      .b-live { background: #d1fae5; color: #047857; }
+      .status { font-size: 11px; color: #4f46e5; min-height: 14px; margin-bottom: 6px; }
+      a { color: #4f46e5; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script src="panel.js"></script>
+  </body>
+</html>

@@ -1,0 +1,18 @@
+{
+  "name": "@openlot/extension",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "dev": "node build.mjs --watch",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.326",
+    "esbuild": "^0.25.8",
+    "typescript": "^5.7.3",
+    "vitest": "^3.2.4"
+  }
+}

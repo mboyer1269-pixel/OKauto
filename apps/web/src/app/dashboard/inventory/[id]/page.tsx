@@ -7,7 +7,7 @@ import { api, ApiClientError, formatDate, formatPrice } from "@/lib/api";
 import { useSession } from "@/lib/session";
 import { useApi } from "@/lib/useApi";
 import {
-  BackLink, Badge, Button, Card, ErrorNote, Field, PageHeader, Spinner, TableShell, Td, Th, inputClass,
+  BackLink, Badge, Button, Card, ErrorNote, PageHeader, Spinner, TableShell, Td, Th, inputClass,
 } from "@/components/ui";
 
 interface Vehicle {

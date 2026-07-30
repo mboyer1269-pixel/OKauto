@@ -3,7 +3,6 @@ import {
   normalizeJsonRecord,
   parseCsvWithHeaders,
   type NormalizationResult,
-  type VehicleInput,
 } from "@openlot/shared";
 import { and, eq, inArray, isNull, ne, notInArray, or } from "drizzle-orm";
 import type { Db } from "../db/client.js";

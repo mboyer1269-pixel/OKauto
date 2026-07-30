@@ -27,6 +27,15 @@ export default tseslint.config(
   },
   {
     files: ["**/*.{js,mjs,cjs}"],
+    languageOptions: {
+      globals: {
+        process: "readonly",
+        console: "readonly",
+        __dirname: "readonly",
+        module: "readonly",
+        require: "readonly"
+      }
+    },
     rules: {
       "@typescript-eslint/no-require-imports": "off"
     }
