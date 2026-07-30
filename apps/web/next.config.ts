@@ -4,6 +4,7 @@ const API_INTERNAL_URL = process.env.API_INTERNAL_URL ?? "http://localhost:4000"
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  output: "standalone",
   transpilePackages: ["@okauto/shared"],
   async rewrites() {
     return [{ source: "/api/:path*", destination: `${API_INTERNAL_URL}/api/:path*` }];

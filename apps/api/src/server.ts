@@ -50,7 +50,6 @@ export async function buildServer(options: BuildServerOptions): Promise<BuiltSer
     },
     genReqId: () => randomUUID(),
     trustProxy: true,
-    disableRequestLogging: config.NODE_ENV === "test",
   });
 
   const prisma = options.prisma ?? createPrismaClient({ datasourceUrl: config.DATABASE_URL });

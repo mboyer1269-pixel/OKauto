@@ -79,6 +79,7 @@ test.describe("inventory workflows", () => {
     await page.goto("/settings?tab=extension");
     await page.getByPlaceholder(/Token label/).fill("E2E token");
     await page.getByRole("button", { name: "Create token" }).click();
-    await expect(page.getByText(/oka_ext_/)).toBeVisible();
+    // Full plaintext token (long) — the token list only shows short prefixes.
+    await expect(page.getByText(/oka_ext_[A-Za-z0-9_-]{20,}/)).toBeVisible();
   });
 });

@@ -1,0 +1,68 @@
+name: okauto
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: okauto
+      POSTGRES_PASSWORD: okauto_dev_password
+      POSTGRES_DB: okauto
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U okauto -d okauto"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://okauto:okauto_dev_password@postgres:5432/okauto
+    # Prisma CLI ships in the runtime image via @okauto/db dependencies.
+    command: ["node", "node_modules/prisma/build/index.js", "migrate", "deploy", "--schema", "node_modules/@okauto/db/prisma/schema.prisma"]
+    profiles: ["setup"]
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://okauto:okauto_dev_password@postgres:5432/okauto
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production-32chars}
+      API_PORT: "4000"
+      API_HOST: 0.0.0.0
+      CORS_ORIGINS: http://localhost:3000
+      COOKIE_SECURE: "false"
+      RUN_WORKER: "true"
+    ports:
+      - "4000:4000"
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        API_INTERNAL_URL: http://api:4000
+    depends_on:
+      - api
+    environment:
+      API_INTERNAL_URL: http://api:4000
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+
+volumes:
+  pgdata:

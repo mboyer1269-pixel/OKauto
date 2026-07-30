@@ -11,7 +11,8 @@
     "build": "pnpm -r build",
     "dev": "pnpm -r --parallel dev",
     "lint": "eslint .",
-    "test": "pnpm -r test",
+    "test": "pnpm -r --filter=!@okauto/e2e test",
+    "test:e2e": "pnpm --filter @okauto/e2e test",
     "typecheck": "pnpm -r typecheck",
     "db:generate": "pnpm --filter @okauto/db generate",
     "db:migrate": "pnpm --filter @okauto/db migrate:deploy",
@@ -34,7 +35,13 @@
       "@prisma/engines",
       "prisma",
       "esbuild",
-      "@swc/core"
-    ]
+      "@swc/core",
+      "sharp"
+    ],
+    "overrides": {
+      "postcss": "^8.5.18",
+      "sharp": "^0.35.3",
+      "minimatch>brace-expansion": "^5.0.8"
+    }
   }
 }

@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: okauto
+          POSTGRES_PASSWORD: okauto_dev_password
+          POSTGRES_DB: okauto
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U okauto -d okauto"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+
+    env:
+      DATABASE_URL: postgresql://okauto:okauto_dev_password@localhost:5432/okauto
+      TEST_DATABASE_URL: postgresql://okauto:okauto_dev_password@localhost:5432/okauto_test
+      JWT_SECRET: ci-secret-ci-secret-ci-secret-ci
+      CI: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.3
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Create test database
+        run: PGPASSWORD=okauto_dev_password psql -h localhost -U okauto -d okauto -c "CREATE DATABASE okauto_test OWNER okauto;"
+
+      - name: Apply migrations (dev + test)
+        run: |
+          pnpm --filter @okauto/db migrate:deploy
+          cd packages/database && DATABASE_URL="$TEST_DATABASE_URL" npx prisma migrate deploy && cd ../..
+
+      - name: Build all packages and apps
+        run: pnpm -r build
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm -r typecheck
+
+      - name: Unit + integration tests
+        run: pnpm -r --filter=!./e2e test
+
+      - name: Seed demo data
+        run: pnpm db:seed
+
+      - name: Install Playwright browser
+        run: pnpm --filter @okauto/e2e exec playwright install chromium --with-deps
+
+      - name: E2E tests
+        run: pnpm --filter @okauto/e2e test
