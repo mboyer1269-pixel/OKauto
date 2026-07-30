@@ -15,6 +15,7 @@
     "db:push": "pnpm --filter @okauto/database push",
     "db:seed": "pnpm --filter @okauto/database seed",
     "db:studio": "pnpm --filter @okauto/database studio",
+    "pretest": "pnpm db:generate",
     "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\""
   },
   "devDependencies": {

@@ -16,10 +16,12 @@
       "dependsOn": ["^build"]
     },
     "test": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build"],
+      "env": ["DATABASE_URL", "JWT_SECRET"]
     },
     "test:e2e": {
-      "dependsOn": ["build"]
+      "dependsOn": ["build"],
+      "env": ["DATABASE_URL", "JWT_SECRET"]
     }
   }
 }

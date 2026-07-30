@@ -14,6 +14,7 @@ import {
   LogOut,
   Menu,
   X,
+  Activity,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from './auth-provider';
@@ -23,6 +24,7 @@ const navItems = [
   { href: '/dashboard', label: 'Overview', icon: LayoutDashboard },
   { href: '/dashboard/inventory', label: 'Inventory', icon: Car },
   { href: '/dashboard/listings', label: 'Listings', icon: List },
+  { href: '/dashboard/sync', label: 'Sync Health', icon: Activity },
   { href: '/dashboard/team', label: 'Team', icon: Users },
   { href: '/dashboard/notifications', label: 'Notifications', icon: Bell },
   { href: '/dashboard/settings', label: 'Settings', icon: Settings },

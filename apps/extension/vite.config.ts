@@ -1,8 +1,10 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
-import { copyFileSync, mkdirSync, cpSync, existsSync } from 'fs';
+import { copyFileSync, mkdirSync, cpSync, existsSync, readFileSync, writeFileSync, rmSync } from 'fs';
 
 export default defineConfig({
+  // Relative paths required for Chrome extension popup assets
+  base: './',
   build: {
     outDir: 'dist',
     emptyOutDir: true,
@@ -30,11 +32,17 @@ export default defineConfig({
           mkdirSync('dist/icons', { recursive: true });
           cpSync('public/icons', 'dist/icons', { recursive: true });
         }
-        // Fix popup path in manifest
-        const popupHtml = resolve(__dirname, 'dist/src/popup/index.html');
-        if (existsSync(popupHtml)) {
+
+        // Move popup HTML to dist/popup/ with corrected relative asset paths
+        const builtPopup = resolve(__dirname, 'dist/src/popup/index.html');
+        if (existsSync(builtPopup)) {
           mkdirSync('dist/popup', { recursive: true });
-          cpSync(popupHtml, 'dist/popup/index.html');
+          let html = readFileSync(builtPopup, 'utf-8');
+          // dist/src/popup -> dist/popup: reduce path depth by one
+          html = html.replace(/\.\.\/\.\.\/assets\//g, '../assets/');
+          html = html.replace(/src="\/assets\//g, 'src="../assets/');
+          writeFileSync('dist/popup/index.html', html);
+          rmSync(resolve(__dirname, 'dist/src'), { recursive: true, force: true });
         }
       },
     },
