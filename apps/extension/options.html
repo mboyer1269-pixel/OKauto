@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>OKauto Options</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>OKauto options</h1>
+      <p class="muted">Connect to your dealership API. Generate a token from Dashboard → Settings.</p>
+      <div class="field">
+        <label for="apiUrl">API URL</label>
+        <input id="apiUrl" placeholder="http://localhost:4000" />
+      </div>
+      <div class="field">
+        <label for="token">Extension token</label>
+        <textarea id="token" rows="3" placeholder="oka_…"></textarea>
+      </div>
+      <div class="row">
+        <button id="save">Save</button>
+        <button class="secondary" id="test">Test connection</button>
+      </div>
+      <p id="status" class="muted"></p>
+    </div>
+    <script type="module" src="options.js"></script>
+  </body>
+</html>

@@ -1,0 +1,4 @@
+# Sample dealership inventory CSV for OKauto import demos
+vin,stock,year,make,model,trim,price,mileage,exteriorColor,photos
+1N4AL3AP8JC123456,N9001,2018,Nissan,Altima,SV,15990,62000,Gun Metallic,https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=800
+3FA6P0HD9KR123456,F2100,2019,Ford,Fusion,SE,14950,54000,Blue,https://images.unsplash.com/photo-1551830820-330a71b99659?w=800
