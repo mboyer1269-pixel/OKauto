@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "DriveFlow Listing Assistant",
+  "version": "0.1.0",
+  "description": "Human-confirmed vehicle listing assistance for DriveFlow dealerships.",
+  "minimum_chrome_version": "116",
+  "permissions": ["activeTab", "downloads", "sidePanel", "storage"],
+  "host_permissions": ["http://localhost:3000/*"],
+  "optional_host_permissions": ["https://*/*"],
+  "background": {
+    "service_worker": "service-worker.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Open DriveFlow"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.facebook.com/marketplace/create/vehicle*",
+        "https://www.facebook.com/marketplace/create/item*",
+        "https://www.facebook.com/marketplace/create*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+  }
+}

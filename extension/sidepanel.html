@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>DriveFlow Listing Assistant</title>
+    <link rel="stylesheet" href="sidepanel.css" />
+  </head>
+  <body>
+    <header>
+      <span class="mark">D</span>
+      <div><strong>DriveFlow</strong><small>Listing Assistant</small></div>
+      <span class="human">Human confirmed</span>
+    </header>
+    <main>
+      <section class="intro">
+        <p class="eyebrow">Safe preparation</p>
+        <h1>Review first. You publish.</h1>
+        <p>This assistant can fill recognized fields and download approved photos. It never clicks Next or Publish.</p>
+      </section>
+
+      <form id="load-form">
+        <label>DriveFlow URL <input id="api-url" type="url" value="http://localhost:3000" required /></label>
+        <label>Listing ID <input id="listing-id" autocomplete="off" placeholder="Paste from dashboard" required /></label>
+        <button id="load" type="submit">Load prepared listing</button>
+      </form>
+
+      <p id="status" role="status" aria-live="polite"></p>
+
+      <section id="review" hidden>
+        <div class="vehicle">
+          <span id="vehicle-year"></span>
+          <h2 id="vehicle-title"></h2>
+          <strong id="vehicle-price"></strong>
+        </div>
+        <dl>
+          <div><dt>Mileage</dt><dd id="vehicle-mileage"></dd></div>
+          <div><dt>VIN</dt><dd id="vehicle-vin"></dd></div>
+          <div><dt>Photos</dt><dd id="photo-count"></dd></div>
+        </dl>
+        <label>Description <textarea id="description" rows="7" readonly></textarea></label>
+        <div class="steps">
+          <button id="photos" class="secondary" type="button">1. Download photos</button>
+          <button id="fill" type="button">2. Prepare visible fields</button>
+        </div>
+        <div class="checklist">
+          <strong>Before you publish</strong>
+          <label><input class="review-check" type="checkbox" /> I verified vehicle, price, and mileage</label>
+          <label><input class="review-check" type="checkbox" /> I reviewed the full description</label>
+          <label><input class="review-check" type="checkbox" /> I selected the correct downloaded photos</label>
+        </div>
+        <label>Published listing URL (optional) <input id="external-url" type="url" placeholder="https://www.facebook.com/marketplace/item/…" /></label>
+        <button id="confirm" type="button" disabled>3. I published it — confirm</button>
+      </section>
+    </main>
+    <script src="sidepanel.js" type="module"></script>
+  </body>
+</html>

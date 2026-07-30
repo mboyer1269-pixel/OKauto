@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: driveflow
+          POSTGRES_USER: driveflow
+          POSTGRES_PASSWORD: driveflow
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U driveflow"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+      redis:
+        image: redis:8-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgres://driveflow:driveflow@127.0.0.1:5432/driveflow
+      REDIS_URL: redis://127.0.0.1:6379
+      APP_URL: http://127.0.0.1:3000
+      SESSION_PEPPER: ci-session-pepper-value-with-32-characters
+      IP_HASH_KEY: ci-ip-hash-key-value-with-32-characters
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm audit --audit-level=high
+      - run: npm run db:migrate
+      - run: npm run db:seed
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
