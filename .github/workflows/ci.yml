@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - "cursor/**"
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: okauto
+          POSTGRES_PASSWORD: okauto
+          POSTGRES_USER: okauto
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U okauto -d okauto"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://okauto:okauto@localhost:5432/okauto?schema=public
+      NEXTAUTH_SECRET: ci-secret-ci-secret-ci-secret-ci
+      NEXTAUTH_URL: http://localhost:3000
+      OKAUTO_EXTENSION_TOKEN: ci-extension-token
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:generate
+      - run: pnpm db:migrate
+      - run: pnpm ci

@@ -1,0 +1,29 @@
+{
+  "name": "@okauto/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "next build",
+    "dev": "next dev",
+    "lint": "eslint src",
+    "start": "next start",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@okauto/db": "workspace:*",
+    "@okauto/shared": "workspace:*",
+    "next": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "eslint-config-next": "latest",
+    "typescript": "5.9.3",
+    "vitest": "latest"
+  }
+}

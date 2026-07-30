@@ -1,0 +1,33 @@
+{
+  "name": "okauto",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Clean-room dealership inventory and marketplace listing assistant.",
+  "packageManager": "pnpm@10.33.3",
+  "engines": {
+    "node": ">=22.14.0",
+    "pnpm": ">=10.0.0"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "ci": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
+    "db:generate": "pnpm --filter @okauto/db db:generate",
+    "db:migrate": "pnpm --filter @okauto/db db:migrate",
+    "db:seed": "pnpm --filter @okauto/db db:seed",
+    "dev": "turbo run dev --parallel",
+    "dev:extension": "pnpm --filter @okauto/extension dev",
+    "dev:web": "pnpm --filter @okauto/web dev",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "eslint": "9.39.5",
+    "prettier": "latest",
+    "turbo": "latest",
+    "typescript-eslint": "latest",
+    "typescript": "5.9.3",
+    "vitest": "latest"
+  }
+}

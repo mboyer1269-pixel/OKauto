@@ -1,0 +1,326 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  OWNER
+  MANAGER
+  SALESPERSON
+  ANALYST
+}
+
+enum VehicleStatus {
+  AVAILABLE
+  PENDING
+  SOLD
+  WHOLESALE
+  ARCHIVED
+}
+
+enum ListingStatus {
+  DRAFT
+  READY
+  POSTED
+  PRICE_CHANGE
+  SOLD_ALERT
+  REMOVAL_REQUESTED
+  REMOVED
+  ERROR
+}
+
+enum SourceType {
+  CSV
+  DMS
+  WEBSITE
+  EXTENSION
+  MANUAL
+  API
+}
+
+enum SyncStatus {
+  QUEUED
+  RUNNING
+  SUCCESS
+  PARTIAL
+  FAILED
+}
+
+enum NotificationType {
+  SOLD_ALERT
+  PRICE_CHANGE
+  SYNC_FAILURE
+  DUPLICATE_DETECTED
+  SECURITY
+}
+
+enum NotificationSeverity {
+  info
+  warning
+  critical
+}
+
+model Organization {
+  id          String      @id @default(uuid())
+  name        String
+  slug        String      @unique
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  dealerships Dealership[]
+  users       User[]
+  memberships Membership[]
+  auditLogs   AuditLog[]
+  credentials ExtensionCredential[]
+}
+
+model Dealership {
+  id             String          @id @default(uuid())
+  organizationId String
+  name           String
+  websiteUrl     String?
+  phone          String?
+  city           String?
+  state          String?
+  timezone       String          @default("America/New_York")
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  memberships    Membership[]
+  vehicles       Vehicle[]
+  sources        InventorySource[]
+
+  @@index([organizationId])
+}
+
+model User {
+  id             String        @id @default(uuid())
+  organizationId String
+  email          String        @unique
+  name           String
+  passwordHash   String?
+  imageUrl       String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  memberships    Membership[]
+  assignedListings Listing[]   @relation("AssignedListings")
+  activityEvents ActivityEvent[]
+  notifications Notification[]
+  auditLogs      AuditLog[]    @relation("AuditActor")
+
+  @@index([organizationId])
+}
+
+model Membership {
+  id             String       @id @default(uuid())
+  organizationId String
+  dealershipId   String?
+  userId         String
+  role           Role
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  dealership     Dealership?  @relation(fields: [dealershipId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, dealershipId, userId, role])
+  @@index([userId])
+}
+
+model InventorySource {
+  id             String          @id @default(uuid())
+  organizationId String
+  dealershipId   String
+  type           SourceType
+  name           String
+  url            String?
+  enabled        Boolean         @default(true)
+  config         Json            @default("{}")
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  dealership     Dealership      @relation(fields: [dealershipId], references: [id], onDelete: Cascade)
+  syncRuns       SourceSyncRun[]
+  vehicles       Vehicle[]
+
+  @@index([organizationId])
+  @@index([dealershipId])
+}
+
+model SourceSyncRun {
+  id          String          @id @default(uuid())
+  sourceId    String
+  status      SyncStatus
+  startedAt   DateTime        @default(now())
+  finishedAt  DateTime?
+  recordsSeen Int             @default(0)
+  recordsUpserted Int         @default(0)
+  recordsSkipped Int          @default(0)
+  message     String?
+  errors      Json            @default("[]")
+  source      InventorySource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@index([sourceId, startedAt])
+}
+
+model Vehicle {
+  id             String          @id @default(uuid())
+  organizationId String
+  dealershipId   String
+  sourceId       String?
+  vin            String?
+  stockNumber    String?
+  year           Int
+  make           String
+  model          String
+  trim           String?
+  bodyStyle      String?
+  drivetrain     String?
+  transmission   String?
+  fuelType       String?
+  exteriorColor  String?
+  interiorColor  String?
+  mileage        Int?
+  price          Int?
+  status         VehicleStatus   @default(AVAILABLE)
+  location       String?
+  features       String[]        @default([])
+  notes          String?
+  identityKey    String
+  sourceUrl      String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  dealership     Dealership      @relation(fields: [dealershipId], references: [id], onDelete: Cascade)
+  source         InventorySource? @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  media          VehicleMedia[]
+  listings       Listing[]
+  activityEvents ActivityEvent[]
+  notifications  Notification[]
+
+  @@unique([organizationId, vin])
+  @@unique([organizationId, sourceUrl])
+  @@index([organizationId, dealershipId, status])
+  @@index([identityKey])
+}
+
+model VehicleMedia {
+  id        String     @id @default(uuid())
+  vehicleId String
+  url       String
+  alt       String?
+  sortOrder Int        @default(0)
+  source    SourceType @default(WEBSITE)
+  createdAt DateTime   @default(now())
+  vehicle   Vehicle    @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@unique([vehicleId, url])
+  @@index([vehicleId, sortOrder])
+}
+
+model Listing {
+  id             String          @id @default(uuid())
+  organizationId String
+  vehicleId      String
+  assignedToUserId String?
+  title          String
+  description    String
+  price          Int?
+  location       String?
+  marketplace    String          @default("facebook_marketplace")
+  marketplaceUrl String?
+  status         ListingStatus   @default(DRAFT)
+  postedAt       DateTime?
+  removedAt      DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  vehicle        Vehicle         @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  assignedTo     User?           @relation("AssignedListings", fields: [assignedToUserId], references: [id], onDelete: SetNull)
+  snapshots      ListingSnapshot[]
+  activityEvents ActivityEvent[]
+  notifications  Notification[]
+
+  @@index([organizationId, status])
+  @@index([vehicleId])
+}
+
+model ListingSnapshot {
+  id        String        @id @default(uuid())
+  listingId String
+  status    ListingStatus
+  price     Int?
+  notes     String?
+  createdAt DateTime      @default(now())
+  listing   Listing       @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@index([listingId, createdAt])
+}
+
+model ActivityEvent {
+  id             String       @id @default(uuid())
+  organizationId String
+  actorUserId    String?
+  vehicleId      String?
+  listingId      String?
+  action         String
+  metadata       Json         @default("{}")
+  createdAt      DateTime     @default(now())
+  actor          User?        @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  vehicle        Vehicle?     @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  listing        Listing?     @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+  @@index([actorUserId])
+}
+
+model Notification {
+  id             String               @id @default(uuid())
+  organizationId String
+  userId         String?
+  vehicleId      String?
+  listingId      String?
+  type           NotificationType
+  title          String
+  message        String
+  severity       NotificationSeverity @default(info)
+  resolvedAt     DateTime?
+  createdAt      DateTime             @default(now())
+  user           User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
+  vehicle        Vehicle?             @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  listing        Listing?             @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+  @@index([userId, resolvedAt])
+}
+
+model AuditLog {
+  id             String       @id @default(uuid())
+  organizationId String
+  actorUserId    String?
+  action         String
+  resourceType   String
+  resourceId     String?
+  ipAddress      String?
+  userAgent      String?
+  metadata       Json         @default("{}")
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actor          User?        @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+}
+
+model ExtensionCredential {
+  id             String       @id @default(uuid())
+  organizationId String
+  name           String
+  tokenHash      String       @unique
+  allowedOrigins String[]     @default([])
+  lastUsedAt     DateTime?
+  revokedAt      DateTime?
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, revokedAt])
+}
