@@ -1,0 +1,358 @@
+// OKauto database schema (PostgreSQL). Independent, clean-room design.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUPERADMIN
+  OWNER
+  ADMIN
+  MANAGER
+  SALESPERSON
+  VIEWER
+}
+
+enum VehicleCategory {
+  AUTOMOTIVE
+  RV_TRAILER
+  MARINE_POWERSPORTS
+  MOBILE_HOME
+  REAL_ESTATE
+  FARM_EQUIPMENT
+  FURNITURE
+  OTHER
+}
+
+enum VehicleStatus {
+  DRAFT
+  AVAILABLE
+  PENDING_SALE
+  SOLD
+  ARCHIVED
+}
+
+enum FuelType {
+  GASOLINE
+  DIESEL
+  ELECTRIC
+  HYBRID
+  PLUGIN_HYBRID
+  FLEX
+  OTHER
+}
+
+enum Transmission {
+  AUTOMATIC
+  MANUAL
+  CVT
+  OTHER
+}
+
+enum ListingChannel {
+  FACEBOOK_MARKETPLACE
+  OTHER
+}
+
+enum ListingStatus {
+  DRAFT
+  READY
+  PENDING
+  ACTIVE
+  NEEDS_ATTENTION
+  REMOVED
+  SOLD
+  FAILED
+}
+
+enum ListingEventType {
+  CREATED
+  PREFILLED
+  SUBMITTED
+  ACTIVATED
+  PRICE_CHANGED
+  SOLD_DETECTED
+  TAKEDOWN_REQUESTED
+  REMOVED
+  FAILED
+  NOTE
+}
+
+enum NotificationType {
+  SOLD_ALERT
+  PRICE_CHANGE
+  LISTING_NEEDS_ATTENTION
+  IMPORT_COMPLETE
+  INVITE
+  SYSTEM
+}
+
+enum InviteStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+  EXPIRED
+}
+
+enum JobStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+  DEAD
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  isSuperAdmin Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  memberships   Membership[]
+  listings      Listing[]
+  apiTokens     ApiToken[]
+  notifications Notification[]
+  auditLogs     AuditLog[]
+  importBatches ImportBatch[]
+  invitesSent   Invite[]        @relation("InviteInviter")
+
+  @@index([email])
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  category  VehicleCategory @default(AUTOMOTIVE)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships   Membership[]
+  vehicles      Vehicle[]
+  listings      Listing[]
+  invites       Invite[]
+  notifications Notification[]
+  auditLogs     AuditLog[]
+  importBatches ImportBatch[]
+  jobs          Job[]
+
+  @@index([slug])
+}
+
+model Membership {
+  id             String   @id @default(cuid())
+  userId         String
+  organizationId String
+  role           Role     @default(SALESPERSON)
+  createdAt      DateTime @default(now())
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+  @@index([organizationId])
+}
+
+model Invite {
+  id             String       @id @default(cuid())
+  organizationId String
+  email          String
+  role           Role         @default(SALESPERSON)
+  tokenHash      String       @unique
+  status         InviteStatus @default(PENDING)
+  invitedById    String
+  expiresAt      DateTime
+  createdAt      DateTime     @default(now())
+  acceptedAt     DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invitedBy    User         @relation("InviteInviter", fields: [invitedById], references: [id])
+
+  @@index([organizationId])
+  @@index([email])
+}
+
+model ApiToken {
+  id         String    @id @default(cuid())
+  userId     String
+  label      String
+  tokenHash  String    @unique
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Vehicle {
+  id             String          @id @default(cuid())
+  organizationId String
+  vin            String?
+  stockNumber    String?
+  category       VehicleCategory @default(AUTOMOTIVE)
+  status         VehicleStatus   @default(AVAILABLE)
+  year           Int?
+  make           String?
+  model          String?
+  trim           String?
+  bodyStyle      String?
+  mileage        Int?
+  priceCents     Int?
+  exteriorColor  String?
+  interiorColor  String?
+  fuelType       FuelType?
+  transmission   Transmission?
+  drivetrain     String?
+  engine         String?
+  condition      String?
+  features       String[]        @default([])
+  title          String          @default("")
+  // Fuzzy dedup signature (year|make|model|mileageBucket) for no-VIN dedup.
+  dedupSignature String?
+  soldAt         DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  photos       VehiclePhoto[]
+  listings     Listing[]
+
+  @@unique([organizationId, vin])
+  @@unique([organizationId, stockNumber])
+  @@index([organizationId, status])
+  @@index([organizationId, dedupSignature])
+}
+
+model VehiclePhoto {
+  id        String   @id @default(cuid())
+  vehicleId String
+  url       String
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@index([vehicleId])
+}
+
+model Listing {
+  id             String         @id @default(cuid())
+  organizationId String
+  vehicleId      String
+  listerId       String
+  channel        ListingChannel @default(FACEBOOK_MARKETPLACE)
+  status         ListingStatus  @default(DRAFT)
+  description    String         @default("")
+  descriptionProvider String?
+  externalUrl    String?
+  priceCentsAtListing Int?
+  prefilledAt    DateTime?
+  activatedAt    DateTime?
+  removedAt      DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  vehicle      Vehicle        @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  lister       User           @relation(fields: [listerId], references: [id])
+  events       ListingEvent[]
+
+  @@index([organizationId, status])
+  @@index([vehicleId])
+  @@index([listerId])
+}
+
+model ListingEvent {
+  id        String           @id @default(cuid())
+  listingId String
+  type      ListingEventType
+  message   String?
+  metadata  Json?
+  createdAt DateTime         @default(now())
+
+  listing Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@index([listingId])
+}
+
+model ImportBatch {
+  id             String   @id @default(cuid())
+  organizationId String
+  createdById    String
+  source         String   @default("csv")
+  totalRows      Int      @default(0)
+  createdCount   Int      @default(0)
+  updatedCount   Int      @default(0)
+  duplicateCount Int      @default(0)
+  errorCount     Int      @default(0)
+  report         Json?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User         @relation(fields: [createdById], references: [id])
+
+  @@index([organizationId])
+}
+
+model Notification {
+  id             String           @id @default(cuid())
+  organizationId String
+  userId         String
+  type           NotificationType
+  title          String
+  body           String?
+  metadata       Json?
+  readAt         DateTime?
+  createdAt      DateTime         @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+}
+
+model AuditLog {
+  id             String   @id @default(cuid())
+  organizationId String?
+  actorId        String?
+  action         String
+  targetType     String?
+  targetId       String?
+  metadata       Json?
+  ip             String?
+  createdAt      DateTime @default(now())
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  actor        User?         @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+}
+
+model Job {
+  id             String    @id @default(cuid())
+  organizationId String?
+  type           String
+  payload        Json?
+  status         JobStatus @default(QUEUED)
+  attempts       Int       @default(0)
+  maxAttempts    Int       @default(5)
+  runAfter       DateTime  @default(now())
+  lockedAt       DateTime?
+  lastError      String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([status, runAfter])
+}
