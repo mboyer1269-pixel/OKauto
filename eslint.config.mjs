@@ -12,6 +12,7 @@ export default tseslint.config(
       "**/playwright-report/**",
       "**/test-results/**",
       "apps/extension/public/**",
+      "apps/web/next-env.d.ts",
       "packages/database/src/generated/**",
     ],
   },
