@@ -49,6 +49,22 @@ pnpm --filter @okauto/worker dev
 
 Open [http://localhost:3000](http://localhost:3000)
 
+> **Important** : le fichier `.env` doit être à la racine du projet (`okauto/.env`). Les scripts `dev` le chargent automatiquement.
+
+### Dépannage localhost
+
+| Problème | Solution |
+|----------|----------|
+| Page inaccessible | Vérifiez que le serveur tourne : `pnpm --filter @okauto/web dev` |
+| Login échoue / DB error | PostgreSQL doit être démarré : `docker compose up -d postgres redis` puis `pnpm db:push && pnpm db:seed` |
+| Port 3000 occupé | Tuez l'autre processus ou changez le port : `next dev --port 3001` |
+
+**Commande tout-en-un (recommandée)** :
+
+```bash
+docker compose up -d postgres redis && pnpm install && cp -n .env.example .env && pnpm db:generate && pnpm db:push && pnpm db:seed && pnpm --filter @okauto/web dev
+```
+
 ### Demo Credentials
 
 | Role | Email | Password |
