@@ -62,10 +62,13 @@ export async function fetchFeedRecords(
       const data: unknown = await res.json();
       const items = Array.isArray(data)
         ? data
-        : typeof data === "object" && data !== null && Array.isArray((data as { vehicles?: unknown[] }).vehicles)
+        : typeof data === "object" &&
+            data !== null &&
+            Array.isArray((data as { vehicles?: unknown[] }).vehicles)
           ? (data as { vehicles: unknown[] }).vehicles
           : null;
-      if (!items) throw new Error("JSON feed must be an array or an object with a 'vehicles' array");
+      if (!items)
+        throw new Error("JSON feed must be an array or an object with a 'vehicles' array");
       return items.filter((i): i is Record<string, unknown> => typeof i === "object" && i !== null);
     }
     const text = await res.text();
@@ -102,7 +105,9 @@ export async function runSourceSync(
 
   try {
     const mapping = resolveMapping(source.fieldMapping);
-    const org = await prisma.organization.findUniqueOrThrow({ where: { id: source.organizationId } });
+    const org = await prisma.organization.findUniqueOrThrow({
+      where: { id: source.organizationId },
+    });
     const settings = orgSettings(org.settings);
 
     const incoming: NormalizedVehicle[] = [];
@@ -251,7 +256,12 @@ export async function runSourceSync(
     const message = err instanceof Error ? err.message : String(err);
     await prisma.syncRun.update({
       where: { id: run.id },
-      data: { status: "FAILED", error: message, stats: JSON.parse(JSON.stringify(stats)), finishedAt: new Date() },
+      data: {
+        status: "FAILED",
+        error: message,
+        stats: JSON.parse(JSON.stringify(stats)),
+        finishedAt: new Date(),
+      },
     });
     await prisma.inventorySource.update({
       where: { id: source.id },

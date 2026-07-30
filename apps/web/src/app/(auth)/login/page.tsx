@@ -40,7 +40,14 @@ export default function LoginPage() {
         <label className="label" htmlFor="email">
           Email
         </label>
-        <input className="input" id="email" name="email" type="email" autoComplete="email" required />
+        <input
+          className="input"
+          id="email"
+          name="email"
+          type="email"
+          autoComplete="email"
+          required
+        />
       </div>
       <div>
         <label className="label" htmlFor="password">

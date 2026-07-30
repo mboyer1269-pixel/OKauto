@@ -109,7 +109,9 @@ async function selectVehicle(vehicle: ExtVehicle): Promise<void> {
   setStatus("Listing prepared — fill the form below, then publish it yourself.");
 }
 
-function fieldRows(vehicle: ExtVehicle): Array<{ key: FieldKey | null; label: string; value: string }> {
+function fieldRows(
+  vehicle: ExtVehicle,
+): Array<{ key: FieldKey | null; label: string; value: string }> {
   const f = vehicle.marketplaceFields;
   const rows: Array<{ key: FieldKey | null; label: string; value: string }> = [
     { key: "year", label: "Year", value: f.year ?? "" },
@@ -123,7 +125,11 @@ function fieldRows(vehicle: ExtVehicle): Array<{ key: FieldKey | null; label: st
     { key: null, label: "Transmission", value: f.transmission },
     { key: "exteriorColor", label: "Exterior color", value: f.exteriorColor ?? "" },
     { key: "interiorColor", label: "Interior color", value: f.interiorColor ?? "" },
-    { key: "description", label: "Description", value: f.description || (vehicle.description ?? "") },
+    {
+      key: "description",
+      label: "Description",
+      value: f.description || (vehicle.description ?? ""),
+    },
   ];
   return rows.filter((row) => row.value !== "");
 }
@@ -133,13 +139,26 @@ async function fillOne(key: FieldKey, value: string, label: string): Promise<voi
   if (result.status === "filled") {
     setStatus(`Filled "${label}"`);
     if (state.listingId) {
-      void send({ kind: "reportEvent", listingId: state.listingId, type: "FILL_ASSIST_USED", data: { field: key } });
+      void send({
+        kind: "reportEvent",
+        listingId: state.listingId,
+        type: "FILL_ASSIST_USED",
+        data: { field: key },
+      });
     }
   } else {
     await copyText(value, label);
-    setStatus(`Couldn't find the "${label}" field (Facebook may have changed its form) — value copied, paste it manually.`, true);
+    setStatus(
+      `Couldn't find the "${label}" field (Facebook may have changed its form) — value copied, paste it manually.`,
+      true,
+    );
     if (state.listingId) {
-      void send({ kind: "reportEvent", listingId: state.listingId, type: "NOTE", data: { selectorDrift: key } });
+      void send({
+        kind: "reportEvent",
+        listingId: state.listingId,
+        type: "NOTE",
+        data: { selectorDrift: key },
+      });
     }
   }
 }
@@ -160,7 +179,12 @@ async function fillAllText(vehicle: ExtVehicle): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, 350));
   }
   if (state.listingId) {
-    void send({ kind: "reportEvent", listingId: state.listingId, type: "FILL_ASSIST_USED", data: { mode: "all", filled, missed } });
+    void send({
+      kind: "reportEvent",
+      listingId: state.listingId,
+      type: "FILL_ASSIST_USED",
+      data: { mode: "all", filled, missed },
+    });
   }
   setStatus(
     missed === 0
@@ -177,7 +201,12 @@ async function markPosted(): Promise<void> {
     suggested || "https://www.facebook.com/marketplace/item/",
   );
   if (!url) return;
-  const res = await send({ kind: "setListingStatus", listingId: state.listingId, status: "POSTED", externalUrl: url });
+  const res = await send({
+    kind: "setListingStatus",
+    listingId: state.listingId,
+    status: "POSTED",
+    externalUrl: url,
+  });
   if (!res.ok) {
     setStatus(res.error, true);
     return;
@@ -205,8 +234,10 @@ function render(): void {
     ]),
   );
 
-  if (state.error) panel.append(h("p", { class: "lp-alert lp-alert-error", role: "alert" }, [state.error]));
-  if (state.status) panel.append(h("p", { class: "lp-alert lp-alert-info", role: "status" }, [state.status]));
+  if (state.error)
+    panel.append(h("p", { class: "lp-alert lp-alert-error", role: "alert" }, [state.error]));
+  if (state.status)
+    panel.append(h("p", { class: "lp-alert lp-alert-info", role: "status" }, [state.status]));
 
   if (!state.selected) {
     const search = h("input", {
@@ -228,7 +259,9 @@ function render(): void {
 
     const list = h("ul", { class: "lp-list" });
     for (const vehicle of state.vehicles) {
-      const title = [vehicle.year, vehicle.make, vehicle.model, vehicle.trim].filter(Boolean).join(" ");
+      const title = [vehicle.year, vehicle.make, vehicle.model, vehicle.trim]
+        .filter(Boolean)
+        .join(" ");
       const item = h("li", { class: "lp-list-item" });
       const btn = h("button", { class: "lp-vehicle" }, [
         h("img", { src: vehicle.photos[0] ?? "", alt: "", loading: "lazy" }),
@@ -272,10 +305,14 @@ function render(): void {
     fillAll.onclick = () => void fillAllText(vehicle);
     panel.append(fillAll);
   } else {
-    const open = h("a", {
-      class: "lp-btn lp-btn-primary",
-      href: "https://www.facebook.com/marketplace/create/vehicle",
-    }, ["Open vehicle listing form"]);
+    const open = h(
+      "a",
+      {
+        class: "lp-btn lp-btn-primary",
+        href: "https://www.facebook.com/marketplace/create/vehicle",
+      },
+      ["Open vehicle listing form"],
+    );
     panel.append(open);
   }
 
@@ -323,7 +360,9 @@ function render(): void {
   }
 
   if (state.listingId) {
-    const posted = h("button", { class: "lp-btn lp-btn-success" }, ["I published it — record the URL"]);
+    const posted = h("button", { class: "lp-btn lp-btn-success" }, [
+      "I published it — record the URL",
+    ]);
     posted.onclick = () => void markPosted();
     panel.append(posted);
   }
@@ -339,8 +378,15 @@ function togglePanel(show?: boolean): void {
 
 function mount(): void {
   if (document.getElementById("lotpilot-panel")) return;
-  panel = h("div", { id: "lotpilot-panel", class: "lp-hidden", role: "complementary", "aria-label": "LotPilot listing assistant" });
-  fab = h("button", { id: "lotpilot-fab", "aria-label": "Open LotPilot listing assistant" }, ["LotPilot"]);
+  panel = h("div", {
+    id: "lotpilot-panel",
+    class: "lp-hidden",
+    role: "complementary",
+    "aria-label": "LotPilot listing assistant",
+  });
+  fab = h("button", { id: "lotpilot-fab", "aria-label": "Open LotPilot listing assistant" }, [
+    "LotPilot",
+  ]);
   fab.onclick = () => togglePanel(true);
   document.body.append(panel, fab);
   render();

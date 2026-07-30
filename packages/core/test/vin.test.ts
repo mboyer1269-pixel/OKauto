@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { decodeModelYear, decodeVin, decodeVinOffline, isValidVin, normalizeVin } from "../src/vin.js";
+import {
+  decodeModelYear,
+  decodeVin,
+  decodeVinOffline,
+  isValidVin,
+  normalizeVin,
+} from "../src/vin.js";
 
 // Real-format VINs with valid check digits.
 const VALID_VINS = [

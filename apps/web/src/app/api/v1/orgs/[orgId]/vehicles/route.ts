@@ -1,6 +1,15 @@
 import { normalizeVehicle, VEHICLE_STATUSES, vehicleInputSchema } from "@lotpilot/core";
 import { prisma, type Prisma } from "@lotpilot/db";
-import { audit, badRequest, conflict, handler, json, pageParams, parseBody, requireOrgRole } from "@/server/api";
+import {
+  audit,
+  badRequest,
+  conflict,
+  handler,
+  json,
+  pageParams,
+  parseBody,
+  requireOrgRole,
+} from "@/server/api";
 
 type Ctx = { params: Promise<{ orgId: string }> };
 

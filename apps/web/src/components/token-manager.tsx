@@ -68,7 +68,13 @@ export function TokenManager({ orgId, tokens }: { orgId: string; tokens: TokenRo
             <label className="label" htmlFor="token-name">
               Token name
             </label>
-            <input className="input" id="token-name" name="name" placeholder="My Chrome extension" required />
+            <input
+              className="input"
+              id="token-name"
+              name="name"
+              placeholder="My Chrome extension"
+              required
+            />
           </div>
           <button className="btn-primary" disabled={busy}>
             {busy ? "Creating…" : "Create token"}
@@ -80,8 +86,17 @@ export function TokenManager({ orgId, tokens }: { orgId: string; tokens: TokenRo
               Copy this token now — it will not be shown again:
             </p>
             <div className="mt-1 flex gap-2">
-              <input className="input font-mono text-xs" readOnly value={newToken} aria-label="New API token" />
-              <button className="btn-secondary" type="button" onClick={() => navigator.clipboard.writeText(newToken)}>
+              <input
+                className="input font-mono text-xs"
+                readOnly
+                value={newToken}
+                aria-label="New API token"
+              />
+              <button
+                className="btn-secondary"
+                type="button"
+                onClick={() => navigator.clipboard.writeText(newToken)}
+              >
                 Copy
               </button>
             </div>
@@ -90,7 +105,10 @@ export function TokenManager({ orgId, tokens }: { orgId: string; tokens: TokenRo
         {tokens.length > 0 ? (
           <ul className="divide-y divide-slate-100 rounded-lg border border-slate-100">
             {tokens.map((t) => (
-              <li key={t.id} className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
+              <li
+                key={t.id}
+                className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm"
+              >
                 <div>
                   <p className="font-medium">{t.name}</p>
                   <p className="text-xs text-slate-500">

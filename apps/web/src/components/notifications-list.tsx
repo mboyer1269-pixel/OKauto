@@ -68,7 +68,10 @@ export function NotificationsList({ notifications }: { notifications: Notificati
           {notifications.map((n) => {
             const vehicleId = typeof n.data.vehicleId === "string" ? n.data.vehicleId : null;
             return (
-              <li key={n.id} className={`px-5 py-3.5 ${n.readAt ? "opacity-70" : "bg-brand-50/40"}`}>
+              <li
+                key={n.id}
+                className={`px-5 py-3.5 ${n.readAt ? "opacity-70" : "bg-brand-50/40"}`}
+              >
                 <div className="flex items-start gap-3">
                   <span aria-hidden className="mt-0.5">
                     {TYPE_ICONS[n.type] ?? "ℹ️"}

@@ -8,7 +8,12 @@ type Ctx = { params: Promise<{ orgId: string; sourceId: string }> };
 const patchSchema = z.object({
   name: z.string().trim().min(1).max(120).optional(),
   url: z.string().trim().url().optional(),
-  scheduleMinutes: z.number().int().min(15).max(24 * 60).optional(),
+  scheduleMinutes: z
+    .number()
+    .int()
+    .min(15)
+    .max(24 * 60)
+    .optional(),
   status: z.enum(["ACTIVE", "PAUSED"]).optional(),
   fieldMapping: fieldMappingSchema.partial().optional(),
 });
@@ -18,7 +23,9 @@ export const PATCH = handler<Ctx>(async (req, ctx) => {
   const { user } = await requireOrgRole(req, orgId, "MANAGER");
   const body = await parseBody(req, patchSchema);
 
-  const source = await prisma.inventorySource.findFirst({ where: { id: sourceId, organizationId: orgId } });
+  const source = await prisma.inventorySource.findFirst({
+    where: { id: sourceId, organizationId: orgId },
+  });
   if (!source) throw notFound("Source not found");
 
   const updated = await prisma.inventorySource.update({
@@ -43,7 +50,9 @@ export const PATCH = handler<Ctx>(async (req, ctx) => {
 export const DELETE = handler<Ctx>(async (req, ctx) => {
   const { orgId, sourceId } = await ctx.params;
   const { user } = await requireOrgRole(req, orgId, "MANAGER");
-  const source = await prisma.inventorySource.findFirst({ where: { id: sourceId, organizationId: orgId } });
+  const source = await prisma.inventorySource.findFirst({
+    where: { id: sourceId, organizationId: orgId },
+  });
   if (!source) throw notFound("Source not found");
   await prisma.inventorySource.delete({ where: { id: sourceId } });
   await audit(req, {

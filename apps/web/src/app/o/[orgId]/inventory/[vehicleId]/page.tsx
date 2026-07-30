@@ -49,14 +49,19 @@ export default async function VehiclePage({
   ];
 
   const myActiveListing = vehicle.listings.find(
-    (l) => l.userId === user.id && ["DRAFT", "PREPARED", "POSTED", "DELIST_REQUESTED"].includes(l.status),
+    (l) =>
+      l.userId === user.id &&
+      ["DRAFT", "PREPARED", "POSTED", "DELIST_REQUESTED"].includes(l.status),
   );
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <Link href={`/o/${orgId}/inventory`} className="text-sm text-slate-500 hover:text-brand-600">
+          <Link
+            href={`/o/${orgId}/inventory`}
+            className="text-sm text-slate-500 hover:text-brand-600"
+          >
             ← Inventory
           </Link>
           <h1 className="mt-1 flex flex-wrap items-center gap-3 text-xl font-bold">
@@ -65,14 +70,19 @@ export default async function VehiclePage({
           </h1>
           <p className="mt-0.5 text-sm text-slate-500">
             {money(vehicle.priceCents)}
-            {vehicle.previousPriceCents != null && vehicle.previousPriceCents !== vehicle.priceCents ? (
-              <span className="ml-2 text-slate-400 line-through">{money(vehicle.previousPriceCents)}</span>
+            {vehicle.previousPriceCents != null &&
+            vehicle.previousPriceCents !== vehicle.priceCents ? (
+              <span className="ml-2 text-slate-400 line-through">
+                {money(vehicle.previousPriceCents)}
+              </span>
             ) : null}
             {" · "}added {dateTime(vehicle.firstSeenAt)}
             {vehicle.soldAt ? ` · sold ${dateTime(vehicle.soldAt)}` : ""}
           </p>
         </div>
-        {isManager ? <VehicleAdminActions orgId={orgId} vehicleId={vehicle.id} status={vehicle.status} /> : null}
+        {isManager ? (
+          <VehicleAdminActions orgId={orgId} vehicleId={vehicle.id} status={vehicle.status} />
+        ) : null}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -112,7 +122,10 @@ export default async function VehiclePage({
             ) : (
               <ul className="divide-y divide-slate-100">
                 {vehicle.listings.map((l) => (
-                  <li key={l.id} className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 text-sm">
+                  <li
+                    key={l.id}
+                    className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 text-sm"
+                  >
                     <div>
                       <span className="font-medium">{l.user.name}</span>
                       <span className="ml-2 text-xs text-slate-500">
@@ -146,7 +159,11 @@ export default async function VehiclePage({
             vehicleStatus={vehicle.status}
             myListing={
               myActiveListing
-                ? { id: myActiveListing.id, status: myActiveListing.status, externalUrl: myActiveListing.externalUrl }
+                ? {
+                    id: myActiveListing.id,
+                    status: myActiveListing.status,
+                    externalUrl: myActiveListing.externalUrl,
+                  }
                 : null
             }
           />

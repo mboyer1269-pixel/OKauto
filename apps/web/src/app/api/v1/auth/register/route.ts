@@ -1,7 +1,15 @@
 import { prisma } from "@lotpilot/db";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
-import { audit, badRequest, conflict, handler, json, parseBody, tooManyRequests } from "@/server/api";
+import {
+  audit,
+  badRequest,
+  conflict,
+  handler,
+  json,
+  parseBody,
+  tooManyRequests,
+} from "@/server/api";
 import { clientIp, rateLimit } from "@/server/ratelimit";
 import { createSessionToken, sessionCookieHeader } from "@/server/session";
 
@@ -31,7 +39,12 @@ export const POST = handler(async (req) => {
       passwordHash: await bcrypt.hash(body.password, 12),
     },
   });
-  await audit(req, { userId: user.id, action: "user.register", entityType: "user", entityId: user.id });
+  await audit(req, {
+    userId: user.id,
+    action: "user.register",
+    entityType: "user",
+    entityId: user.id,
+  });
 
   const token = await createSessionToken({ userId: user.id, email: user.email });
   return json(

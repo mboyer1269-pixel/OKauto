@@ -12,18 +12,30 @@ export const POST = handler(async (req) => {
     where: { tokenHash: hashToken(token) },
     include: { organization: { select: { id: true, name: true, slug: true } } },
   });
-  if (!invitation || invitation.acceptedAt) throw badRequest("This invitation is invalid or was already used");
+  if (!invitation || invitation.acceptedAt)
+    throw badRequest("This invitation is invalid or was already used");
   if (invitation.expiresAt < new Date()) throw badRequest("This invitation has expired");
   if (invitation.email.toLowerCase() !== user.email.toLowerCase()) {
-    throw badRequest(`This invitation was issued to ${invitation.email}. Sign in with that email to accept it.`);
+    throw badRequest(
+      `This invitation was issued to ${invitation.email}. Sign in with that email to accept it.`,
+    );
   }
 
   const existing = await prisma.membership.findUnique({
-    where: { userId_organizationId: { userId: user.id, organizationId: invitation.organizationId } },
+    where: {
+      userId_organizationId: { userId: user.id, organizationId: invitation.organizationId },
+    },
   });
   if (existing) {
-    await prisma.invitation.update({ where: { id: invitation.id }, data: { acceptedAt: new Date() } });
-    return json({ organization: invitation.organization, role: existing.role, alreadyMember: true });
+    await prisma.invitation.update({
+      where: { id: invitation.id },
+      data: { acceptedAt: new Date() },
+    });
+    return json({
+      organization: invitation.organization,
+      role: existing.role,
+      alreadyMember: true,
+    });
   }
 
   await prisma.$transaction([
@@ -40,5 +52,9 @@ export const POST = handler(async (req) => {
     entityId: invitation.id,
     data: { role: invitation.role },
   });
-  return json({ organization: invitation.organization, role: invitation.role, alreadyMember: false });
+  return json({
+    organization: invitation.organization,
+    role: invitation.role,
+    alreadyMember: false,
+  });
 });

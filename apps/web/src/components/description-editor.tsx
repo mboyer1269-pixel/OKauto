@@ -79,7 +79,12 @@ export function DescriptionEditor({
             <label className="sr-only" htmlFor="tone">
               Tone
             </label>
-            <select id="tone" className="input w-auto py-1.5" value={tone} onChange={(e) => setTone(e.target.value)}>
+            <select
+              id="tone"
+              className="input w-auto py-1.5"
+              value={tone}
+              onChange={(e) => setTone(e.target.value)}
+            >
               <option value="professional">Professional</option>
               <option value="friendly">Friendly</option>
               <option value="energetic">Energetic</option>

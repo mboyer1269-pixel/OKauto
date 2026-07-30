@@ -26,7 +26,10 @@ export interface OrgPageContext {
   role: OrgRole;
 }
 
-export async function requireOrgPage(orgId: string, minimumRole: OrgRole = "SALESPERSON"): Promise<OrgPageContext> {
+export async function requireOrgPage(
+  orgId: string,
+  minimumRole: OrgRole = "SALESPERSON",
+): Promise<OrgPageContext> {
   const user = await requireSessionUser();
   const org = await prisma.organization.findUnique({ where: { id: orgId } });
   if (!org) redirect("/");

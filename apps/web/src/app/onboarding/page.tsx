@@ -62,7 +62,13 @@ export default function OnboardingPage() {
               <label className="label" htmlFor="website">
                 Website
               </label>
-              <input className="input" id="website" name="website" type="url" placeholder="https://" />
+              <input
+                className="input"
+                id="website"
+                name="website"
+                type="url"
+                placeholder="https://"
+              />
             </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div>

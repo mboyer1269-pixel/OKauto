@@ -118,7 +118,10 @@ export async function transitionListing(args: TransitionArgs): Promise<Listing> 
           actorId: args.actorId,
           type: args.status,
           data: JSON.parse(
-            JSON.stringify({ externalUrl: args.externalUrl ?? undefined, error: args.errorMessage ?? undefined }),
+            JSON.stringify({
+              externalUrl: args.externalUrl ?? undefined,
+              error: args.errorMessage ?? undefined,
+            }),
           ),
         },
       },

@@ -1,7 +1,15 @@
 import { generateDescription } from "@lotpilot/core";
 import { orgSettings, prisma } from "@lotpilot/db";
 import { z } from "zod";
-import { audit, handler, json, notFound, parseBody, requireOrgRole, tooManyRequests } from "@/server/api";
+import {
+  audit,
+  handler,
+  json,
+  notFound,
+  parseBody,
+  requireOrgRole,
+  tooManyRequests,
+} from "@/server/api";
 import { env } from "@/server/env";
 import { rateLimit } from "@/server/ratelimit";
 
@@ -18,7 +26,9 @@ export const POST = handler<Ctx>(async (req, ctx) => {
   if (!rateLimit(`describe:${user.id}`, 30, 60_000)) throw tooManyRequests();
   const body = await parseBody(req, schema);
 
-  const vehicle = await prisma.vehicle.findFirst({ where: { id: vehicleId, organizationId: orgId } });
+  const vehicle = await prisma.vehicle.findFirst({
+    where: { id: vehicleId, organizationId: orgId },
+  });
   if (!vehicle) throw notFound("Vehicle not found");
   const org = await prisma.organization.findUniqueOrThrow({ where: { id: orgId } });
   const settings = orgSettings(org.settings);
@@ -37,7 +47,10 @@ export const POST = handler<Ctx>(async (req, ctx) => {
   if (body.save) {
     await prisma.vehicle.update({
       where: { id: vehicleId },
-      data: { description: result.text, descriptionSource: result.source === "ai" ? "AI" : "TEMPLATE" },
+      data: {
+        description: result.text,
+        descriptionSource: result.source === "ai" ? "AI" : "TEMPLATE",
+      },
     });
   }
   await audit(req, {

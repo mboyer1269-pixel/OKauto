@@ -42,7 +42,8 @@ async function loadHome(): Promise<void> {
   }
   showError(null);
   const data = res.data;
-  $("whoami").textContent = `${data.user.name} · ${data.organization.name} (${data.user.role.toLowerCase()})`;
+  $("whoami").textContent =
+    `${data.user.name} · ${data.organization.name} (${data.user.role.toLowerCase()})`;
   $("stat-active").textContent = String(data.counts.activeListings);
   $("stat-delist").textContent = String(data.counts.pendingDelists);
   $("stat-unread").textContent = String(data.counts.unreadNotifications);
@@ -58,7 +59,10 @@ async function loadHome(): Promise<void> {
   if (data.counts.pendingDelists > 0) {
     alert.textContent = `${data.counts.pendingDelists} of your listings must be removed from Marketplace (vehicle sold).`;
     alert.classList.remove("hidden");
-    const listings = await send<{ listings: ExtListing[] }>({ kind: "myListings", status: "DELIST_REQUESTED" });
+    const listings = await send<{ listings: ExtListing[] }>({
+      kind: "myListings",
+      status: "DELIST_REQUESTED",
+    });
     if (listings.ok) {
       for (const listing of listings.data.listings) {
         const li = document.createElement("li");
@@ -80,7 +84,11 @@ async function loadHome(): Promise<void> {
         done.textContent = "I removed it";
         done.style.marginTop = "6px";
         done.onclick = async () => {
-          const result = await send({ kind: "setListingStatus", listingId: listing.id, status: "DELISTED" });
+          const result = await send({
+            kind: "setListingStatus",
+            listingId: listing.id,
+            status: "DELISTED",
+          });
           if (result.ok) void loadHome();
           else showError(result.error);
         };

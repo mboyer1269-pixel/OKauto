@@ -20,13 +20,7 @@ export const FB_BODY_STYLES = [
 ] as const;
 export type FbBodyStyle = (typeof FB_BODY_STYLES)[number];
 
-export const FB_VEHICLE_CONDITIONS = [
-  "Excellent",
-  "Very Good",
-  "Good",
-  "Fair",
-  "Poor",
-] as const;
+export const FB_VEHICLE_CONDITIONS = ["Excellent", "Very Good", "Good", "Fair", "Poor"] as const;
 
 export const FB_FUEL_TYPES = [
   "Diesel",
@@ -73,7 +67,10 @@ export function mapTransmission(t: string | null | undefined): (typeof FB_TRANSM
 }
 
 /** Marketplace mapping of dealer condition → FB's subjective condition scale. */
-export function mapCondition(condition: string, mileage: number | null | undefined): (typeof FB_VEHICLE_CONDITIONS)[number] {
+export function mapCondition(
+  condition: string,
+  mileage: number | null | undefined,
+): (typeof FB_VEHICLE_CONDITIONS)[number] {
   if (condition === "NEW") return "Excellent";
   if (condition === "CERTIFIED_PRE_OWNED") return "Excellent";
   if (mileage == null) return "Good";

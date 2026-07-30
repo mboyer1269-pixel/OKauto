@@ -107,7 +107,9 @@ export default function NewVehiclePage() {
           exteriorColor: fields.exteriorColor || null,
           interiorColor: fields.interiorColor || null,
           mileage: fields.mileage ? Number(fields.mileage.replace(/[^\d]/g, "")) : null,
-          priceCents: fields.price ? Math.round(Number(fields.price.replace(/[^\d.]/g, "")) * 100) : null,
+          priceCents: fields.price
+            ? Math.round(Number(fields.price.replace(/[^\d.]/g, "")) * 100)
+            : null,
           condition: fields.condition,
           photoUrls,
         },

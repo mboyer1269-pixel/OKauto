@@ -17,18 +17,204 @@ const prisma = new PrismaClient();
 const PASSWORD = "demo-password-123";
 
 const VEHICLES = [
-  { vin: "1HGCM82633A004352", stockNumber: "SM-1001", year: 2019, make: "Honda", model: "Accord", trim: "EX-L", bodyStyle: "Sedan", mileage: 41230, priceCents: 2149900, exteriorColor: "Modern Steel", interiorColor: "Black", transmission: "CVT", fuelType: "Gasoline", drivetrain: "FWD", engine: "1.5L I4 Turbo" },
-  { vin: "5YJ3E1EAXKF317231", stockNumber: "SM-1002", year: 2019, make: "Tesla", model: "Model 3", trim: "Standard Range Plus", bodyStyle: "Sedan", mileage: 38900, priceCents: 2699900, exteriorColor: "Pearl White", interiorColor: "Black", transmission: "Automatic", fuelType: "Electric", drivetrain: "RWD", engine: "Electric Motor" },
-  { vin: "1FTFW1ET9DFC10312", stockNumber: "SM-1003", year: 2013, make: "Ford", model: "F-150", trim: "Lariat", bodyStyle: "Crew Cab Pickup", mileage: 98750, priceCents: 1899500, exteriorColor: "Race Red", interiorColor: "Tan", transmission: "6-Speed Automatic", fuelType: "Gasoline", drivetrain: "4WD", engine: "3.5L V6 EcoBoost" },
-  { stockNumber: "SM-1004", year: 2021, make: "Toyota", model: "RAV4", trim: "XLE", bodyStyle: "SUV", mileage: 32500, priceCents: 2749900, exteriorColor: "Silver Sky", interiorColor: "Gray", transmission: "8-Speed Automatic", fuelType: "Gasoline", drivetrain: "AWD", engine: "2.5L I4" },
-  { stockNumber: "SM-1005", year: 2020, make: "Chevrolet", model: "Equinox", trim: "LT", bodyStyle: "SUV", mileage: 45100, priceCents: 1999500, exteriorColor: "Mosaic Black", interiorColor: "Jet Black", transmission: "6-Speed Automatic", fuelType: "Gasoline", drivetrain: "FWD", engine: "1.5L I4 Turbo" },
-  { stockNumber: "SM-1006", year: 2018, make: "Jeep", model: "Wrangler", trim: "Unlimited Sahara", bodyStyle: "SUV", mileage: 61200, priceCents: 3099900, exteriorColor: "Granite Crystal", interiorColor: "Black", transmission: "8-Speed Automatic", fuelType: "Gasoline", drivetrain: "4WD", engine: "3.6L V6" },
-  { stockNumber: "SM-1007", year: 2022, make: "Hyundai", model: "Tucson", trim: "SEL", bodyStyle: "SUV", mileage: 18900, priceCents: 2589900, exteriorColor: "Amazon Gray", interiorColor: "Black", transmission: "8-Speed Automatic", fuelType: "Gasoline", drivetrain: "AWD", engine: "2.5L I4", condition: "CERTIFIED_PRE_OWNED" as const },
-  { stockNumber: "SM-1008", year: 2017, make: "BMW", model: "X5", trim: "xDrive35i", bodyStyle: "SUV", mileage: 72400, priceCents: 2849900, exteriorColor: "Alpine White", interiorColor: "Mocha", transmission: "8-Speed Automatic", fuelType: "Gasoline", drivetrain: "AWD", engine: "3.0L I6 Turbo" },
-  { stockNumber: "SM-1009", year: 2023, make: "Kia", model: "Telluride", trim: "SX", bodyStyle: "SUV", mileage: 12100, priceCents: 4289900, exteriorColor: "Dark Moss", interiorColor: "Butterscotch", transmission: "8-Speed Automatic", fuelType: "Gasoline", drivetrain: "AWD", engine: "3.8L V6", condition: "CERTIFIED_PRE_OWNED" as const },
-  { stockNumber: "SM-1010", year: 2016, make: "Subaru", model: "Outback", trim: "2.5i Premium", bodyStyle: "Wagon", mileage: 89300, priceCents: 1549500, exteriorColor: "Twilight Blue", interiorColor: "Warm Ivory", transmission: "CVT", fuelType: "Gasoline", drivetrain: "AWD", engine: "2.5L H4" },
-  { stockNumber: "SM-1011", year: 2020, make: "Ram", model: "1500", trim: "Big Horn", bodyStyle: "Crew Cab Pickup", mileage: 55600, priceCents: 3199900, exteriorColor: "Patriot Blue", interiorColor: "Black", transmission: "8-Speed Automatic", fuelType: "Gasoline", drivetrain: "4WD", engine: "5.7L V8 HEMI" },
-  { stockNumber: "SM-1012", year: 2015, make: "Mazda", model: "CX-5", trim: "Touring", bodyStyle: "SUV", mileage: 104800, priceCents: 1199500, exteriorColor: "Soul Red", interiorColor: "Black", transmission: "6-Speed Automatic", fuelType: "Gasoline", drivetrain: "FWD", engine: "2.5L I4", status: "SOLD" as const },
+  {
+    vin: "1HGCM82633A004352",
+    stockNumber: "SM-1001",
+    year: 2019,
+    make: "Honda",
+    model: "Accord",
+    trim: "EX-L",
+    bodyStyle: "Sedan",
+    mileage: 41230,
+    priceCents: 2149900,
+    exteriorColor: "Modern Steel",
+    interiorColor: "Black",
+    transmission: "CVT",
+    fuelType: "Gasoline",
+    drivetrain: "FWD",
+    engine: "1.5L I4 Turbo",
+  },
+  {
+    vin: "5YJ3E1EAXKF317231",
+    stockNumber: "SM-1002",
+    year: 2019,
+    make: "Tesla",
+    model: "Model 3",
+    trim: "Standard Range Plus",
+    bodyStyle: "Sedan",
+    mileage: 38900,
+    priceCents: 2699900,
+    exteriorColor: "Pearl White",
+    interiorColor: "Black",
+    transmission: "Automatic",
+    fuelType: "Electric",
+    drivetrain: "RWD",
+    engine: "Electric Motor",
+  },
+  {
+    vin: "1FTFW1ET9DFC10312",
+    stockNumber: "SM-1003",
+    year: 2013,
+    make: "Ford",
+    model: "F-150",
+    trim: "Lariat",
+    bodyStyle: "Crew Cab Pickup",
+    mileage: 98750,
+    priceCents: 1899500,
+    exteriorColor: "Race Red",
+    interiorColor: "Tan",
+    transmission: "6-Speed Automatic",
+    fuelType: "Gasoline",
+    drivetrain: "4WD",
+    engine: "3.5L V6 EcoBoost",
+  },
+  {
+    stockNumber: "SM-1004",
+    year: 2021,
+    make: "Toyota",
+    model: "RAV4",
+    trim: "XLE",
+    bodyStyle: "SUV",
+    mileage: 32500,
+    priceCents: 2749900,
+    exteriorColor: "Silver Sky",
+    interiorColor: "Gray",
+    transmission: "8-Speed Automatic",
+    fuelType: "Gasoline",
+    drivetrain: "AWD",
+    engine: "2.5L I4",
+  },
+  {
+    stockNumber: "SM-1005",
+    year: 2020,
+    make: "Chevrolet",
+    model: "Equinox",
+    trim: "LT",
+    bodyStyle: "SUV",
+    mileage: 45100,
+    priceCents: 1999500,
+    exteriorColor: "Mosaic Black",
+    interiorColor: "Jet Black",
+    transmission: "6-Speed Automatic",
+    fuelType: "Gasoline",
+    drivetrain: "FWD",
+    engine: "1.5L I4 Turbo",
+  },
+  {
+    stockNumber: "SM-1006",
+    year: 2018,
+    make: "Jeep",
+    model: "Wrangler",
+    trim: "Unlimited Sahara",
+    bodyStyle: "SUV",
+    mileage: 61200,
+    priceCents: 3099900,
+    exteriorColor: "Granite Crystal",
+    interiorColor: "Black",
+    transmission: "8-Speed Automatic",
+    fuelType: "Gasoline",
+    drivetrain: "4WD",
+    engine: "3.6L V6",
+  },
+  {
+    stockNumber: "SM-1007",
+    year: 2022,
+    make: "Hyundai",
+    model: "Tucson",
+    trim: "SEL",
+    bodyStyle: "SUV",
+    mileage: 18900,
+    priceCents: 2589900,
+    exteriorColor: "Amazon Gray",
+    interiorColor: "Black",
+    transmission: "8-Speed Automatic",
+    fuelType: "Gasoline",
+    drivetrain: "AWD",
+    engine: "2.5L I4",
+    condition: "CERTIFIED_PRE_OWNED" as const,
+  },
+  {
+    stockNumber: "SM-1008",
+    year: 2017,
+    make: "BMW",
+    model: "X5",
+    trim: "xDrive35i",
+    bodyStyle: "SUV",
+    mileage: 72400,
+    priceCents: 2849900,
+    exteriorColor: "Alpine White",
+    interiorColor: "Mocha",
+    transmission: "8-Speed Automatic",
+    fuelType: "Gasoline",
+    drivetrain: "AWD",
+    engine: "3.0L I6 Turbo",
+  },
+  {
+    stockNumber: "SM-1009",
+    year: 2023,
+    make: "Kia",
+    model: "Telluride",
+    trim: "SX",
+    bodyStyle: "SUV",
+    mileage: 12100,
+    priceCents: 4289900,
+    exteriorColor: "Dark Moss",
+    interiorColor: "Butterscotch",
+    transmission: "8-Speed Automatic",
+    fuelType: "Gasoline",
+    drivetrain: "AWD",
+    engine: "3.8L V6",
+    condition: "CERTIFIED_PRE_OWNED" as const,
+  },
+  {
+    stockNumber: "SM-1010",
+    year: 2016,
+    make: "Subaru",
+    model: "Outback",
+    trim: "2.5i Premium",
+    bodyStyle: "Wagon",
+    mileage: 89300,
+    priceCents: 1549500,
+    exteriorColor: "Twilight Blue",
+    interiorColor: "Warm Ivory",
+    transmission: "CVT",
+    fuelType: "Gasoline",
+    drivetrain: "AWD",
+    engine: "2.5L H4",
+  },
+  {
+    stockNumber: "SM-1011",
+    year: 2020,
+    make: "Ram",
+    model: "1500",
+    trim: "Big Horn",
+    bodyStyle: "Crew Cab Pickup",
+    mileage: 55600,
+    priceCents: 3199900,
+    exteriorColor: "Patriot Blue",
+    interiorColor: "Black",
+    transmission: "8-Speed Automatic",
+    fuelType: "Gasoline",
+    drivetrain: "4WD",
+    engine: "5.7L V8 HEMI",
+  },
+  {
+    stockNumber: "SM-1012",
+    year: 2015,
+    make: "Mazda",
+    model: "CX-5",
+    trim: "Touring",
+    bodyStyle: "SUV",
+    mileage: 104800,
+    priceCents: 1199500,
+    exteriorColor: "Soul Red",
+    interiorColor: "Black",
+    transmission: "6-Speed Automatic",
+    fuelType: "Gasoline",
+    drivetrain: "FWD",
+    engine: "2.5L I4",
+    status: "SOLD" as const,
+  },
 ];
 
 function photoUrl(seed: string, n: number): string {
@@ -41,7 +227,12 @@ async function main() {
   const admin = await prisma.user.upsert({
     where: { email: "admin@lotpilot.test" },
     update: {},
-    create: { email: "admin@lotpilot.test", name: "Platform Admin", passwordHash, platformRole: "ADMIN" },
+    create: {
+      email: "admin@lotpilot.test",
+      name: "Platform Admin",
+      passwordHash,
+      platformRole: "ADMIN",
+    },
   });
 
   const [owner, manager, alex, bri] = await Promise.all(
@@ -121,7 +312,10 @@ async function main() {
   });
 
   for (const [i, v] of VEHICLES.entries()) {
-    const { status, condition, ...rest } = v as typeof v & { status?: "SOLD"; condition?: "CERTIFIED_PRE_OWNED" };
+    const { status, condition, ...rest } = v as typeof v & {
+      status?: "SOLD";
+      condition?: "CERTIFIED_PRE_OWNED";
+    };
     const vehicle = await prisma.vehicle.upsert({
       where: { organizationId_stockNumber: { organizationId: org.id, stockNumber: v.stockNumber } },
       update: {},
@@ -147,9 +341,15 @@ async function main() {
     }
   }
 
-  const accord = await prisma.vehicle.findFirstOrThrow({ where: { organizationId: org.id, stockNumber: "SM-1001" } });
-  const tesla = await prisma.vehicle.findFirstOrThrow({ where: { organizationId: org.id, stockNumber: "SM-1002" } });
-  const soldCx5 = await prisma.vehicle.findFirstOrThrow({ where: { organizationId: org.id, stockNumber: "SM-1012" } });
+  const accord = await prisma.vehicle.findFirstOrThrow({
+    where: { organizationId: org.id, stockNumber: "SM-1001" },
+  });
+  const tesla = await prisma.vehicle.findFirstOrThrow({
+    where: { organizationId: org.id, stockNumber: "SM-1002" },
+  });
+  const soldCx5 = await prisma.vehicle.findFirstOrThrow({
+    where: { organizationId: org.id, stockNumber: "SM-1012" },
+  });
 
   const existingListings = await prisma.listing.count({ where: { organizationId: org.id } });
   if (existingListings === 0) {
@@ -170,7 +370,12 @@ async function main() {
       data: [
         { listingId: posted.id, actorId: alex!.id, type: "CREATED", data: {} },
         { listingId: posted.id, actorId: alex!.id, type: "PREPARED", data: { via: "extension" } },
-        { listingId: posted.id, actorId: alex!.id, type: "POSTED", data: { url: posted.externalUrl } },
+        {
+          listingId: posted.id,
+          actorId: alex!.id,
+          type: "POSTED",
+          data: { url: posted.externalUrl },
+        },
       ],
     });
 
@@ -226,7 +431,14 @@ async function main() {
         sourceId: source.id,
         status: "SUCCESS",
         trigger: "schedule",
-        stats: { total: 12, created: 0, updated: 12, priceChanges: 1, markedMissing: 1, markedSold: 1 },
+        stats: {
+          total: 12,
+          created: 0,
+          updated: 12,
+          priceChanges: 1,
+          markedMissing: 1,
+          markedSold: 1,
+        },
         startedAt: new Date(Date.now() - 31 * 60 * 1000),
         finishedAt: new Date(Date.now() - 30 * 60 * 1000),
       },
@@ -234,9 +446,27 @@ async function main() {
 
     await prisma.auditLog.createMany({
       data: [
-        { organizationId: org.id, userId: owner!.id, action: "org.create", entityType: "organization", entityId: org.id },
-        { organizationId: org.id, userId: manager!.id, action: "source.create", entityType: "source", entityId: source.id },
-        { organizationId: org.id, userId: alex!.id, action: "listing.posted", entityType: "listing", entityId: posted.id },
+        {
+          organizationId: org.id,
+          userId: owner!.id,
+          action: "org.create",
+          entityType: "organization",
+          entityId: org.id,
+        },
+        {
+          organizationId: org.id,
+          userId: manager!.id,
+          action: "source.create",
+          entityType: "source",
+          entityId: source.id,
+        },
+        {
+          organizationId: org.id,
+          userId: alex!.id,
+          action: "listing.posted",
+          entityType: "listing",
+          entityId: posted.id,
+        },
       ],
     });
   }

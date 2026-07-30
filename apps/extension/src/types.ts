@@ -74,6 +74,13 @@ export type BgRequest =
   | { kind: "myListings"; status?: string }
   | { kind: "startListing"; vehicleId: string; force?: boolean }
   | { kind: "reportEvent"; listingId: string; type: string; data?: Record<string, unknown> }
-  | { kind: "setListingStatus"; listingId: string; status: string; externalUrl?: string; errorMessage?: string };
+  | {
+      kind: "setListingStatus";
+      listingId: string;
+      status: string;
+      externalUrl?: string;
+      errorMessage?: string;
+    };
 
-export type BgResponse<T = unknown> = { ok: true; data: T } | { ok: false; status?: number; error: string };
+export type BgResponse<T = unknown> =
+  { ok: true; data: T } | { ok: false; status?: number; error: string };

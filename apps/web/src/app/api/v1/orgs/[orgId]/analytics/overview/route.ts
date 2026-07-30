@@ -22,9 +22,15 @@ export const GET = handler<Ctx>(async (req, ctx) => {
     prisma.vehicle.groupBy({ by: ["status"], where: { organizationId: orgId }, _count: true }),
     prisma.listing.groupBy({ by: ["status"], where: { organizationId: orgId }, _count: true }),
     prisma.listing.count({
-      where: { organizationId: orgId, status: { in: ["POSTED", "DELIST_REQUESTED", "DELISTED"] }, postedAt: { gte: thirtyDaysAgo } },
+      where: {
+        organizationId: orgId,
+        status: { in: ["POSTED", "DELIST_REQUESTED", "DELISTED"] },
+        postedAt: { gte: thirtyDaysAgo },
+      },
     }),
-    prisma.vehicle.count({ where: { organizationId: orgId, status: "SOLD", soldAt: { gte: thirtyDaysAgo } } }),
+    prisma.vehicle.count({
+      where: { organizationId: orgId, status: "SOLD", soldAt: { gte: thirtyDaysAgo } },
+    }),
     prisma.priceChange.count({
       where: { vehicle: { organizationId: orgId }, detectedAt: { gte: thirtyDaysAgo } },
     }),

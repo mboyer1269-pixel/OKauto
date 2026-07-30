@@ -43,7 +43,10 @@ export const POST = handler<Ctx>(async (req, ctx) => {
           });
           break;
         case "mark_sold": {
-          await prisma.vehicle.update({ where: { id }, data: { status: "SOLD", soldAt: new Date() } });
+          await prisma.vehicle.update({
+            where: { id },
+            data: { status: "SOLD", soldAt: new Date() },
+          });
           await prisma.listing.updateMany({
             where: { vehicleId: id, status: "POSTED" },
             data: { status: "DELIST_REQUESTED" },
@@ -89,7 +92,11 @@ export const POST = handler<Ctx>(async (req, ctx) => {
       }
       results.push({ vehicleId: id, ok: true });
     } catch (err) {
-      results.push({ vehicleId: id, ok: false, error: err instanceof Error ? err.message : "failed" });
+      results.push({
+        vehicleId: id,
+        ok: false,
+        error: err instanceof Error ? err.message : "failed",
+      });
     }
   }
 
@@ -100,5 +107,9 @@ export const POST = handler<Ctx>(async (req, ctx) => {
     data: { count: vehicleIds.length, failed: results.filter((r) => !r.ok).length },
   });
 
-  return json({ results, succeeded: results.filter((r) => r.ok).length, failed: results.filter((r) => !r.ok).length });
+  return json({
+    results,
+    succeeded: results.filter((r) => r.ok).length,
+    failed: results.filter((r) => !r.ok).length,
+  });
 });

@@ -94,7 +94,12 @@ export default async function InventoryPage({
           placeholder="Search VIN, stock #, make, model…"
           aria-label="Search inventory"
         />
-        <select className="input w-auto" name="status" defaultValue={status} aria-label="Filter by status">
+        <select
+          className="input w-auto"
+          name="status"
+          defaultValue={status}
+          aria-label="Filter by status"
+        >
           <option value="">All (except archived)</option>
           <option value="AVAILABLE">Available</option>
           <option value="PENDING">Pending</option>

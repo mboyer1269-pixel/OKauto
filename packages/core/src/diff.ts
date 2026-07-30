@@ -16,7 +16,11 @@ export interface ExistingVehicleSnapshot {
 export interface SyncDiff {
   creates: NormalizedVehicle[];
   updates: Array<{ existing: ExistingVehicleSnapshot; incoming: NormalizedVehicle }>;
-  priceChanges: Array<{ existing: ExistingVehicleSnapshot; oldPriceCents: number; newPriceCents: number }>;
+  priceChanges: Array<{
+    existing: ExistingVehicleSnapshot;
+    oldPriceCents: number;
+    newPriceCents: number;
+  }>;
   /** Vehicles previously seen from this source but absent from this sync. */
   missing: ExistingVehicleSnapshot[];
   /** Vehicles whose consecutive-missing count has now reached the sold threshold. */
@@ -42,7 +46,13 @@ export function computeSyncDiff(
   const incomingByKey = new Map<string, NormalizedVehicle>();
   for (const record of incoming) incomingByKey.set(dedupeKey(record), record);
 
-  const diff: SyncDiff = { creates: [], updates: [], priceChanges: [], missing: [], toMarkSold: [] };
+  const diff: SyncDiff = {
+    creates: [],
+    updates: [],
+    priceChanges: [],
+    missing: [],
+    toMarkSold: [],
+  };
   const seenKeys = new Set<string>();
 
   for (const [key, record] of incomingByKey) {

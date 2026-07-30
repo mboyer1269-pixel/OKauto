@@ -35,7 +35,13 @@ export const vehicleInputSchema = z.object({
   vin: z.string().trim().toUpperCase().optional().nullable(),
   stockNumber: z.string().trim().max(64).optional().nullable(),
   category: z.enum(VEHICLE_CATEGORIES).default("AUTO"),
-  year: z.coerce.number().int().min(1900).max(new Date().getFullYear() + 2).optional().nullable(),
+  year: z.coerce
+    .number()
+    .int()
+    .min(1900)
+    .max(new Date().getFullYear() + 2)
+    .optional()
+    .nullable(),
   make: z.string().trim().min(1).max(80),
   model: z.string().trim().min(1).max(120),
   trim: z.string().trim().max(120).optional().nullable(),

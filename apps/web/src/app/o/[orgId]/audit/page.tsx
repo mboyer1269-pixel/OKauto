@@ -54,7 +54,10 @@ export default async function AuditPage({
       </form>
       <Card>
         {logs.length === 0 ? (
-          <EmptyState title="No audit entries" body="Activity in this dealership will appear here." />
+          <EmptyState
+            title="No audit entries"
+            body="Activity in this dealership will appear here."
+          />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
@@ -71,11 +74,15 @@ export default async function AuditPage({
               <tbody className="divide-y divide-slate-100">
                 {logs.map((log) => (
                   <tr key={log.id}>
-                    <td className="whitespace-nowrap px-5 py-2.5 text-slate-500">{dateTime(log.createdAt)}</td>
+                    <td className="whitespace-nowrap px-5 py-2.5 text-slate-500">
+                      {dateTime(log.createdAt)}
+                    </td>
                     <td className="px-3 py-2.5">{log.user?.name ?? "System"}</td>
                     <td className="px-3 py-2.5 font-mono text-xs">{log.action}</td>
                     <td className="px-3 py-2.5 text-slate-500">
-                      {log.entityType ? `${log.entityType}${log.entityId ? ` (${log.entityId.slice(0, 8)}…)` : ""}` : "—"}
+                      {log.entityType
+                        ? `${log.entityType}${log.entityId ? ` (${log.entityId.slice(0, 8)}…)` : ""}`
+                        : "—"}
                     </td>
                     <td className="max-w-64 truncate px-3 py-2.5 font-mono text-xs text-slate-400">
                       {JSON.stringify(log.data)}

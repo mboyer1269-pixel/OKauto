@@ -61,10 +61,10 @@ describe("normalizeVehicle", () => {
     const result = normalizeVehicle({
       vin: " 1hgcm82633a004352",
       stockNumber: " A123 ",
-      year: "2003",
+      year: "2003" as unknown as number,
       make: "honda",
       model: "Accord",
-      mileage: "88,000 mi",
+      mileage: "88,000 mi" as unknown as number,
       priceCents: "$8,995" as unknown as number,
       condition: "cpo" as never,
       photoUrls: ["https://cdn.example.com/1.jpg", "not-a-url"],
@@ -107,9 +107,9 @@ describe("dedupeKey", () => {
       "vin:1HGCM82633A004352",
     );
     expect(dedupeKey({ stockNumber: " A123 ", make: "Honda", model: "Accord" })).toBe("stock:a123");
-    expect(
-      dedupeKey({ year: 2003, make: "Honda", model: "Accord", mileage: 88_200 }),
-    ).toBe("fp:2003|honda|accord|176");
+    expect(dedupeKey({ year: 2003, make: "Honda", model: "Accord", mileage: 88_200 })).toBe(
+      "fp:2003|honda|accord|176",
+    );
   });
 
   it("buckets mileage so odometer drift does not create duplicates", () => {

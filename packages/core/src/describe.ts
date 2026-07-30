@@ -42,7 +42,10 @@ export interface DescriptionResult {
 
 const BANNED_PATTERNS: Array<{ pattern: RegExp; replacement: string }> = [
   { pattern: /\b(guaranteed?|guarantee)\b/gi, replacement: "expected" },
-  { pattern: /\b(best price anywhere|lowest price guaranteed)\b/gi, replacement: "competitive pricing" },
+  {
+    pattern: /\b(best price anywhere|lowest price guaranteed)\b/gi,
+    replacement: "competitive pricing",
+  },
   { pattern: /\bno accidents?\b/gi, replacement: "ask us for the vehicle history report" },
   { pattern: /\blifetime warranty\b/gi, replacement: "available service options" },
 ];
@@ -119,7 +122,9 @@ export function generateTemplateDescription(
 
   const dealer = opts.dealershipName ?? "our dealership";
   const contact = opts.phone ? ` or call ${opts.phone}` : "";
-  lines.push(`Message us on Marketplace${contact} to schedule a test drive at ${dealer}. Financing and trade-ins welcome.`);
+  lines.push(
+    `Message us on Marketplace${contact} to schedule a test drive at ${dealer}. Financing and trade-ins welcome.`,
+  );
 
   for (const disclaimer of opts.disclaimers ?? []) {
     lines.push("");

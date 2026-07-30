@@ -44,7 +44,9 @@ export function InventoryTable({
   }
 
   function toggleAll() {
-    setSelected((prev) => (prev.size === vehicles.length ? new Set() : new Set(vehicles.map((v) => v.id))));
+    setSelected((prev) =>
+      prev.size === vehicles.length ? new Set() : new Set(vehicles.map((v) => v.id)),
+    );
   }
 
   async function bulk(action: string) {
@@ -75,7 +77,11 @@ export function InventoryTable({
       {isManager && selected.size > 0 ? (
         <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 bg-brand-50 px-5 py-3">
           <span className="text-sm font-medium text-brand-900">{selected.size} selected</span>
-          <button className="btn-secondary" disabled={busy} onClick={() => bulk("generate_descriptions")}>
+          <button
+            className="btn-secondary"
+            disabled={busy}
+            onClick={() => bulk("generate_descriptions")}
+          >
             Generate descriptions
           </button>
           <button className="btn-secondary" disabled={busy} onClick={() => bulk("mark_sold")}>
@@ -90,7 +96,10 @@ export function InventoryTable({
         </div>
       ) : null}
       {message ? (
-        <p role="status" className="border-b border-slate-100 bg-slate-50 px-5 py-2 text-sm text-slate-600">
+        <p
+          role="status"
+          className="border-b border-slate-100 bg-slate-50 px-5 py-2 text-sm text-slate-600"
+        >
           {message}
         </p>
       ) : null}
@@ -160,7 +169,10 @@ export function InventoryTable({
                 <td className="px-3 py-3 text-xs text-slate-500">
                   {v.listedBy.length > 0 ? v.listedBy.join(", ") : "—"}
                 </td>
-                <td className="px-3 py-3" aria-label={v.descriptionReady ? "Description ready" : "No description"}>
+                <td
+                  className="px-3 py-3"
+                  aria-label={v.descriptionReady ? "Description ready" : "No description"}
+                >
                   {v.descriptionReady ? "✅" : "—"}
                 </td>
               </tr>

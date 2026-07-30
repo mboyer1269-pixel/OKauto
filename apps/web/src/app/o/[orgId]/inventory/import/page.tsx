@@ -52,7 +52,8 @@ export default function ImportPage() {
         <p className="text-sm text-slate-600">
           Upload a CSV export from your DMS or website. Recognized columns:{" "}
           <code className="rounded bg-slate-100 px-1 text-xs">
-            VIN, Stock, Year, Make, Model, Trim, Body, Mileage, Price, Condition, Description, Photos
+            VIN, Stock, Year, Make, Model, Trim, Body, Mileage, Price, Condition, Description,
+            Photos
           </code>{" "}
           (photos separated by <code className="rounded bg-slate-100 px-1 text-xs">|</code>). Rows
           are de-duplicated by VIN, then stock number. Re-uploading the same file is safe.
@@ -67,7 +68,14 @@ export default function ImportPage() {
             <label className="label" htmlFor="file">
               CSV file
             </label>
-            <input className="input" id="file" name="file" type="file" accept=".csv,text/csv" required />
+            <input
+              className="input"
+              id="file"
+              name="file"
+              type="file"
+              accept=".csv,text/csv"
+              required
+            />
           </div>
           <button className="btn-primary" disabled={busy}>
             {busy ? "Importing…" : "Import"}

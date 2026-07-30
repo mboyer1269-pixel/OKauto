@@ -17,11 +17,22 @@ export default async function AnalyticsPage({ params }: { params: Promise<{ orgI
     }),
     prisma.listing.findMany({
       where: { organizationId: orgId },
-      select: { userId: true, status: true, createdAt: true, postedAt: true, delistedAt: true, updatedAt: true },
+      select: {
+        userId: true,
+        status: true,
+        createdAt: true,
+        postedAt: true,
+        delistedAt: true,
+        updatedAt: true,
+      },
     }),
     prisma.listing.count({ where: { organizationId: orgId, postedAt: { gte: thirtyDaysAgo } } }),
-    prisma.vehicle.count({ where: { organizationId: orgId, status: "SOLD", soldAt: { gte: thirtyDaysAgo } } }),
-    prisma.priceChange.count({ where: { vehicle: { organizationId: orgId }, detectedAt: { gte: thirtyDaysAgo } } }),
+    prisma.vehicle.count({
+      where: { organizationId: orgId, status: "SOLD", soldAt: { gte: thirtyDaysAgo } },
+    }),
+    prisma.priceChange.count({
+      where: { vehicle: { organizationId: orgId }, detectedAt: { gte: thirtyDaysAgo } },
+    }),
   ]);
 
   const rows = members
@@ -42,7 +53,9 @@ export default async function AnalyticsPage({ params }: { params: Promise<{ orgI
         pendingDelist: mine.filter((l) => l.status === "DELIST_REQUESTED").length,
         posted30: posted.filter((l) => l.postedAt! >= thirtyDaysAgo).length,
         totalPosted: posted.length,
-        avgMinutesToPost: times.length ? Math.round(times.reduce((a, b) => a + b, 0) / times.length / 60000) : null,
+        avgMinutesToPost: times.length
+          ? Math.round(times.reduce((a, b) => a + b, 0) / times.length / 60000)
+          : null,
         lastActivity: last,
       };
     })
@@ -100,13 +113,17 @@ export default async function AnalyticsPage({ params }: { params: Promise<{ orgI
                   </td>
                   <td className="px-3 py-3">{r.posted30}</td>
                   <td className="px-3 py-3">{r.totalPosted}</td>
-                  <td className={`px-3 py-3 ${r.pendingDelist > 0 ? "font-semibold text-red-600" : ""}`}>
+                  <td
+                    className={`px-3 py-3 ${r.pendingDelist > 0 ? "font-semibold text-red-600" : ""}`}
+                  >
                     {r.pendingDelist}
                   </td>
                   <td className="px-3 py-3">
                     {r.avgMinutesToPost != null ? `${r.avgMinutesToPost} min` : "—"}
                   </td>
-                  <td className="px-3 py-3 text-slate-500">{r.lastActivity ? timeAgo(r.lastActivity) : "—"}</td>
+                  <td className="px-3 py-3 text-slate-500">
+                    {r.lastActivity ? timeAgo(r.lastActivity) : "—"}
+                  </td>
                 </tr>
               ))}
             </tbody>

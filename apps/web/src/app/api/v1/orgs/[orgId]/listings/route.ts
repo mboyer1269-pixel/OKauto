@@ -36,8 +36,14 @@ export const GET = handler<Ctx>(async (req, ctx) => {
       include: {
         vehicle: {
           select: {
-            id: true, year: true, make: true, model: true, trim: true,
-            stockNumber: true, priceCents: true, status: true,
+            id: true,
+            year: true,
+            make: true,
+            model: true,
+            trim: true,
+            stockNumber: true,
+            priceCents: true,
+            status: true,
             photos: { orderBy: { position: "asc" }, take: 1 },
           },
         },

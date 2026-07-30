@@ -18,12 +18,16 @@ export class ApiError extends Error {
   }
 }
 
-export const unauthorized = (msg = "Authentication required") => new ApiError(401, "unauthorized", msg);
-export const forbidden = (msg = "You do not have permission to do this") => new ApiError(403, "forbidden", msg);
+export const unauthorized = (msg = "Authentication required") =>
+  new ApiError(401, "unauthorized", msg);
+export const forbidden = (msg = "You do not have permission to do this") =>
+  new ApiError(403, "forbidden", msg);
 export const notFound = (msg = "Not found") => new ApiError(404, "not_found", msg);
-export const badRequest = (msg: string, details?: unknown) => new ApiError(400, "bad_request", msg, details);
+export const badRequest = (msg: string, details?: unknown) =>
+  new ApiError(400, "bad_request", msg, details);
 export const conflict = (msg: string) => new ApiError(409, "conflict", msg);
-export const tooManyRequests = (msg = "Too many requests, slow down") => new ApiError(429, "rate_limited", msg);
+export const tooManyRequests = (msg = "Too many requests, slow down") =>
+  new ApiError(429, "rate_limited", msg);
 
 export function json(data: unknown, init: ResponseInit = {}): Response {
   return new Response(JSON.stringify(data), {
@@ -89,7 +93,10 @@ function logRequest(req: Request, status: number, started: number, requestId: st
 
 // ---------- Validation ----------
 
-export async function parseBody<S extends z.ZodTypeAny>(req: Request, schema: S): Promise<z.infer<S>> {
+export async function parseBody<S extends z.ZodTypeAny>(
+  req: Request,
+  schema: S,
+): Promise<z.infer<S>> {
   let raw: unknown;
   try {
     raw = await req.json();
@@ -132,7 +139,13 @@ export async function requireOrgRole(
       user,
       membership:
         anyMembership ??
-        ({ id: "admin", userId: user.id, organizationId: orgId, role: "OWNER", createdAt: new Date() } as Membership),
+        ({
+          id: "admin",
+          userId: user.id,
+          organizationId: orgId,
+          role: "OWNER",
+          createdAt: new Date(),
+        } as Membership),
     };
   }
   const membership = await prisma.membership.findUnique({
@@ -172,14 +185,23 @@ export async function requireApiToken(req: Request): Promise<TokenContext> {
   });
   if (!token || token.revokedAt) throw unauthorized("Invalid or revoked token");
   const membership = await prisma.membership.findUnique({
-    where: { userId_organizationId: { userId: token.userId, organizationId: token.organizationId } },
+    where: {
+      userId_organizationId: { userId: token.userId, organizationId: token.organizationId },
+    },
   });
   if (!membership) throw unauthorized("Token owner is no longer a member of the organization");
   // Fire-and-forget usage timestamp (throttled to once a minute).
   if (!token.lastUsedAt || Date.now() - token.lastUsedAt.getTime() > 60_000) {
-    prisma.apiToken.update({ where: { id: token.id }, data: { lastUsedAt: new Date() } }).catch(() => {});
+    prisma.apiToken
+      .update({ where: { id: token.id }, data: { lastUsedAt: new Date() } })
+      .catch(() => {});
   }
-  return { user: token.user, organizationId: token.organizationId, role: membership.role, tokenId: token.id };
+  return {
+    user: token.user,
+    organizationId: token.organizationId,
+    role: membership.role,
+    tokenId: token.id,
+  };
 }
 
 // ---------- Audit ----------
@@ -221,7 +243,10 @@ export function pageParams(url: URL, defaultSize = 25, maxSize = 100): PageParam
   const page = Math.max(1, Number.parseInt(url.searchParams.get("page") ?? "1", 10) || 1);
   const pageSize = Math.min(
     maxSize,
-    Math.max(1, Number.parseInt(url.searchParams.get("pageSize") ?? String(defaultSize), 10) || defaultSize),
+    Math.max(
+      1,
+      Number.parseInt(url.searchParams.get("pageSize") ?? String(defaultSize), 10) || defaultSize,
+    ),
   );
   return { page, pageSize, skip: (page - 1) * pageSize, take: pageSize };
 }

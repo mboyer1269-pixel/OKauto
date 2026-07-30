@@ -82,7 +82,8 @@ export function findField(key: FieldKey, root: ParentNode = document): Editable 
 
 /** Set a value the way a user typing would, so React state stays in sync. */
 export function setNativeValue(el: Editable, value: string): void {
-  const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+  const proto =
+    el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
   const setter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
   setter?.call(el, value);
   el.dispatchEvent(new Event("input", { bubbles: true }));

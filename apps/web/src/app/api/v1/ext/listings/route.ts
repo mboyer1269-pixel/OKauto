@@ -51,7 +51,15 @@ export const GET = handler(async (req) => {
     take: 50,
     include: {
       vehicle: {
-        select: { id: true, year: true, make: true, model: true, trim: true, stockNumber: true, status: true },
+        select: {
+          id: true,
+          year: true,
+          make: true,
+          model: true,
+          trim: true,
+          stockNumber: true,
+          status: true,
+        },
       },
     },
   });

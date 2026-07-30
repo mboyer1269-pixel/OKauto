@@ -101,7 +101,10 @@ export function TeamManager({
       ) : null}
 
       <Card>
-        <CardHeader title="Invite a teammate" subtitle="Share the generated link — it expires in 7 days" />
+        <CardHeader
+          title="Invite a teammate"
+          subtitle="Share the generated link — it expires in 7 days"
+        />
         <form onSubmit={invite} className="flex flex-wrap items-end gap-3 p-5">
           <div className="min-w-56 flex-1">
             <label className="label" htmlFor="invite-email">
@@ -125,9 +128,16 @@ export function TeamManager({
         </form>
         {inviteUrl ? (
           <div className="border-t border-slate-100 px-5 py-3" role="status">
-            <p className="text-sm font-medium text-emerald-700">Invite created — share this link:</p>
+            <p className="text-sm font-medium text-emerald-700">
+              Invite created — share this link:
+            </p>
             <div className="mt-1 flex gap-2">
-              <input className="input font-mono text-xs" readOnly value={inviteUrl} aria-label="Invite link" />
+              <input
+                className="input font-mono text-xs"
+                readOnly
+                value={inviteUrl}
+                aria-label="Invite link"
+              />
               <button
                 className="btn-secondary"
                 onClick={() => navigator.clipboard.writeText(inviteUrl)}
@@ -144,11 +154,16 @@ export function TeamManager({
         <CardHeader title={`Members (${members.length})`} />
         <ul className="divide-y divide-slate-100">
           {members.map((m) => (
-            <li key={m.userId} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3">
+            <li
+              key={m.userId}
+              className="flex flex-wrap items-center justify-between gap-3 px-5 py-3"
+            >
               <div>
                 <p className="text-sm font-medium">
                   {m.name}
-                  {m.userId === currentUserId ? <span className="ml-1 text-xs text-slate-400">(you)</span> : null}
+                  {m.userId === currentUserId ? (
+                    <span className="ml-1 text-xs text-slate-400">(you)</span>
+                  ) : null}
                 </p>
                 <p className="text-xs text-slate-500">
                   {m.email} · joined {dateTime(m.joinedAt)}

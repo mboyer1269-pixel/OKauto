@@ -36,14 +36,22 @@ export function ListingPanel({
     setBusy(true);
     setError(null);
     try {
-      const data = await api<{ duplicateWarning: string | null }>(`/api/v1/orgs/${orgId}/listings`, {
-        method: "POST",
-        json: { vehicleId, force },
-      });
+      const data = await api<{ duplicateWarning: string | null }>(
+        `/api/v1/orgs/${orgId}/listings`,
+        {
+          method: "POST",
+          json: { vehicleId, force },
+        },
+      );
       if (data.duplicateWarning) setWarning(data.duplicateWarning);
       router.refresh();
     } catch (err) {
-      if (err instanceof ClientApiError && err.status === 409 && !force && err.message.includes("force=true")) {
+      if (
+        err instanceof ClientApiError &&
+        err.status === 409 &&
+        !force &&
+        err.message.includes("force=true")
+      ) {
         setWarning(err.message.replace(" Pass force=true to list it anyway.", ""));
       } else {
         setError(err instanceof ClientApiError ? err.message : "Could not start the listing");
@@ -86,7 +94,11 @@ export function ListingPanel({
           <div role="alert" className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
             <p>{warning}</p>
             {!myListing ? (
-              <button className="mt-1 font-semibold underline" onClick={() => start(true)} disabled={busy}>
+              <button
+                className="mt-1 font-semibold underline"
+                onClick={() => start(true)}
+                disabled={busy}
+              >
                 List it anyway
               </button>
             ) : null}
@@ -112,7 +124,11 @@ export function ListingPanel({
               onClick={() => start(false)}
               disabled={busy || vehicleStatus !== "AVAILABLE"}
             >
-              {vehicleStatus !== "AVAILABLE" ? `Vehicle is ${vehicleStatus.toLowerCase()}` : busy ? "Starting…" : "Start listing"}
+              {vehicleStatus !== "AVAILABLE"
+                ? `Vehicle is ${vehicleStatus.toLowerCase()}`
+                : busy
+                  ? "Starting…"
+                  : "Start listing"}
             </button>
           </>
         ) : (
@@ -133,7 +149,11 @@ export function ListingPanel({
             ) : null}
 
             {myListing.status === "DRAFT" ? (
-              <button className="btn-primary w-full" onClick={() => transition("PREPARED")} disabled={busy}>
+              <button
+                className="btn-primary w-full"
+                onClick={() => transition("PREPARED")}
+                disabled={busy}
+              >
                 Mark as prepared
               </button>
             ) : null}
@@ -165,10 +185,15 @@ export function ListingPanel({
               <>
                 {myListing.status === "DELIST_REQUESTED" ? (
                   <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
-                    This vehicle was sold or removed. Delete the post on Facebook, then confirm below.
+                    This vehicle was sold or removed. Delete the post on Facebook, then confirm
+                    below.
                   </p>
                 ) : null}
-                <button className="btn-danger w-full" onClick={() => transition("DELISTED")} disabled={busy}>
+                <button
+                  className="btn-danger w-full"
+                  onClick={() => transition("DELISTED")}
+                  disabled={busy}
+                >
                   I removed it — confirm delisted
                 </button>
               </>

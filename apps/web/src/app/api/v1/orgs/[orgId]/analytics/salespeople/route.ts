@@ -41,7 +41,9 @@ export const GET = handler<Ctx>(async (req, ctx) => {
         prepared: mine.filter((l) => l.status === "PREPARED" || l.status === "DRAFT").length,
         pendingDelist: mine.filter((l) => l.status === "DELIST_REQUESTED").length,
         delisted: mine.filter((l) => l.status === "DELISTED").length,
-        postedLast30: posted.filter((l) => l.postedAt! > new Date(Date.now() - 30 * 24 * 3600 * 1000)).length,
+        postedLast30: posted.filter(
+          (l) => l.postedAt! > new Date(Date.now() - 30 * 24 * 3600 * 1000),
+        ).length,
       },
       avgTimeToPostMinutes:
         timesToPostMs.length > 0

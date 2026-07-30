@@ -12,21 +12,21 @@ capabilities were reproduced independently from public marketing material and th
 
 Verified from the reference product's public site (marketing pages, FAQ, case studies):
 
-| # | Observed capability | Evidence |
-|---|---------------------|----------|
-| R1 | Post/manage/promote dealership inventory on Facebook Marketplace "in minutes" | Hero copy |
-| R2 | Pulls VIN data, photos, and pricing from DMS or dealer website | "Fb Listing Tool" section |
-| R3 | Generates compliant, ready-to-post vehicle descriptions | "Fb Listing Tool" section |
-| R4 | Dealer dashboard with real-time tracking of each salesperson's listings | FAQ "How does it work?" |
-| R5 | Automated alerts notify sales staff when a vehicle is sold, prompting removal | FAQ "How does it work?" |
-| R6 | Salespeople create their own leads / list under their own accounts | Stark Motors testimonial |
-| R7 | Multiple verticals: auto, RV/trailer, marine/powersports, mobile homes, equipment, furniture | Demo intake form |
-| R8 | Roles at customer orgs: Owner, Executive, Management, Employee/Salesperson | Demo intake form |
-| R9 | Chrome-extension-based listing assistance on Marketplace pages | Product category norm (listing tools operate via extension) |
+| #   | Observed capability                                                                          | Evidence                                                    |
+| --- | -------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| R1  | Post/manage/promote dealership inventory on Facebook Marketplace "in minutes"                | Hero copy                                                   |
+| R2  | Pulls VIN data, photos, and pricing from DMS or dealer website                               | "Fb Listing Tool" section                                   |
+| R3  | Generates compliant, ready-to-post vehicle descriptions                                      | "Fb Listing Tool" section                                   |
+| R4  | Dealer dashboard with real-time tracking of each salesperson's listings                      | FAQ "How does it work?"                                     |
+| R5  | Automated alerts notify sales staff when a vehicle is sold, prompting removal                | FAQ "How does it work?"                                     |
+| R6  | Salespeople create their own leads / list under their own accounts                           | Stark Motors testimonial                                    |
+| R7  | Multiple verticals: auto, RV/trailer, marine/powersports, mobile homes, equipment, furniture | Demo intake form                                            |
+| R8  | Roles at customer orgs: Owner, Executive, Management, Employee/Salesperson                   | Demo intake form                                            |
+| R9  | Chrome-extension-based listing assistance on Marketplace pages                               | Product category norm (listing tools operate via extension) |
 
 ### Assumptions (documented per instructions; safest scalable interpretation)
 
-- **A1** — Listing to Marketplace is *human-in-the-loop*: the extension prepares/fills the
+- **A1** — Listing to Marketplace is _human-in-the-loop_: the extension prepares/fills the
   Facebook "create listing" form for a signed-in human, who reviews and clicks Facebook's own
   Publish button. We never auto-submit, never bypass CAPTCHA/anti-bot/auth/rate limits
   (Meta ToS + Chrome Web Store policy compliance).
@@ -43,50 +43,50 @@ Verified from the reference product's public site (marketing pages, FAQ, case st
 
 ## 2. User roles & RBAC
 
-| Role | Scope | Capabilities |
-|------|-------|--------------|
-| `ADMIN` (platform) | global | Manage all orgs/users, view platform audit logs |
-| `OWNER` | org | Everything below + billing settings, delete org, manage managers |
-| `MANAGER` | org | Manage inventory/sources/members(salespeople), view all analytics, settings |
-| `SALESPERSON` | org | View inventory, generate descriptions, prepare/post/delist own listings, own analytics |
+| Role               | Scope  | Capabilities                                                                           |
+| ------------------ | ------ | -------------------------------------------------------------------------------------- |
+| `ADMIN` (platform) | global | Manage all orgs/users, view platform audit logs                                        |
+| `OWNER`            | org    | Everything below + billing settings, delete org, manage managers                       |
+| `MANAGER`          | org    | Manage inventory/sources/members(salespeople), view all analytics, settings            |
+| `SALESPERSON`      | org    | View inventory, generate descriptions, prepare/post/delist own listings, own analytics |
 
 A user may belong to multiple organizations (rooftop groups); each membership carries a role.
 
 ## 3. User stories & acceptance criteria (implemented)
 
 - **US1 Onboarding** — As a dealer principal I can register, create my dealership, and invite
-  staff by email with a role. *AC: register → org created with OWNER membership; invite tokens
-  expire; accepting an invite creates the membership with the invited role.*
+  staff by email with a role. _AC: register → org created with OWNER membership; invite tokens
+  expire; accepting an invite creates the membership with the invited role._
 - **US2 Inventory import** — As a manager I can upload a CSV or configure a feed URL with field
   mapping; vehicles are normalized and de-duplicated by VIN (fallback: stock #, fallback:
-  year/make/model/mileage fingerprint). *AC: re-importing the same file creates no duplicates;
-  invalid rows are reported per-row, valid rows still import.*
+  year/make/model/mileage fingerprint). _AC: re-importing the same file creates no duplicates;
+  invalid rows are reported per-row, valid rows still import._
 - **US3 VIN decode** — As a user I can enter a VIN and get year/make/model decoded (NHTSA vPIC
-  when online, offline WMI/year-char fallback otherwise). *AC: check digit validated; invalid
-  VINs rejected with a clear error.*
+  when online, offline WMI/year-char fallback otherwise). _AC: check digit validated; invalid
+  VINs rejected with a clear error._
 - **US4 Descriptions** — As a salesperson I can generate a compliant Marketplace description
-  per vehicle in one click, edit it, and save it. *AC: template output contains no banned
+  per vehicle in one click, edit it, and save it. _AC: template output contains no banned
   claims, always includes disclaimers configured by the org; AI path falls back to template on
-  provider failure.*
+  provider failure._
 - **US5 Listing workflow** — As a salesperson I open Facebook Marketplace's vehicle listing
   form; the extension shows my assigned/available inventory, fills form fields on my explicit
   click, copies photos/description to clipboard, and I publish manually. The listing is
-  recorded with my identity, timestamps, and the Marketplace URL I confirm. *AC: no automatic
-  submission; every state change is an auditable `ListingEvent`.*
+  recorded with my identity, timestamps, and the Marketplace URL I confirm. _AC: no automatic
+  submission; every state change is an auditable `ListingEvent`._
 - **US6 Sold alerts** — As a salesperson with an active listing I get a notification when the
-  vehicle is detected sold or its price changes, telling me to delist/update. *AC: sold
+  vehicle is detected sold or its price changes, telling me to delist/update. _AC: sold
   detection requires `soldDetectionThreshold` consecutive missing syncs; price change creates
-  a `PRICE_CHANGE` event and notification.*
+  a `PRICE_CHANGE` event and notification._
 - **US7 Dealer dashboard** — As an owner/manager I see inventory counts by status, sync health,
-  listings per salesperson, time-to-list, and recent activity. *AC: analytics endpoints return
-  per-user aggregates; dashboard renders them.*
+  listings per salesperson, time-to-list, and recent activity. _AC: analytics endpoints return
+  per-user aggregates; dashboard renders them._
 - **US8 Audit & admin** — As an owner I can see who did what (imports, edits, listings,
-  role changes) with timestamps. *AC: every mutating API writes an `AuditLog` row.*
+  role changes) with timestamps. _AC: every mutating API writes an `AuditLog` row._
 - **US9 Bulk actions** — As a manager I can select multiple vehicles and archive / mark sold /
-  generate descriptions in bulk. *AC: partial failures reported per-vehicle.*
+  generate descriptions in bulk. _AC: partial failures reported per-vehicle._
 - **US10 Recovery** — As a user I see actionable error states (sync failures with cause, retry
-  buttons, extension "selector drift" fallback to copy-mode). *AC: a failed sync stores the
-  error on the `SyncRun` and surfaces it in Sync Health.*
+  buttons, extension "selector drift" fallback to copy-mode). _AC: a failed sync stores the
+  error on the `SyncRun` and surfaces it in Sync Health._
 
 ## 4. Architecture
 
@@ -135,25 +135,25 @@ packages/
 
 ## 6. API contracts (REST, `/api/v1`, JSON; errors: `{ error: { code, message, details? } }`)
 
-| Area | Endpoints |
-|------|-----------|
-| Auth | `POST /auth/register`, `POST /auth/login`, `POST /auth/logout`, `GET /auth/me` |
-| Orgs | `POST /orgs`, `GET /orgs`, `GET/PATCH /orgs/:orgId`, `GET /orgs/:orgId/members`, `PATCH/DELETE /orgs/:orgId/members/:userId` |
-| Invites | `POST /orgs/:orgId/invitations`, `GET /orgs/:orgId/invitations`, `DELETE .../:id`, `POST /invitations/accept` |
-| Tokens | `POST/GET /orgs/:orgId/tokens`, `DELETE /orgs/:orgId/tokens/:id` |
-| Vehicles | `GET/POST /orgs/:orgId/vehicles` (filter/search/sort/paginate), `GET/PATCH/DELETE .../:vehicleId`, `POST .../import` (CSV multipart), `POST .../bulk` (archive/sold/describe), `POST .../:vehicleId/describe`, `POST /vin/decode` |
-| Sources | `GET/POST /orgs/:orgId/sources`, `PATCH/DELETE .../:id`, `POST .../:id/sync` (manual trigger), `GET .../:id/runs` |
-| Listings | `GET/POST /orgs/:orgId/listings`, `GET/PATCH .../:id` (status transitions), `GET .../:id/events` |
-| Analytics | `GET /orgs/:orgId/analytics/overview`, `GET /orgs/:orgId/analytics/salespeople` |
-| Notifications | `GET /notifications`, `POST /notifications/:id/read`, `POST /notifications/read-all` |
-| Audit | `GET /orgs/:orgId/audit-logs` |
-| Extension | `GET /ext/bootstrap` (me+org+settings), `GET /ext/vehicles?listable=1`, `POST /ext/listings`, `POST /ext/listings/:id/events`, `POST /ext/listings/:id/posted` |
-| Ops | `GET /health` |
+| Area          | Endpoints                                                                                                                                                                                                                         |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Auth          | `POST /auth/register`, `POST /auth/login`, `POST /auth/logout`, `GET /auth/me`                                                                                                                                                    |
+| Orgs          | `POST /orgs`, `GET /orgs`, `GET/PATCH /orgs/:orgId`, `GET /orgs/:orgId/members`, `PATCH/DELETE /orgs/:orgId/members/:userId`                                                                                                      |
+| Invites       | `POST /orgs/:orgId/invitations`, `GET /orgs/:orgId/invitations`, `DELETE .../:id`, `POST /invitations/accept`                                                                                                                     |
+| Tokens        | `POST/GET /orgs/:orgId/tokens`, `DELETE /orgs/:orgId/tokens/:id`                                                                                                                                                                  |
+| Vehicles      | `GET/POST /orgs/:orgId/vehicles` (filter/search/sort/paginate), `GET/PATCH/DELETE .../:vehicleId`, `POST .../import` (CSV multipart), `POST .../bulk` (archive/sold/describe), `POST .../:vehicleId/describe`, `POST /vin/decode` |
+| Sources       | `GET/POST /orgs/:orgId/sources`, `PATCH/DELETE .../:id`, `POST .../:id/sync` (manual trigger), `GET .../:id/runs`                                                                                                                 |
+| Listings      | `GET/POST /orgs/:orgId/listings`, `GET/PATCH .../:id` (status transitions), `GET .../:id/events`                                                                                                                                  |
+| Analytics     | `GET /orgs/:orgId/analytics/overview`, `GET /orgs/:orgId/analytics/salespeople`                                                                                                                                                   |
+| Notifications | `GET /notifications`, `POST /notifications/:id/read`, `POST /notifications/read-all`                                                                                                                                              |
+| Audit         | `GET /orgs/:orgId/audit-logs`                                                                                                                                                                                                     |
+| Extension     | `GET /ext/bootstrap` (me+org+settings), `GET /ext/vehicles?listable=1`, `POST /ext/listings`, `POST /ext/listings/:id/events`, `POST /ext/listings/:id/posted`                                                                    |
+| Ops           | `GET /health`                                                                                                                                                                                                                     |
 
 ## 7. Improvements over the reference
 
 1. **Resilient selector adapters** with versioned fallback chains + copy-mode degradation.
-2. **Duplicate prevention** at import (VIN/stock/fingerprint) *and* at listing time (warns if
+2. **Duplicate prevention** at import (VIN/stock/fingerprint) _and_ at listing time (warns if
    an active listing already exists for the vehicle by any teammate).
 3. **Sync health page**: per-source run history, error causes, retry button, staleness badges.
 4. **Bulk actions** with per-row result reporting.

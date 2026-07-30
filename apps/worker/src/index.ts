@@ -46,7 +46,9 @@ async function runJob(name: JobName): Promise<void> {
     const result = await JOBS[name]();
     log("info", `job ${name} finished`, { result });
   } catch (err) {
-    log("error", `job ${name} crashed`, { error: err instanceof Error ? err.message : String(err) });
+    log("error", `job ${name} crashed`, {
+      error: err instanceof Error ? err.message : String(err),
+    });
   }
 }
 
@@ -67,7 +69,9 @@ async function startWithBullMq(redisUrl: string): Promise<void> {
     },
     { connection, concurrency: 2 },
   );
-  worker.on("failed", (job, err) => log("error", "bullmq job failed", { job: job?.name, error: err.message }));
+  worker.on("failed", (job, err) =>
+    log("error", "bullmq job failed", { job: job?.name, error: err.message }),
+  );
   log("info", "worker started (BullMQ mode)", { tickMinutes: TICK_MINUTES });
 
   const shutdown = async () => {

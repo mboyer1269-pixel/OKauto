@@ -1,7 +1,16 @@
 import { canManageRole, ORG_ROLES } from "@lotpilot/core";
 import { prisma } from "@lotpilot/db";
 import { z } from "zod";
-import { audit, badRequest, forbidden, handler, json, notFound, parseBody, requireOrgRole } from "@/server/api";
+import {
+  audit,
+  badRequest,
+  forbidden,
+  handler,
+  json,
+  notFound,
+  parseBody,
+  requireOrgRole,
+} from "@/server/api";
 
 type Ctx = { params: Promise<{ orgId: string; userId: string }> };
 
@@ -16,11 +25,16 @@ export const PATCH = handler<Ctx>(async (req, ctx) => {
     where: { userId_organizationId: { userId, organizationId: orgId } },
   });
   if (!target) throw notFound("Member not found");
-  if (!canManageRole(actorMembership.role, target.role) || !canManageRole(actorMembership.role, body.role)) {
+  if (
+    !canManageRole(actorMembership.role, target.role) ||
+    !canManageRole(actorMembership.role, body.role)
+  ) {
     throw forbidden("You cannot manage members at this role level");
   }
   if (target.role === "OWNER" && body.role !== "OWNER") {
-    const owners = await prisma.membership.count({ where: { organizationId: orgId, role: "OWNER" } });
+    const owners = await prisma.membership.count({
+      where: { organizationId: orgId, role: "OWNER" },
+    });
     if (owners <= 1) throw badRequest("An organization must keep at least one owner");
   }
 
@@ -51,7 +65,9 @@ export const DELETE = handler<Ctx>(async (req, ctx) => {
     throw forbidden("You cannot remove members at this role level");
   }
   if (target.role === "OWNER") {
-    const owners = await prisma.membership.count({ where: { organizationId: orgId, role: "OWNER" } });
+    const owners = await prisma.membership.count({
+      where: { organizationId: orgId, role: "OWNER" },
+    });
     if (owners <= 1) throw badRequest("An organization must keep at least one owner");
   }
 

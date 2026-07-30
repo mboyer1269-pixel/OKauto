@@ -31,7 +31,15 @@ export function normalizeCondition(raw: string | null | undefined): VehicleCondi
   if (!raw) return "USED";
   const c = raw.trim().toLowerCase();
   if (["new"].includes(c)) return "NEW";
-  if (["cpo", "certified", "certified pre-owned", "certified pre owned", "certified_pre_owned"].includes(c)) {
+  if (
+    [
+      "cpo",
+      "certified",
+      "certified pre-owned",
+      "certified pre owned",
+      "certified_pre_owned",
+    ].includes(c)
+  ) {
     return "CERTIFIED_PRE_OWNED";
   }
   return "USED";
@@ -65,7 +73,9 @@ export interface NormalizedVehicle extends VehicleInput {
  * Normalize a raw (already field-mapped) record. Non-fatal problems (bad VIN,
  * unparseable price) become issues; the record is still usable if make/model exist.
  */
-export function normalizeVehicle(raw: Partial<VehicleInput> & Record<string, unknown>): NormalizedVehicle | { error: string } {
+export function normalizeVehicle(
+  raw: Partial<VehicleInput> & Record<string, unknown>,
+): NormalizedVehicle | { error: string } {
   const issues: NormalizationIssue[] = [];
 
   const make = typeof raw.make === "string" ? raw.make.trim() : "";
@@ -78,7 +88,10 @@ export function normalizeVehicle(raw: Partial<VehicleInput> & Record<string, unk
     if (isValidVin(candidate)) {
       vin = candidate;
     } else {
-      issues.push({ field: "vin", message: `Invalid VIN "${candidate}" (check digit or format); stored without VIN` });
+      issues.push({
+        field: "vin",
+        message: `Invalid VIN "${candidate}" (check digit or format); stored without VIN`,
+      });
     }
   }
 
@@ -109,7 +122,9 @@ export function normalizeVehicle(raw: Partial<VehicleInput> & Record<string, unk
   };
 
   const photoUrls = Array.isArray(raw.photoUrls)
-    ? raw.photoUrls.filter((u): u is string => typeof u === "string" && /^https?:\/\//.test(u)).slice(0, 50)
+    ? raw.photoUrls
+        .filter((u): u is string => typeof u === "string" && /^https?:\/\//.test(u))
+        .slice(0, 50)
     : [];
 
   return {

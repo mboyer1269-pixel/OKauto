@@ -24,7 +24,10 @@ export async function syncDueSources(): Promise<{ synced: number; failed: number
       const outcome = await runSourceSync(prisma, source, records, { trigger: "schedule" });
       if (outcome.status === "SUCCESS") {
         synced++;
-        log("info", "source synced", { sourceId: source.id, stats: { ...outcome.stats, errors: outcome.stats.errors.length } });
+        log("info", "source synced", {
+          sourceId: source.id,
+          stats: { ...outcome.stats, errors: outcome.stats.errors.length },
+        });
       } else {
         failed++;
         log("warn", "source sync failed", { sourceId: source.id, error: outcome.error });

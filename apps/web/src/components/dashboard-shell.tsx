@@ -87,7 +87,9 @@ export function DashboardShell({
                 onClick={() => setSidebarOpen(false)}
                 aria-current={active ? "page" : undefined}
                 className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                  active ? "bg-brand-800 text-white" : "text-brand-200 hover:bg-brand-900 hover:text-white"
+                  active
+                    ? "bg-brand-800 text-white"
+                    : "text-brand-200 hover:bg-brand-900 hover:text-white"
                 }`}
               >
                 <span aria-hidden className="w-5 text-center">
@@ -117,7 +119,10 @@ export function DashboardShell({
         <p className="truncate text-xs text-brand-300">
           {user.email} · {role.toLowerCase()}
         </p>
-        <button onClick={logout} className="mt-2 text-xs font-semibold text-brand-300 hover:text-white">
+        <button
+          onClick={logout}
+          className="mt-2 text-xs font-semibold text-brand-300 hover:text-white"
+        >
           Sign out
         </button>
       </div>

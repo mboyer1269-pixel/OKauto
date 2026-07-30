@@ -11,14 +11,22 @@ const DEFAULT_SETTINGS: Settings = { apiBaseUrl: "http://localhost:3000", token:
 async function getSettings(): Promise<Settings> {
   const stored = await chrome.storage.local.get(["apiBaseUrl", "token"]);
   return {
-    apiBaseUrl: typeof stored.apiBaseUrl === "string" && stored.apiBaseUrl !== "" ? stored.apiBaseUrl : DEFAULT_SETTINGS.apiBaseUrl,
+    apiBaseUrl:
+      typeof stored.apiBaseUrl === "string" && stored.apiBaseUrl !== ""
+        ? stored.apiBaseUrl
+        : DEFAULT_SETTINGS.apiBaseUrl,
     token: typeof stored.token === "string" ? stored.token : "",
   };
 }
 
 async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<BgResponse<T>> {
   const settings = await getSettings();
-  if (!settings.token) return { ok: false, status: 401, error: "Not signed in. Open the LotPilot popup and add your API token." };
+  if (!settings.token)
+    return {
+      ok: false,
+      status: 401,
+      error: "Not signed in. Open the LotPilot popup and add your API token.",
+    };
   try {
     const res = await fetch(`${settings.apiBaseUrl.replace(/\/$/, "")}${path}`, {
       ...init,
@@ -33,12 +41,18 @@ async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<BgResp
       return {
         ok: false,
         status: res.status,
-        error: (data as { error?: { message?: string } })?.error?.message ?? `Request failed (${res.status})`,
+        error:
+          (data as { error?: { message?: string } })?.error?.message ??
+          `Request failed (${res.status})`,
       };
     }
     return { ok: true, data: data as T };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? `Cannot reach LotPilot server: ${err.message}` : "Network error" };
+    return {
+      ok: false,
+      error:
+        err instanceof Error ? `Cannot reach LotPilot server: ${err.message}` : "Network error",
+    };
   }
 }
 
@@ -47,7 +61,10 @@ async function handle(request: BgRequest): Promise<BgResponse> {
     case "getSettings": {
       const settings = await getSettings();
       // Never expose the raw token to content-script contexts beyond presence.
-      return { ok: true, data: { apiBaseUrl: settings.apiBaseUrl, hasToken: settings.token !== "" } };
+      return {
+        ok: true,
+        data: { apiBaseUrl: settings.apiBaseUrl, hasToken: settings.token !== "" },
+      };
     }
     case "saveSettings": {
       await chrome.storage.local.set({

@@ -96,7 +96,8 @@ export default async function ListingsPage({
                     {vehicleName(l.vehicle)}
                   </Link>
                   <p className="text-xs text-slate-500">
-                    {money(l.priceSnapshotCents)} · by {l.user.name} · updated {timeAgo(l.updatedAt)}
+                    {money(l.priceSnapshotCents)} · by {l.user.name} · updated{" "}
+                    {timeAgo(l.updatedAt)}
                   </p>
                 </div>
                 {l.externalUrl ? (
@@ -126,6 +127,8 @@ function makeHrefBase(orgId: string, status: string): string {
 
 function pill(active: boolean): string {
   return `rounded-full px-3 py-1 text-xs font-medium capitalize ${
-    active ? "bg-brand-600 text-white" : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
+    active
+      ? "bg-brand-600 text-white"
+      : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
   }`;
 }

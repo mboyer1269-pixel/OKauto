@@ -25,7 +25,8 @@ export const POST = handler<Ctx>(async (req, ctx) => {
     if (file.size > MAX_CSV_BYTES) throw badRequest("CSV exceeds the 10 MB limit");
     csvText = await file.text();
     const providedName = form.get("sourceName");
-    if (typeof providedName === "string" && providedName.trim() !== "") sourceName = providedName.trim();
+    if (typeof providedName === "string" && providedName.trim() !== "")
+      sourceName = providedName.trim();
   } else if (contentType.includes("text/csv") || contentType.includes("text/plain")) {
     csvText = await req.text();
     if (csvText.length > MAX_CSV_BYTES) throw badRequest("CSV exceeds the 10 MB limit");
@@ -62,7 +63,11 @@ export const POST = handler<Ctx>(async (req, ctx) => {
     action: "vehicles.import_csv",
     entityType: "sync_run",
     entityId: outcome.runId,
-    data: { rows: records.length, headers, stats: { ...outcome.stats, errors: outcome.stats.errors.length } },
+    data: {
+      rows: records.length,
+      headers,
+      stats: { ...outcome.stats, errors: outcome.stats.errors.length },
+    },
   });
 
   return json(

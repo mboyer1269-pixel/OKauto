@@ -12,36 +12,50 @@ export default async function OverviewPage({ params }: { params: Promise<{ orgId
   const isManager = role === "OWNER" || role === "MANAGER";
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 3600 * 1000);
 
-  const [available, sold30, activeListings, pendingDelists, erroredSources, myListings, recentVehicles, recentAudit] =
-    await Promise.all([
-      prisma.vehicle.count({ where: { organizationId: orgId, status: "AVAILABLE" } }),
-      prisma.vehicle.count({ where: { organizationId: orgId, status: "SOLD", soldAt: { gte: thirtyDaysAgo } } }),
-      prisma.listing.count({ where: { organizationId: orgId, status: "POSTED" } }),
-      prisma.listing.count({
-        where: { organizationId: orgId, status: "DELIST_REQUESTED", ...(isManager ? {} : { userId: user.id }) },
-      }),
-      prisma.inventorySource.count({ where: { organizationId: orgId, status: "ERROR" } }),
-      prisma.listing.findMany({
-        where: { organizationId: orgId, userId: user.id },
-        orderBy: { updatedAt: "desc" },
-        take: 5,
-        include: { vehicle: true },
-      }),
-      prisma.vehicle.findMany({
-        where: { organizationId: orgId, status: "AVAILABLE" },
-        orderBy: { createdAt: "desc" },
-        take: 6,
-        include: { photos: { orderBy: { position: "asc" }, take: 1 } },
-      }),
-      isManager
-        ? prisma.auditLog.findMany({
-            where: { organizationId: orgId },
-            orderBy: { createdAt: "desc" },
-            take: 8,
-            include: { user: { select: { name: true } } },
-          })
-        : Promise.resolve([]),
-    ]);
+  const [
+    available,
+    sold30,
+    activeListings,
+    pendingDelists,
+    erroredSources,
+    myListings,
+    recentVehicles,
+    recentAudit,
+  ] = await Promise.all([
+    prisma.vehicle.count({ where: { organizationId: orgId, status: "AVAILABLE" } }),
+    prisma.vehicle.count({
+      where: { organizationId: orgId, status: "SOLD", soldAt: { gte: thirtyDaysAgo } },
+    }),
+    prisma.listing.count({ where: { organizationId: orgId, status: "POSTED" } }),
+    prisma.listing.count({
+      where: {
+        organizationId: orgId,
+        status: "DELIST_REQUESTED",
+        ...(isManager ? {} : { userId: user.id }),
+      },
+    }),
+    prisma.inventorySource.count({ where: { organizationId: orgId, status: "ERROR" } }),
+    prisma.listing.findMany({
+      where: { organizationId: orgId, userId: user.id },
+      orderBy: { updatedAt: "desc" },
+      take: 5,
+      include: { vehicle: true },
+    }),
+    prisma.vehicle.findMany({
+      where: { organizationId: orgId, status: "AVAILABLE" },
+      orderBy: { createdAt: "desc" },
+      take: 6,
+      include: { photos: { orderBy: { position: "asc" }, take: 1 } },
+    }),
+    isManager
+      ? prisma.auditLog.findMany({
+          where: { organizationId: orgId },
+          orderBy: { createdAt: "desc" },
+          take: 8,
+          include: { user: { select: { name: true } } },
+        })
+      : Promise.resolve([]),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -65,7 +79,10 @@ export default async function OverviewPage({ params }: { params: Promise<{ orgId
           </p>
           <p className="mt-0.5 text-sm text-red-700">
             The vehicles were sold or removed from inventory.{" "}
-            <Link className="font-semibold underline" href={`/o/${orgId}/listings?status=DELIST_REQUESTED`}>
+            <Link
+              className="font-semibold underline"
+              href={`/o/${orgId}/listings?status=DELIST_REQUESTED`}
+            >
               Review and delist
             </Link>
           </p>
@@ -98,7 +115,10 @@ export default async function OverviewPage({ params }: { params: Promise<{ orgId
           <CardHeader
             title="My recent listings"
             action={
-              <Link className="text-sm font-semibold text-brand-600 hover:underline" href={`/o/${orgId}/listings`}>
+              <Link
+                className="text-sm font-semibold text-brand-600 hover:underline"
+                href={`/o/${orgId}/listings`}
+              >
                 View all
               </Link>
             }
@@ -134,7 +154,10 @@ export default async function OverviewPage({ params }: { params: Promise<{ orgId
           <CardHeader
             title="Newest inventory"
             action={
-              <Link className="text-sm font-semibold text-brand-600 hover:underline" href={`/o/${orgId}/inventory`}>
+              <Link
+                className="text-sm font-semibold text-brand-600 hover:underline"
+                href={`/o/${orgId}/inventory`}
+              >
                 View all
               </Link>
             }
@@ -181,14 +204,20 @@ export default async function OverviewPage({ params }: { params: Promise<{ orgId
           <CardHeader
             title="Recent activity"
             action={
-              <Link className="text-sm font-semibold text-brand-600 hover:underline" href={`/o/${orgId}/audit`}>
+              <Link
+                className="text-sm font-semibold text-brand-600 hover:underline"
+                href={`/o/${orgId}/audit`}
+              >
                 Full audit log
               </Link>
             }
           />
           <ul className="divide-y divide-slate-100">
             {recentAudit.map((log) => (
-              <li key={log.id} className="flex items-center justify-between gap-3 px-5 py-2.5 text-sm">
+              <li
+                key={log.id}
+                className="flex items-center justify-between gap-3 px-5 py-2.5 text-sm"
+              >
                 <span className="min-w-0 truncate">
                   <span className="font-medium">{log.user?.name ?? "System"}</span>{" "}
                   <span className="text-slate-500">{log.action}</span>

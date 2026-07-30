@@ -64,7 +64,9 @@ describe("scrubBannedPhrases", () => {
   });
 
   it("keeps 'certified' for CPO vehicles", () => {
-    expect(scrubBannedPhrases("Certified pre-owned.", "CERTIFIED_PRE_OWNED")).toContain("Certified");
+    expect(scrubBannedPhrases("Certified pre-owned.", "CERTIFIED_PRE_OWNED")).toContain(
+      "Certified",
+    );
   });
 });
 
@@ -86,13 +88,18 @@ describe("generateDescription (AI path)", () => {
   });
 
   it("falls back to template on provider failure", async () => {
-    const fetchImpl = (async () => new Response("oops", { status: 500 })) as unknown as typeof fetch;
-    const result = await generateDescription(vehicle, {}, {
-      apiKey: "k",
-      model: "m",
-      baseUrl: "https://ai.example.com/v1",
-      fetchImpl,
-    });
+    const fetchImpl = (async () =>
+      new Response("oops", { status: 500 })) as unknown as typeof fetch;
+    const result = await generateDescription(
+      vehicle,
+      {},
+      {
+        apiKey: "k",
+        model: "m",
+        baseUrl: "https://ai.example.com/v1",
+        fetchImpl,
+      },
+    );
     expect(result.source).toBe("template");
   });
 
@@ -102,12 +109,16 @@ describe("generateDescription (AI path)", () => {
         JSON.stringify({ choices: [{ message: { content: "Guaranteed no accidents!" } }] }),
         { status: 200 },
       )) as unknown as typeof fetch;
-    const result = await generateDescription(vehicle, {}, {
-      apiKey: "k",
-      model: "m",
-      baseUrl: "https://ai.example.com/v1",
-      fetchImpl,
-    });
+    const result = await generateDescription(
+      vehicle,
+      {},
+      {
+        apiKey: "k",
+        model: "m",
+        baseUrl: "https://ai.example.com/v1",
+        fetchImpl,
+      },
+    );
     expect(/guaranteed/i.test(result.text)).toBe(false);
   });
 });
@@ -115,6 +126,6 @@ describe("generateDescription (AI path)", () => {
 describe("vehicleTitle", () => {
   it("joins present parts", () => {
     expect(vehicleTitle(vehicle)).toBe("2021 Toyota RAV4 XLE");
-    expect(vehicleTitle({ make: "Ford", model: "F-150" })).toBe("Ford F-150");
+    expect(vehicleTitle({ make: "Ford", model: "F-150", condition: "USED" })).toBe("Ford F-150");
   });
 });

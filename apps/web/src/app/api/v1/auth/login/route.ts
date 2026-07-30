@@ -21,7 +21,12 @@ export const POST = handler(async (req) => {
   const valid = await bcrypt.compare(body.password, hash);
   if (!user || !valid) throw unauthorized("Invalid email or password");
 
-  await audit(req, { userId: user.id, action: "user.login", entityType: "user", entityId: user.id });
+  await audit(req, {
+    userId: user.id,
+    action: "user.login",
+    entityType: "user",
+    entityId: user.id,
+  });
   const token = await createSessionToken({ userId: user.id, email: user.email });
   return json(
     { user: { id: user.id, name: user.name, email: user.email, platformRole: user.platformRole } },

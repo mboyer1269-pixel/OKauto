@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { mapBodyStyle, mapCondition, mapFuelType, mapTransmission, toMarketplaceFields } from "../src/marketplace.js";
+import {
+  mapBodyStyle,
+  mapCondition,
+  mapFuelType,
+  mapTransmission,
+  toMarketplaceFields,
+} from "../src/marketplace.js";
 import { canManageRole, roleAtLeast } from "../src/rbac.js";
 
 describe("marketplace field mapping", () => {

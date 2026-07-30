@@ -81,11 +81,16 @@ export default async function AdminPage() {
         <CardHeader title="Recent platform activity" />
         <ul className="divide-y divide-slate-100">
           {recentAudit.map((log) => (
-            <li key={log.id} className="flex items-center justify-between gap-3 px-5 py-2.5 text-sm">
+            <li
+              key={log.id}
+              className="flex items-center justify-between gap-3 px-5 py-2.5 text-sm"
+            >
               <span className="min-w-0 truncate">
                 <span className="font-medium">{log.user?.name ?? "System"}</span>{" "}
                 <span className="text-slate-500">{log.action}</span>
-                {log.organization ? <span className="text-slate-400"> · {log.organization.name}</span> : null}
+                {log.organization ? (
+                  <span className="text-slate-400"> · {log.organization.name}</span>
+                ) : null}
               </span>
               <span className="shrink-0 text-xs text-slate-400">{dateTime(log.createdAt)}</span>
             </li>

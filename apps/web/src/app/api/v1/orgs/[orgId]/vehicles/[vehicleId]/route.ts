@@ -27,7 +27,9 @@ export const PATCH = handler<Ctx>(async (req, ctx) => {
   const { orgId, vehicleId } = await ctx.params;
   const { user, membership } = await requireOrgRole(req, orgId);
 
-  const existing = await prisma.vehicle.findFirst({ where: { id: vehicleId, organizationId: orgId } });
+  const existing = await prisma.vehicle.findFirst({
+    where: { id: vehicleId, organizationId: orgId },
+  });
   if (!existing) throw notFound("Vehicle not found");
 
   const raw = (await req.json().catch(() => {
@@ -57,7 +59,10 @@ export const PATCH = handler<Ctx>(async (req, ctx) => {
     if ("error" in merged) throw badRequest(merged.error);
     const { issues: _issues, photoUrls, sourceRef: _ref, description: _desc, ...fields } = merged;
     Object.assign(data, fields);
-    if (editable.data.priceCents !== undefined && editable.data.priceCents !== existing.priceCents) {
+    if (
+      editable.data.priceCents !== undefined &&
+      editable.data.priceCents !== existing.priceCents
+    ) {
       data.previousPriceCents = existing.priceCents;
       if (existing.priceCents != null && editable.data.priceCents != null) {
         await prisma.priceChange.create({
@@ -75,7 +80,10 @@ export const PATCH = handler<Ctx>(async (req, ctx) => {
         data: photoUrls.map((url, position) => ({ vehicleId, url, position })),
       });
     }
-    if (typeof raw.status === "string" && ["AVAILABLE", "PENDING", "SOLD", "ARCHIVED"].includes(raw.status)) {
+    if (
+      typeof raw.status === "string" &&
+      ["AVAILABLE", "PENDING", "SOLD", "ARCHIVED"].includes(raw.status)
+    ) {
       data.status = raw.status;
       data.soldAt = raw.status === "SOLD" ? new Date() : null;
       if (raw.status === "SOLD") {
@@ -124,7 +132,9 @@ export const PATCH = handler<Ctx>(async (req, ctx) => {
 export const DELETE = handler<Ctx>(async (req, ctx) => {
   const { orgId, vehicleId } = await ctx.params;
   const { user } = await requireOrgRole(req, orgId, "MANAGER");
-  const existing = await prisma.vehicle.findFirst({ where: { id: vehicleId, organizationId: orgId } });
+  const existing = await prisma.vehicle.findFirst({
+    where: { id: vehicleId, organizationId: orgId },
+  });
   if (!existing) throw notFound("Vehicle not found");
   // Soft delete: archive rather than destroy listing history.
   await prisma.vehicle.update({ where: { id: vehicleId }, data: { status: "ARCHIVED" } });

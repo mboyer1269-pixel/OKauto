@@ -42,10 +42,10 @@ export function SourcesManager({ orgId, sources }: { orgId: string; sources: Sou
     setError(null);
     setNotice(null);
     try {
-      const data = await api<{ status: string; stats: { created: number; updated: number; markedSold: number } }>(
-        `/api/v1/orgs/${orgId}/sources/${id}/sync`,
-        { method: "POST", json: {} },
-      );
+      const data = await api<{
+        status: string;
+        stats: { created: number; updated: number; markedSold: number };
+      }>(`/api/v1/orgs/${orgId}/sources/${id}/sync`, { method: "POST", json: {} });
       setNotice(
         `Sync ${data.status.toLowerCase()}: ${data.stats.created} created, ${data.stats.updated} updated, ${data.stats.markedSold} marked sold.`,
       );
@@ -131,7 +131,10 @@ export function SourcesManager({ orgId, sources }: { orgId: string; sources: Sou
 
       {showForm ? (
         <Card>
-          <CardHeader title="New feed source" subtitle="Poll a JSON or CSV inventory feed on a schedule" />
+          <CardHeader
+            title="New feed source"
+            subtitle="Poll a JSON or CSV inventory feed on a schedule"
+          />
           <form onSubmit={createSource} className="grid gap-4 p-5 sm:grid-cols-2">
             <div>
               <label className="label" htmlFor="src-name">
@@ -152,7 +155,14 @@ export function SourcesManager({ orgId, sources }: { orgId: string; sources: Sou
               <label className="label" htmlFor="src-url">
                 Feed URL
               </label>
-              <input className="input" id="src-url" name="url" type="url" required placeholder="https://…" />
+              <input
+                className="input"
+                id="src-url"
+                name="url"
+                type="url"
+                required
+                placeholder="https://…"
+              />
             </div>
             <div>
               <label className="label" htmlFor="src-schedule">
@@ -211,18 +221,29 @@ export function SourcesManager({ orgId, sources }: { orgId: string; sources: Sou
                   </button>
                 ) : null}
                 {source.type !== "CSV_UPLOAD" && source.type !== "MANUAL" ? (
-                  <button className="btn-secondary" onClick={() => togglePause(source)} disabled={busyId === source.id}>
+                  <button
+                    className="btn-secondary"
+                    onClick={() => togglePause(source)}
+                    disabled={busyId === source.id}
+                  >
                     {source.status === "PAUSED" ? "Resume" : "Pause"}
                   </button>
                 ) : null}
-                <button className="btn-secondary" onClick={() => remove(source)} disabled={busyId === source.id}>
+                <button
+                  className="btn-secondary"
+                  onClick={() => remove(source)}
+                  disabled={busyId === source.id}
+                >
                   Delete
                 </button>
               </div>
             }
           />
           {source.lastError ? (
-            <p role="alert" className="border-b border-red-100 bg-red-50 px-5 py-2.5 text-sm text-red-700">
+            <p
+              role="alert"
+              className="border-b border-red-100 bg-red-50 px-5 py-2.5 text-sm text-red-700"
+            >
               Last error: {source.lastError}
             </p>
           ) : null}
@@ -255,10 +276,14 @@ export function SourcesManager({ orgId, sources }: { orgId: string; sources: Sou
                         <td className="px-3 py-2.5">{stats.created ?? 0}</td>
                         <td className="px-3 py-2.5">{stats.updated ?? 0}</td>
                         <td className="px-3 py-2.5">{stats.markedSold ?? 0}</td>
-                        <td className="px-3 py-2.5">{Array.isArray(stats.errors) ? stats.errors.length : 0}</td>
+                        <td className="px-3 py-2.5">
+                          {Array.isArray(stats.errors) ? stats.errors.length : 0}
+                        </td>
                         <td className="px-3 py-2.5">
                           <StatusBadge status={run.status} />
-                          {run.error ? <p className="mt-0.5 text-xs text-red-600">{run.error}</p> : null}
+                          {run.error ? (
+                            <p className="mt-0.5 text-xs text-red-600">{run.error}</p>
+                          ) : null}
                         </td>
                       </tr>
                     );

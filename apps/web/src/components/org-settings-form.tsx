@@ -85,19 +85,36 @@ export function OrgSettingsForm({ orgId, initial }: { orgId: string; initial: Se
             <label className="label" htmlFor="s-name">
               Dealership name
             </label>
-            <input className="input" id="s-name" value={fields.name} onChange={(e) => set("name", e.target.value)} required />
+            <input
+              className="input"
+              id="s-name"
+              value={fields.name}
+              onChange={(e) => set("name", e.target.value)}
+              required
+            />
           </div>
           <div>
             <label className="label" htmlFor="s-website">
               Website
             </label>
-            <input className="input" id="s-website" type="url" value={fields.website} onChange={(e) => set("website", e.target.value)} />
+            <input
+              className="input"
+              id="s-website"
+              type="url"
+              value={fields.website}
+              onChange={(e) => set("website", e.target.value)}
+            />
           </div>
           <div>
             <label className="label" htmlFor="s-phone">
               Phone
             </label>
-            <input className="input" id="s-phone" value={fields.phone} onChange={(e) => set("phone", e.target.value)} />
+            <input
+              className="input"
+              id="s-phone"
+              value={fields.phone}
+              onChange={(e) => set("phone", e.target.value)}
+            />
           </div>
           <div>
             <label className="label" htmlFor="s-location">
@@ -115,7 +132,12 @@ export function OrgSettingsForm({ orgId, initial }: { orgId: string; initial: Se
             <label className="label" htmlFor="s-tone">
               Default description tone
             </label>
-            <select className="input" id="s-tone" value={fields.defaultTone} onChange={(e) => set("defaultTone", e.target.value)}>
+            <select
+              className="input"
+              id="s-tone"
+              value={fields.defaultTone}
+              onChange={(e) => set("defaultTone", e.target.value)}
+            >
               <option value="professional">Professional</option>
               <option value="friendly">Friendly</option>
               <option value="energetic">Energetic</option>

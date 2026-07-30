@@ -23,7 +23,12 @@ const createSchema = z.object({
   name: z.string().trim().min(1).max(120),
   type: z.enum(["FEED_JSON", "FEED_CSV"]),
   url: z.string().trim().url(),
-  scheduleMinutes: z.number().int().min(15).max(24 * 60).default(60),
+  scheduleMinutes: z
+    .number()
+    .int()
+    .min(15)
+    .max(24 * 60)
+    .default(60),
   fieldMapping: fieldMappingSchema.partial().optional(),
 });
 
