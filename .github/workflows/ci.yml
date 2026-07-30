@@ -61,6 +61,8 @@ jobs:
 
       - name: Seed database for integration tests
         run: pnpm db:seed
+
+      - name: Typecheck packages
         run: |
           pnpm --filter @okauto/shared typecheck
           pnpm --filter @okauto/database typecheck
