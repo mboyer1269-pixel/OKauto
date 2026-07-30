@@ -49,7 +49,7 @@ export function withAuth(
       }
 
       const params = await segmentData.params;
-      return handler(request, { auth, params });
+      return await handler(request, { auth, params });
     } catch (err) {
       return handleApiError(err);
     }

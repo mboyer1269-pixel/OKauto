@@ -75,10 +75,15 @@ export function PhotoManager({ vehicleId, photos, onUpdate }: PhotoManagerProps)
 
   const handleAddUrl = async () => {
     if (!urlInput.trim()) return;
-    await apiFetch(`/api/v1/vehicles/${vehicleId}/photos`, {
+    const res = await apiFetch(`/api/v1/vehicles/${vehicleId}/photos`, {
       method: 'POST',
       body: JSON.stringify({ url: urlInput.trim() }),
     });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      alert((err as { error?: string }).error ?? 'Failed to add photo');
+      return;
+    }
     setUrlInput('');
     onUpdate();
   };

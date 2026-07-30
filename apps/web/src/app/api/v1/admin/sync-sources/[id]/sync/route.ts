@@ -9,8 +9,13 @@ export const POST = withAuth(
     });
     if (!source) return errorResponse('Sync source not found', 404);
 
-    const jobId = await enqueueSyncJob(source.id);
-    return jsonResponse({ queued: true, jobId });
+    try {
+      const jobId = await enqueueSyncJob(source.id);
+      return jsonResponse({ queued: true, jobId });
+    } catch (err) {
+      console.error('Failed to enqueue sync job:', err);
+      return errorResponse('Failed to queue sync job. Is Redis running?', 503);
+    }
   },
   { minRole: 'MANAGER' }
 );

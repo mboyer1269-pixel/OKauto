@@ -12,109 +12,122 @@ export async function runSyncSource(syncSourceId: string): Promise<SyncResult> {
   const source = await prisma.syncSource.findUnique({ where: { id: syncSourceId } });
   if (!source) throw new Error('Sync source not found');
 
-  const response = await fetch(source.url, {
-    headers: { 'User-Agent': 'OKauto-Sync/1.0', Accept: 'application/json, text/html' },
-  });
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  try {
+    const response = await fetch(source.url, {
+      headers: { 'User-Agent': 'OKauto-Sync/1.0', Accept: 'application/json, text/html' },
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-  const contentType = response.headers.get('content-type');
-  const body = await response.text();
-  const vehicles = parseSyncFeed(source.adapter, body, contentType);
+    const contentType = response.headers.get('content-type');
+    const body = await response.text();
+    const vehicles = parseSyncFeed(source.adapter, body, contentType);
 
-  let successCount = 0;
-  let errorCount = 0;
-  let priceChanges = 0;
+    let successCount = 0;
+    let errorCount = 0;
+    let priceChanges = 0;
 
-  for (const v of vehicles) {
-    if (!v.vin) {
-      errorCount++;
-      continue;
-    }
+    for (const v of vehicles) {
+      if (!v.vin) {
+        errorCount++;
+        continue;
+      }
 
-    try {
-      const existing = await prisma.vehicle.findUnique({
-        where: {
-          organizationId_vin: { organizationId: source.organizationId, vin: v.vin },
-        },
-        select: { id: true, price: true },
-      });
+      try {
+        const existing = await prisma.vehicle.findUnique({
+          where: {
+            organizationId_vin: { organizationId: source.organizationId, vin: v.vin },
+          },
+          select: { id: true, price: true },
+        });
 
-      const newPrice = v.price != null ? v.price : undefined;
-      const oldPrice = existing?.price ? Number(existing.price) : null;
+        const newPrice = v.price != null ? v.price : undefined;
+        const oldPrice = existing?.price ? Number(existing.price) : null;
 
-      const vehicle = await prisma.vehicle.upsert({
-        where: {
-          organizationId_vin: {
+        const vehicle = await prisma.vehicle.upsert({
+          where: {
+            organizationId_vin: {
+              organizationId: source.organizationId,
+              vin: v.vin,
+            },
+          },
+          create: {
             organizationId: source.organizationId,
             vin: v.vin,
+            stockNumber: v.stockNumber,
+            year: v.year,
+            make: v.make,
+            model: v.model,
+            trim: v.trim,
+            mileage: v.mileage,
+            price: newPrice,
+            exteriorColor: v.exteriorColor,
+            interiorColor: v.interiorColor,
+            description: v.description,
+            transmission: v.transmission,
+            fuelType: v.fuelType,
+            drivetrain: v.drivetrain,
+            engine: v.engine,
+            bodyStyle: v.bodyStyle,
+            status: mapStatus(v.status),
           },
-        },
-        create: {
-          organizationId: source.organizationId,
-          vin: v.vin,
-          stockNumber: v.stockNumber,
-          year: v.year,
-          make: v.make,
-          model: v.model,
-          trim: v.trim,
-          mileage: v.mileage,
-          price: newPrice,
-          exteriorColor: v.exteriorColor,
-          interiorColor: v.interiorColor,
-          description: v.description,
-          transmission: v.transmission,
-          fuelType: v.fuelType,
-          drivetrain: v.drivetrain,
-          engine: v.engine,
-          bodyStyle: v.bodyStyle,
-          status: mapStatus(v.status),
-        },
-        update: {
-          stockNumber: v.stockNumber,
-          year: v.year,
-          make: v.make,
-          model: v.model,
-          trim: v.trim,
-          mileage: v.mileage,
-          price: newPrice,
-          exteriorColor: v.exteriorColor,
-          interiorColor: v.interiorColor,
-          description: v.description,
-          transmission: v.transmission,
-          fuelType: v.fuelType,
-          drivetrain: v.drivetrain,
-          engine: v.engine,
-          bodyStyle: v.bodyStyle,
-          status: mapStatus(v.status),
-        },
-      });
+          update: {
+            stockNumber: v.stockNumber,
+            year: v.year,
+            make: v.make,
+            model: v.model,
+            trim: v.trim,
+            mileage: v.mileage,
+            price: newPrice,
+            exteriorColor: v.exteriorColor,
+            interiorColor: v.interiorColor,
+            description: v.description,
+            transmission: v.transmission,
+            fuelType: v.fuelType,
+            drivetrain: v.drivetrain,
+            engine: v.engine,
+            bodyStyle: v.bodyStyle,
+            status: mapStatus(v.status),
+          },
+        });
 
-      if (existing && oldPrice != null && newPrice != null && oldPrice !== newPrice) {
-        priceChanges++;
-        await notifyPriceChange(source.organizationId, vehicle.id, oldPrice, newPrice, v);
+        if (existing && oldPrice != null && newPrice != null && oldPrice !== newPrice) {
+          priceChanges++;
+          await notifyPriceChange(source.organizationId, vehicle.id, oldPrice, newPrice, v);
+        }
+
+        if (v.photos && v.photos.length > 0) {
+          await syncVehiclePhotos(vehicle.id, v.photos);
+        }
+
+        successCount++;
+      } catch (err) {
+        console.warn('Sync vehicle error:', err);
+        errorCount++;
       }
-
-      if (v.photos && v.photos.length > 0) {
-        await syncVehiclePhotos(vehicle.id, v.photos);
-      }
-
-      successCount++;
-    } catch (err) {
-      console.warn('Sync vehicle error:', err);
-      errorCount++;
     }
+
+    await prisma.syncSource.update({
+      where: { id: syncSourceId },
+      data: {
+        lastSyncAt: new Date(),
+        lastSyncStatus: errorCount > 0 && successCount === 0 ? 'error' : 'success',
+        lastSyncError: errorCount > 0 ? `${errorCount} vehicle(s) failed to sync` : null,
+      },
+    });
+
+    return { synced: successCount, errors: errorCount, priceChanges };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    await prisma.syncSource.update({
+      where: { id: syncSourceId },
+      data: {
+        lastSyncAt: new Date(),
+        lastSyncStatus: 'error',
+        lastSyncError: message,
+      },
+    });
+    throw err;
   }
-
-  await prisma.syncSource.update({
-    where: { id: syncSourceId },
-    data: {
-      lastSyncAt: new Date(),
-      lastSyncStatus: errorCount > 0 && successCount === 0 ? 'error' : 'success',
-      lastSyncError: errorCount > 0 ? `${errorCount} vehicle(s) failed to sync` : null,
-    },
-  });
-
-  return { synced: successCount, errors: errorCount, priceChanges };
 }
 
 function mapStatus(status?: string): 'AVAILABLE' | 'PENDING' | 'SOLD' | 'ARCHIVED' {

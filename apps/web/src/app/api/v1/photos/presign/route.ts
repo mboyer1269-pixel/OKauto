@@ -30,5 +30,5 @@ export const POST = withAuth(
 
     return jsonResponse(result);
   },
-  { minRole: 'MANAGER' }
+  { minRole: 'SALESPERSON' }
 );

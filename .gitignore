@@ -42,3 +42,4 @@ packages/database/prisma/*.db
 
 # Docker
 docker-data/
+dump.rdb

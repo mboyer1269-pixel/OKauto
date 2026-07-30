@@ -38,14 +38,8 @@ const syncWorker = new Worker(
       const result = await runSyncSource(syncSourceId);
       return result;
     } catch (err) {
-      await prisma.syncSource.update({
-        where: { id: syncSourceId },
-        data: {
-          lastSyncAt: new Date(),
-          lastSyncStatus: 'error',
-          lastSyncError: err instanceof Error ? err.message : 'Unknown error',
-        },
-      });
+      const source = await prisma.syncSource.findUnique({ where: { id: syncSourceId } });
+      if (!source) throw err;
 
       const managers = await prisma.organizationMember.findMany({
         where: { organizationId: source.organizationId, role: { in: ['OWNER', 'ADMIN', 'MANAGER'] } },
