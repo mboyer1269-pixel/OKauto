@@ -8,8 +8,8 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "build": "pnpm -r --filter ./packages/* build && pnpm --filter @okauto/web build && pnpm --filter @okauto/extension build",
-    "build:packages": "pnpm -r --filter ./packages/* build",
+    "build": "pnpm build:packages && pnpm --filter @okauto/web build && pnpm --filter @okauto/extension build",
+    "build:packages": "pnpm --filter @okauto/shared build && pnpm --filter @okauto/db build",
     "dev": "pnpm --filter @okauto/web dev",
     "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck",

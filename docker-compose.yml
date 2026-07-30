@@ -1,0 +1,49 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: okauto
+      POSTGRES_PASSWORD: okauto
+      POSTGRES_DB: okauto
+    ports:
+      - '5432:5432'
+    volumes:
+      - okauto_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U okauto']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ['web']
+    environment:
+      DATABASE_URL: postgresql://okauto:okauto@db:5432/okauto?schema=public
+      AUTH_SECRET: ${AUTH_SECRET:-please-change-this-in-production-0000000000}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      NODE_ENV: production
+      PORT: '3000'
+    ports:
+      - '3000:3000'
+    depends_on:
+      db:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ['worker']
+    environment:
+      DATABASE_URL: postgresql://okauto:okauto@db:5432/okauto?schema=public
+      AUTH_SECRET: ${AUTH_SECRET:-please-change-this-in-production-0000000000}
+      NODE_ENV: production
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  okauto_pg:

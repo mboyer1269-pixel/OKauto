@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Lint · Typecheck · Test · Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build workspace packages (shared + prisma client)
+        run: pnpm build:packages
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Unit & integration tests
+        run: pnpm test
+
+      - name: Build web app
+        run: pnpm --filter @okauto/web build
+        env:
+          DATABASE_URL: postgresql://okauto:okauto@localhost:5432/okauto
+          AUTH_SECRET: ci-build-secret-not-used-at-runtime-000000
+
+      - name: Build extension
+        run: pnpm --filter @okauto/extension build
+
+  database:
+    name: Migrate & seed (Postgres)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: okauto
+          POSTGRES_PASSWORD: okauto
+          POSTGRES_DB: okauto
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U okauto"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://okauto:okauto@localhost:5432/okauto?schema=public
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @okauto/db generate
+
+      - name: Apply migrations
+        run: pnpm --filter @okauto/db migrate
+
+      - name: Seed demo data
+        run: pnpm --filter @okauto/db seed
