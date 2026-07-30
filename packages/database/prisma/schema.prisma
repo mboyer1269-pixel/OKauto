@@ -1,0 +1,508 @@
+// OKauto data model — source of truth for REQUIREMENTS.md §4.
+// Clean-room original schema.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  PLATFORM_ADMIN
+  ORG_OWNER
+  ORG_MANAGER
+  SALESPERSON
+}
+
+enum UserStatus {
+  ACTIVE
+  DEACTIVATED
+}
+
+enum MembershipStatus {
+  ACTIVE
+  INVITED
+  DEACTIVATED
+}
+
+enum OrgStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum Vertical {
+  AUTOMOTIVE
+  RV_TRAILERS
+  MARINE_POWERSPORTS
+  MOBILE_HOMES
+  REAL_ESTATE
+  FARM_EQUIPMENT
+  FURNITURE
+  OTHER
+}
+
+enum VehicleStatus {
+  INGESTED
+  ACTIVE
+  PRICE_CHANGED
+  SUSPECTED_SOLD
+  SOLD
+  ARCHIVED
+}
+
+enum VehicleCondition {
+  NEW
+  USED
+  CERTIFIED_PRE_OWNED
+}
+
+enum BodyStyle {
+  SEDAN
+  SUV
+  TRUCK
+  COUPE
+  HATCHBACK
+  WAGON
+  VAN
+  MINIVAN
+  CONVERTIBLE
+  RV
+  TRAILER
+  OTHER
+}
+
+enum FuelType {
+  GASOLINE
+  DIESEL
+  HYBRID
+  PLUGIN_HYBRID
+  ELECTRIC
+  FLEX_FUEL
+  OTHER
+}
+
+enum Transmission {
+  AUTOMATIC
+  MANUAL
+  CVT
+  OTHER
+}
+
+enum Drivetrain {
+  FWD
+  RWD
+  AWD
+  FOUR_WD
+  OTHER
+}
+
+enum ListingStatus {
+  DRAFT
+  READY
+  QUEUED
+  ASSIGNED
+  IN_PROGRESS
+  LIVE
+  ATTENTION
+  NEEDS_REMOVAL
+  REMOVED
+  ENDED
+}
+
+enum ListingChannel {
+  MARKETPLACE
+  GROUPS
+}
+
+enum NotificationType {
+  SOLD_SUSPECTED
+  SOLD_CONFIRMED
+  PRICE_CHANGED
+  LISTING_LIVE
+  LISTING_ATTENTION
+  IMPORT_COMPLETED
+  IMPORT_FAILED
+  SYNC_HEALTH
+  MEMBER_JOINED
+}
+
+enum ImportSourceType {
+  CSV
+  JSON_FEED
+  WEBHOOK
+  MANUAL
+}
+
+enum ImportRunStatus {
+  PENDING
+  RUNNING
+  SUCCEEDED
+  FAILED
+  PARTIAL
+}
+
+enum SourceStatus {
+  ACTIVE
+  PAUSED
+}
+
+enum JobStatus {
+  PENDING
+  RUNNING
+  SUCCEEDED
+  FAILED
+  DEAD
+}
+
+enum ActorType {
+  USER
+  SYSTEM
+  EXTENSION
+  WEBHOOK
+}
+
+model User {
+  id              String         @id @default(cuid())
+  email           String         @unique
+  passwordHash    String
+  name            String
+  status          UserStatus     @default(ACTIVE)
+  isPlatformAdmin Boolean        @default(false)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  memberships     Membership[]
+  refreshTokens   RefreshToken[]
+  extensionTokens ExtensionToken[]
+  invitesCreated  Invite[]       @relation("InviteCreator")
+  listings        Listing[]      @relation("ListingAssignee")
+  listingEvents   ListingEvent[]
+  notifications   Notification[]
+  auditLogs       AuditLog[]
+  priceChanges    PriceHistory[]
+  vehiclesCreated Vehicle[]      @relation("VehicleCreator")
+
+  @@index([status])
+}
+
+model Organization {
+  id        String    @id @default(cuid())
+  name      String
+  slug      String    @unique
+  vertical  Vertical  @default(AUTOMOTIVE)
+  timezone  String    @default("America/Chicago")
+  settings  Json      @default("{}")
+  status    OrgStatus @default(ACTIVE)
+  onboarding Json     @default("{}")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  memberships Membership[]
+  invites     Invite[]
+  vehicles    Vehicle[]
+  listings    Listing[]
+  sources     ImportSource[]
+  notifications Notification[]
+  templates   DescriptionTemplate[]
+  auditLogs   AuditLog[]
+  extensionTokens ExtensionToken[]
+
+  @@index([status])
+}
+
+model Membership {
+  id        String           @id @default(cuid())
+  userId    String
+  orgId     String
+  role      Role
+  status    MembershipStatus @default(ACTIVE)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  user User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  org  Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, orgId])
+  @@index([orgId, status])
+}
+
+model Invite {
+  id          String    @id @default(cuid())
+  orgId       String
+  email       String
+  role        Role
+  tokenHash   String    @unique
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  createdById String?
+  createdAt   DateTime  @default(now())
+
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  createdBy User?        @relation("InviteCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([orgId, email])
+}
+
+model RefreshToken {
+  id            String    @id @default(cuid())
+  userId        String
+  tokenHash     String    @unique
+  userAgent     String?
+  ip            String?
+  expiresAt     DateTime
+  revokedAt     DateTime?
+  rotatedFromId String?
+  createdAt     DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+}
+
+model ExtensionToken {
+  id         String    @id @default(cuid())
+  userId     String
+  orgId      String
+  label      String
+  prefix     String
+  tokenHash  String    @unique
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  user User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  org  Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([userId, orgId, revokedAt])
+}
+
+model Vehicle {
+  id            String           @id @default(cuid())
+  orgId         String
+  vin           String?
+  stockNumber   String?
+  year          Int?
+  make          String
+  model         String
+  trim          String?
+  bodyStyle     BodyStyle?
+  fuelType      FuelType?
+  transmission  Transmission?
+  drivetrain    Drivetrain?
+  mileage       Int?
+  priceCents    Int
+  currency      String           @default("USD")
+  condition     VehicleCondition @default(USED)
+  exteriorColor String?
+  interiorColor String?
+  description   String?          @db.Text
+  status        VehicleStatus    @default(ACTIVE)
+  sourceId      String?
+  externalId    String?
+  createdById   String?
+  firstSeenAt   DateTime         @default(now())
+  lastSeenAt    DateTime         @default(now())
+  soldAt        DateTime?
+  rawPayload    Json?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  org          Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  source       ImportSource? @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  createdBy    User?         @relation("VehicleCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  photos       VehiclePhoto[]
+  priceHistory PriceHistory[]
+  listings     Listing[]
+
+  @@unique([orgId, vin])
+  @@unique([orgId, stockNumber])
+  @@index([orgId, status])
+  @@index([orgId, make, model])
+  @@index([orgId, lastSeenAt])
+  @@index([sourceId])
+}
+
+model VehiclePhoto {
+  id        String   @id @default(cuid())
+  vehicleId String
+  url       String
+  position  Int      @default(0)
+  checksum  String?
+  createdAt DateTime @default(now())
+
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@unique([vehicleId, url])
+  @@index([vehicleId, position])
+}
+
+model PriceHistory {
+  id          String   @id @default(cuid())
+  vehicleId   String
+  priceCents  Int
+  source      String   @default("SYNC")
+  changedById String?
+  createdAt   DateTime @default(now())
+
+  vehicle   Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  changedBy User?   @relation(fields: [changedById], references: [id], onDelete: SetNull)
+
+  @@index([vehicleId, createdAt])
+}
+
+model ImportSource {
+  id              String           @id @default(cuid())
+  orgId           String
+  type            ImportSourceType
+  name            String
+  config          Json             @default("{}")
+  scheduleMinutes Int              @default(0)
+  status          SourceStatus     @default(ACTIVE)
+  lastRunAt       DateTime?
+  lastStatus      ImportRunStatus?
+  lastError       String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  org      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  vehicles Vehicle[]
+  runs     ImportRun[]
+
+  @@index([orgId, status])
+}
+
+model ImportRun {
+  id         String          @id @default(cuid())
+  sourceId   String
+  status     ImportRunStatus @default(PENDING)
+  stats      Json            @default("{}")
+  error      String?
+  startedAt  DateTime        @default(now())
+  finishedAt DateTime?
+
+  source ImportSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@index([sourceId, startedAt])
+}
+
+model Listing {
+  id            String         @id @default(cuid())
+  orgId         String
+  vehicleId     String
+  channel       ListingChannel @default(MARKETPLACE)
+  status        ListingStatus  @default(DRAFT)
+  title         String
+  description   String?        @db.Text
+  priceCents    Int?
+  currency      String         @default("USD")
+  assigneeId    String?
+  createdById   String?
+  externalUrl   String?
+  externalId    String?
+  failureReason String?
+  postedAt      DateTime?
+  removedAt     DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  org      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  vehicle  Vehicle      @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  assignee User?        @relation("ListingAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  events   ListingEvent[]
+
+  @@index([orgId, status])
+  @@index([orgId, channel])
+  @@index([assigneeId, status])
+  @@index([vehicleId])
+}
+
+model ListingEvent {
+  id          String        @id @default(cuid())
+  listingId   String
+  actorType   ActorType
+  actorUserId String?
+  fromStatus  ListingStatus?
+  toStatus    ListingStatus
+  note        String?
+  meta        Json?
+  createdAt   DateTime      @default(now())
+
+  listing   Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  actorUser User?   @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([listingId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@index([toStatus, createdAt])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  orgId     String
+  userId    String?
+  type      NotificationType
+  title     String
+  body      String           @db.Text
+  data      Json?
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  org  Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, userId, readAt])
+  @@index([orgId, createdAt])
+}
+
+model AuditLog {
+  id          String    @id @default(cuid())
+  orgId       String?
+  actorType   ActorType
+  actorUserId String?
+  action      String
+  entityType  String
+  entityId    String?
+  meta        Json?
+  ip          String?
+  createdAt   DateTime  @default(now())
+
+  org       Organization? @relation(fields: [orgId], references: [id], onDelete: SetNull)
+  actorUser User?         @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([orgId, createdAt])
+  @@index([entityType, entityId])
+}
+
+model Job {
+  id          String    @id @default(cuid())
+  kind        String
+  payload     Json
+  status      JobStatus @default(PENDING)
+  runAt       DateTime  @default(now())
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(5)
+  lockedAt    DateTime?
+  lockedBy    String?
+  lastError   String?
+  dedupeKey   String?   @unique
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([status, runAt])
+}
+
+model DescriptionTemplate {
+  id        String   @id @default(cuid())
+  orgId     String
+  name      String
+  body      String   @db.Text
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, isDefault])
+}

@@ -1,0 +1,40 @@
+{
+  "name": "okauto",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "OKauto — clean-room dealership listing-assistance platform (dashboard, API, Chrome MV3 extension)",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "pnpm -r build",
+    "dev": "pnpm -r --parallel dev",
+    "lint": "eslint .",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck",
+    "db:generate": "pnpm --filter @okauto/db generate",
+    "db:migrate": "pnpm --filter @okauto/db migrate:deploy",
+    "db:migrate:dev": "pnpm --filter @okauto/db migrate:dev",
+    "db:seed": "pnpm --filter @okauto/db seed",
+    "db:reset": "pnpm --filter @okauto/db migrate:reset",
+    "format:check": "echo \"(no formatter configured)\" && exit 0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.14.0",
+    "@types/node": "^22.9.0",
+    "eslint": "^9.14.0",
+    "typescript": "^5.6.3",
+    "typescript-eslint": "^8.13.0"
+  },
+  "packageManager": "pnpm@10.33.3",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "prisma",
+      "esbuild",
+      "@swc/core"
+    ]
+  }
+}
