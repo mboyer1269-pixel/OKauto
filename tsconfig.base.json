@@ -14,10 +14,6 @@
     "noImplicitOverride": true,
     "noImplicitReturns": true,
     "noUncheckedIndexedAccess": true,
-    "paths": {
-      "@okauto/db": ["packages/db/src/index.ts"],
-      "@okauto/shared": ["packages/shared/src/index.ts"]
-    },
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "strict": true,

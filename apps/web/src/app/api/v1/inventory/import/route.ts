@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
             }
           });
 
-      if (existing?.price !== undefined && vehicle.price !== undefined && existing.price !== vehicle.price) {
+      if (existing?.price != null && vehicle.price !== undefined && existing.price !== vehicle.price) {
         const listing = await prisma.listing.findFirst({ where: { vehicleId: saved.id }, orderBy: { updatedAt: "desc" } });
         await prisma.notification.create({
           data: {

@@ -67,7 +67,7 @@ pnpm lint
 pnpm typecheck
 pnpm test
 pnpm build
-pnpm ci
+pnpm run ci
 pnpm db:generate
 pnpm db:migrate
 pnpm db:seed

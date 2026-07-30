@@ -136,7 +136,6 @@ export function extractCapturePayload(doc: Document, url: string): CapturePayloa
 
   const merged: ExtractedVehicle = {
     features: [],
-    photos: [],
     ...title,
     ...visible,
     ...jsonLd,

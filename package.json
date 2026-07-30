@@ -22,12 +22,13 @@
     "typecheck": "turbo run typecheck"
   },
   "devDependencies": {
+    "@eslint/js": "9.39.5",
     "@types/node": "latest",
     "eslint": "9.39.5",
     "prettier": "latest",
     "turbo": "latest",
-    "typescript-eslint": "latest",
     "typescript": "5.9.3",
+    "typescript-eslint": "latest",
     "vitest": "latest"
   }
 }

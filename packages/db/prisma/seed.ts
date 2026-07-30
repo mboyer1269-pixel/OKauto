@@ -65,16 +65,10 @@ async function main() {
   await Promise.all(
     users.map((user, index) =>
       prisma.membership.upsert({
-        where: {
-          organizationId_dealershipId_userId_role: {
-            organizationId: organization.id,
-            dealershipId: index === 0 ? null : dealership.id,
-            userId: user.id,
-            role: index === 0 ? "OWNER" : "SALESPERSON"
-          }
-        },
+        where: { id: `demo-membership-${index}` },
         update: {},
         create: {
+          id: `demo-membership-${index}`,
           organizationId: organization.id,
           dealershipId: index === 0 ? null : dealership.id,
           userId: user.id,

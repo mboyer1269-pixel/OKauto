@@ -149,7 +149,11 @@ export const demoDashboard: DashboardResponse = {
 };
 
 export function demoDescriptionFor(vehicleId: string): string {
-  const vehicle = demoVehicles.find((candidate) => candidate.id === vehicleId) ?? demoVehicles[0];
+  const fallback = demoVehicles[0];
+  if (!fallback) {
+    throw new Error("Demo vehicles are not configured.");
+  }
+  const vehicle = demoVehicles.find((candidate) => candidate.id === vehicleId) ?? fallback;
   return buildMarketplaceDescription(vehicle, {
     dealershipName: "OKauto Demo Motors",
     city: vehicle.location

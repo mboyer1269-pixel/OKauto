@@ -41,4 +41,4 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm db:generate
       - run: pnpm db:migrate
-      - run: pnpm ci
+      - run: pnpm run ci
