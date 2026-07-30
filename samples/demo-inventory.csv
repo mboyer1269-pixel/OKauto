@@ -1,0 +1,4 @@
+stockNumber,year,make,model,trim,price,mileage,vin,bodyStyle,exteriorColor,drivetrain,transmission,fuelType,status,photos
+H2001,2022,Subaru,Outback,Premium,27999,18500,4S4BTACC5N3123456,Wagon,Forest Green,AWD,Automatic,Gasoline,AVAILABLE,https://images.unsplash.com/photo-1552519507-da3b142c6e3d?w=1200
+H2002,2016,Chevrolet,Silverado,LT,24999,92000,1GCVKREC8GZ123456,Truck,Red,4WD,Automatic,Gasoline,AVAILABLE,https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?w=1200
+H2003,2019,BMW,330i,xDrive,26999,41000,WBA5R1C50KAK12345,Sedan,Black,AWD,Automatic,Gasoline,SOLD,https://images.unsplash.com/photo-1555215695-3004980ad54e?w=1200

@@ -1,0 +1,36 @@
+{
+  "name": "@okauto/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --port 3000",
+    "build": "next build",
+    "start": "next start --port 3000",
+    "lint": "next lint",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@okauto/db": "workspace:*",
+    "@okauto/shared": "workspace:*",
+    "argon2": "^0.43.0",
+    "bullmq": "^5.52.2",
+    "ioredis": "^5.6.1",
+    "next": "^15.3.3",
+    "pino": "^9.6.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "zod": "^3.24.4"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.52.0",
+    "@types/node": "^22.15.21",
+    "@types/react": "^19.1.5",
+    "@types/react-dom": "^19.1.5",
+    "eslint": "^9.27.0",
+    "eslint-config-next": "^15.3.3",
+    "typescript": "^5.8.3",
+    "vitest": "^3.1.4"
+  }
+}

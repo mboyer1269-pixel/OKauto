@@ -1,0 +1,19 @@
+{
+  "name": "@okauto/extension",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "node ./scripts/build.mjs",
+    "dev": "node ./scripts/build.mjs --watch",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.326",
+    "esbuild": "^0.25.4",
+    "jsdom": "^26.1.0",
+    "typescript": "^5.8.3",
+    "vitest": "^3.1.4"
+  }
+}

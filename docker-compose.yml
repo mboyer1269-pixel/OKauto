@@ -1,0 +1,64 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: okauto
+      POSTGRES_PASSWORD: okauto
+      POSTGRES_DB: okauto
+    ports:
+      - "5432:5432"
+    volumes:
+      - okauto_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U okauto"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: web
+    environment:
+      DATABASE_URL: postgresql://okauto:okauto@postgres:5432/okauto
+      REDIS_URL: redis://redis:6379
+      SESSION_SECRET: docker-dev-session-secret-change-me-32
+      APP_URL: http://localhost:3000
+      NODE_ENV: production
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: worker
+    environment:
+      DATABASE_URL: postgresql://okauto:okauto@postgres:5432/okauto
+      REDIS_URL: redis://redis:6379
+      NODE_ENV: production
+      LOG_LEVEL: info
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  okauto_pg:

@@ -1,0 +1,9 @@
+node_modules
+.next
+dist
+coverage
+pnpm-lock.yaml
+*.png
+apps/extension/*.js
+apps/extension/*.js.map
+packages/db/prisma/migrations

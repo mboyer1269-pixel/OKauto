@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OKauto</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header>
+      <div class="brand">OKauto</div>
+      <p class="muted">Assistive Marketplace listing</p>
+    </header>
+
+    <section id="auth">
+      <label>
+        API base
+        <input id="apiBase" type="url" placeholder="http://localhost:3000" />
+      </label>
+      <label>
+        Extension token
+        <input id="token" type="password" placeholder="oka_…" autocomplete="off" />
+      </label>
+      <button id="saveAuth" type="button">Connect</button>
+      <p id="authStatus" class="muted"></p>
+    </section>
+
+    <section id="main" hidden>
+      <div class="row">
+        <input id="search" type="search" placeholder="Search stock / make" />
+        <button id="refresh" type="button">Refresh</button>
+      </div>
+      <div id="alerts"></div>
+      <div id="vehicles"></div>
+      <p class="policy">
+        Human-in-the-loop only. OKauto never solves CAPTCHA or publishes for you.
+      </p>
+      <button id="disconnect" type="button" class="secondary">Disconnect</button>
+    </section>
+
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>
