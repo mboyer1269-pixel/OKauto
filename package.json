@@ -16,6 +16,7 @@
     "db:seed": "pnpm --filter @okauto/database seed",
     "db:studio": "pnpm --filter @okauto/database studio",
     "pretest": "pnpm db:generate",
+    "start:local": "bash scripts/start.sh",
     "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\""
   },
   "devDependencies": {
