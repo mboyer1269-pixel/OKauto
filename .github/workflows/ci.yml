@@ -39,7 +39,6 @@ jobs:
       DATABASE_URL: postgresql://okauto:okauto@localhost:5432/okauto?schema=public
       REDIS_URL: redis://localhost:6379
       JWT_SECRET: ci-test-secret-minimum-32-characters-long
-      NODE_ENV: production
 
     steps:
       - uses: actions/checkout@v4
@@ -60,6 +59,9 @@ jobs:
       - name: Run migrations
         run: pnpm --filter @okauto/database exec prisma migrate deploy
 
+      - name: Seed database for integration tests
+        run: pnpm db:seed
+
       - name: Typecheck packages
         run: |
           pnpm --filter @okauto/shared typecheck
@@ -72,6 +74,8 @@ jobs:
 
       - name: Build all packages
         run: pnpm build
+        env:
+          NODE_ENV: production
 
       - name: Extension build verification
         run: pnpm --filter @okauto/extension test
