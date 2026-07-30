@@ -165,5 +165,33 @@ export type UpdateVehicleInput = z.infer<typeof updateVehicleSchema>;
 export type CreateListingInput = z.infer<typeof createListingSchema>;
 export type ExtensionEventInput = z.infer<typeof extensionEventSchema>;
 
+// Sync source schemas
+export const createSyncSourceSchema = z.object({
+  name: z.string().min(1).max(200),
+  url: z.string().url(),
+  adapter: z.enum(['generic', 'dealer-json', 'json-ld']).default('generic'),
+  isActive: z.boolean().optional(),
+  intervalMinutes: z.number().int().min(5).max(10080).default(60),
+});
+
+export const updateSyncSourceSchema = createSyncSourceSchema.partial();
+
+export const presignPhotoSchema = z.object({
+  vehicleId: z.string(),
+  filename: z.string().min(1).max(255),
+  contentType: z.string().regex(/^image\//),
+});
+
+export const addPhotoSchema = z.object({
+  url: z.string().url(),
+  storageKey: z.string().optional(),
+  sortOrder: z.number().int().optional(),
+  isPrimary: z.boolean().optional(),
+});
+
+export type CreateSyncSourceInput = z.infer<typeof createSyncSourceSchema>;
+export type UpdateSyncSourceInput = z.infer<typeof updateSyncSourceSchema>;
+
 export * from './description';
 export * from './vin';
+export * from './sync';

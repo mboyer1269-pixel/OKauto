@@ -1,6 +1,7 @@
 import { Worker, Queue } from 'bullmq';
 import IORedis from 'ioredis';
 import { prisma } from '@okauto/database';
+import { runSyncSource } from './sync.js';
 
 const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379';
 
@@ -10,7 +11,6 @@ export const importQueue = new Queue('import', { connection });
 export const syncQueue = new Queue('sync', { connection });
 export const notificationQueue = new Queue('notifications', { connection });
 
-// Import job processor
 const importWorker = new Worker(
   'import',
   async (job) => {
@@ -22,70 +22,21 @@ const importWorker = new Worker(
       data: { status: 'PROCESSING', startedAt: new Date() },
     });
 
-    // Import processing is handled inline in API for MVP
-    // Worker available for async large imports
     return { processed: true };
   },
   { connection }
 );
 
-// Sync job processor - checks sync sources
 const syncWorker = new Worker(
   'sync',
   async (job) => {
     const { syncSourceId } = job.data as { syncSourceId: string };
     const source = await prisma.syncSource.findUnique({ where: { id: syncSourceId } });
-    if (!source || !source.isActive) return;
+    if (!source || !source.isActive) return { skipped: true };
 
     try {
-      const response = await fetch(source.url);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-      const data = await response.json();
-      const vehicles = Array.isArray(data) ? data : data.vehicles ?? data.inventory ?? [];
-
-      let successCount = 0;
-      for (const v of vehicles) {
-        try {
-          await prisma.vehicle.upsert({
-            where: {
-              organizationId_vin: {
-                organizationId: source.organizationId,
-                vin: v.vin,
-              },
-            },
-            create: {
-              organizationId: source.organizationId,
-              vin: v.vin,
-              stockNumber: v.stockNumber ?? v.stock,
-              year: v.year,
-              make: v.make,
-              model: v.model,
-              trim: v.trim,
-              mileage: v.mileage,
-              price: v.price,
-              exteriorColor: v.exteriorColor ?? v.color,
-              description: v.description,
-              status: 'AVAILABLE',
-            },
-            update: {
-              price: v.price,
-              mileage: v.mileage,
-              status: v.status === 'sold' ? 'SOLD' : 'AVAILABLE',
-            },
-          });
-          successCount++;
-        } catch (err) {
-          console.warn('Sync vehicle error:', err);
-        }
-      }
-
-      await prisma.syncSource.update({
-        where: { id: syncSourceId },
-        data: { lastSyncAt: new Date(), lastSyncStatus: 'success', lastSyncError: null },
-      });
-
-      return { synced: successCount };
+      const result = await runSyncSource(syncSourceId);
+      return result;
     } catch (err) {
       await prisma.syncSource.update({
         where: { id: syncSourceId },
@@ -95,13 +46,29 @@ const syncWorker = new Worker(
           lastSyncError: err instanceof Error ? err.message : 'Unknown error',
         },
       });
+
+      const managers = await prisma.organizationMember.findMany({
+        where: { organizationId: source.organizationId, role: { in: ['OWNER', 'ADMIN', 'MANAGER'] } },
+        select: { userId: true },
+      });
+      for (const m of managers) {
+        await prisma.notification.create({
+          data: {
+            userId: m.userId,
+            type: 'SYNC_ERROR',
+            title: `Sync Failed: ${source.name}`,
+            message: err instanceof Error ? err.message : 'Unknown sync error',
+            metadata: { syncSourceId, url: source.url },
+          },
+        });
+      }
+
       throw err;
     }
   },
   { connection }
 );
 
-// Notification worker
 const notificationWorker = new Worker(
   'notifications',
   async (job) => {
@@ -124,7 +91,6 @@ console.log('  - Import queue: listening');
 console.log('  - Sync queue: listening');
 console.log('  - Notification queue: listening');
 
-// Schedule periodic sync checks
 async function scheduleSyncJobs() {
   const sources = await prisma.syncSource.findMany({ where: { isActive: true } });
   for (const source of sources) {

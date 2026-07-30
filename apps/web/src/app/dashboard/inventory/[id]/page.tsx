@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { ProtectedRoute } from '@/components/protected-route';
 import { useAuth } from '@/components/auth-provider';
 import { formatCurrency, formatNumber, getStatusBadgeClass, formatDateTime } from '@/lib/utils';
+import { PhotoManager } from '@/components/photo-manager';
 import { Sparkles, Search } from 'lucide-react';
 
 export default function VehicleDetailPage() {
@@ -55,7 +56,7 @@ function VehicleDetail() {
   if (loading) return <div className="animate-pulse h-64 bg-slate-200 rounded-xl" />;
   if (!vehicle) return <div className="card">Vehicle not found</div>;
 
-  const photos = (vehicle.photos as Array<{ url: string }>) ?? [];
+  const photos = (vehicle.photos as Array<{ id: string; url: string; isPrimary: boolean }>) ?? [];
   const listings = (vehicle.listings as Array<Record<string, unknown>>) ?? [];
 
   return (
@@ -97,6 +98,7 @@ function VehicleDetail() {
           </div>
         </div>
         <div className="lg:w-2/3 space-y-6">
+          <PhotoManager vehicleId={id} photos={photos} onUpdate={load} />
           <div className="card">
             <h2 className="font-semibold mb-3">Description</h2>
             <p className="text-sm whitespace-pre-wrap">{(vehicle.description as string) ?? 'No description yet.'}</p>

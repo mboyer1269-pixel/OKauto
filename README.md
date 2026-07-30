@@ -114,6 +114,57 @@ pnpm --filter @okauto/web test:e2e  # Playwright E2E
 docker compose up --build
 ```
 
+The web container automatically runs `prisma migrate deploy` on startup.
+
+## Deploy to Render
+
+OKauto includes a [Render Blueprint](https://render.com/docs/blueprint-spec) (`render.yaml`) that provisions:
+
+- **PostgreSQL** database
+- **Redis** (Key Value) for BullMQ
+- **Web service** (Docker) — Next.js dashboard + API
+- **Worker service** (Docker) — background sync & notifications
+
+### Steps
+
+1. Push this repo to GitHub
+2. In [Render Dashboard](https://dashboard.render.com) → **New** → **Blueprint**
+3. Connect the repo — Render reads `render.yaml` and creates all services
+4. Set required env vars in the web service:
+   - `NEXT_PUBLIC_APP_URL` — your Render web URL (e.g. `https://okauto-web.onrender.com`)
+   - `AWS_S3_BUCKET`, `AWS_S3_PUBLIC_URL`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` (optional, for photo upload)
+5. After first deploy, seed the database:
+   ```bash
+   # From Render Shell on the web service, or locally with production DATABASE_URL
+   pnpm db:seed
+   ```
+
+### S3 Photo Upload
+
+Configure these env vars on **web** (and worker if syncing photos to S3 later):
+
+| Variable | Description |
+|----------|-------------|
+| `AWS_S3_BUCKET` | S3 bucket name |
+| `AWS_S3_PUBLIC_URL` | Public base URL (e.g. `https://my-bucket.s3.amazonaws.com` or CloudFront URL) |
+| `AWS_ACCESS_KEY_ID` | IAM access key with `s3:PutObject` / `s3:DeleteObject` |
+| `AWS_SECRET_ACCESS_KEY` | IAM secret key |
+| `AWS_REGION` | AWS region (default `us-east-1`) |
+
+Without S3, photos can still be added via URL in the vehicle detail page.
+
+### URL Inventory Sync
+
+Add sync sources in **Dashboard → Sync Health**. Supported adapters:
+
+| Adapter | Use case |
+|---------|----------|
+| `generic` | JSON array or `{ vehicles: [...] }` feed |
+| `dealer-json` | Common dealer DMS feeds (`inventory`, `usedInventory`) |
+| `json-ld` | Dealer website HTML with Schema.org Vehicle markup |
+
+The worker syncs on a configurable interval and supports manual **Sync now** from the dashboard. Price changes trigger notifications.
+
 ## Environment Variables
 
 | Variable | Description | Default |
@@ -123,6 +174,11 @@ docker compose up --build
 | `JWT_SECRET` | JWT signing secret (32+ chars) | — |
 | `OPENAI_API_KEY` | Optional AI descriptions | — |
 | `NEXT_PUBLIC_APP_URL` | Public app URL | `http://localhost:3000` |
+| `AWS_S3_BUCKET` | S3 bucket for photo uploads | — |
+| `AWS_S3_PUBLIC_URL` | Public URL base for S3 objects | — |
+| `AWS_ACCESS_KEY_ID` | AWS credentials (optional) | — |
+| `AWS_SECRET_ACCESS_KEY` | AWS credentials (optional) | — |
+| `AWS_REGION` | AWS region | `us-east-1` |
 
 ## Improvements Over Reference Products
 
