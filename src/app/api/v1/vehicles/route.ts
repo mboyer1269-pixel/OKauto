@@ -1,5 +1,5 @@
 import { and, desc, eq, ilike, inArray, or } from "drizzle-orm";
-import { NextRequest } from "next/server";
+import type { NextRequest } from "next/server";
 import { z } from "zod";
 
 import { db } from "@/db";

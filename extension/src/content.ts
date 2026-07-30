@@ -43,7 +43,12 @@ function findEditable(aliases: string[]): Editable | null {
 
 function assignValue(element: Editable, value: string): void {
   const prototype = element instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
-  const setter = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
+  // The native setter is intentionally invoked with the concrete field as
+  // `this` so React-controlled inputs observe the same mutation as user input.
+  // eslint-disable-next-line @typescript-eslint/unbound-method
+  const setter = Object.getOwnPropertyDescriptor(prototype, "value")?.set as
+    | ((this: Editable, nextValue: string) => void)
+    | undefined;
   setter?.call(element, value);
   element.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: value }));
   element.dispatchEvent(new Event("change", { bubbles: true }));

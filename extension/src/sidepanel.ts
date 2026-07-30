@@ -28,6 +28,12 @@ function report(message: string, error = false): void {
   status.classList.toggle("error", error);
 }
 
+function isFillResult(value: unknown): value is FillResult {
+  if (!value || typeof value !== "object") return false;
+  const result = value as Partial<FillResult>;
+  return typeof result.message === "string" && Array.isArray(result.filled) && Array.isArray(result.missing);
+}
+
 function originPattern(value: string): string {
   const url = new URL(value);
   return `${url.origin}/*`;
@@ -45,14 +51,14 @@ async function loadPreparation(): Promise<void> {
   if (!["http:", "https:"].includes(base.protocol)) throw new Error("DriveFlow URL must use HTTP or HTTPS.");
   await ensureApiPermission(base.href);
   await chrome.storage.sync.set({ apiUrl: base.origin });
-  const response = await fetch(new URL(`/api/v1/listings/${listingId.value.trim()}/prepare`, base), {
+  const response = await fetch(new URL("/api/v1/extension/preparations", base), {
     method: "POST",
-    credentials: "include",
     headers: { "content-type": "application/json", "x-request-id": crypto.randomUUID() },
+    body: JSON.stringify({ action: "LOAD", token: listingId.value.trim() }),
   });
   const result = (await response.json()) as { data?: PreparationPayload; error?: { message?: string } };
   if (!response.ok || !result.data) {
-    if (response.status === 401) throw new Error("Sign in to DriveFlow in this Chrome profile, then try again.");
+    if (response.status === 401) throw new Error("This preparation code is invalid or expired. Prepare the listing again.");
     throw new Error(result.error?.message ?? "Could not load this listing.");
   }
   if (result.data.contractVersion !== 1) throw new Error("Update the extension to support this DriveFlow API version.");
@@ -88,7 +94,8 @@ fillButton.addEventListener("click", () => {
     if (!tab?.id || !tab.url?.startsWith("https://www.facebook.com/marketplace/create")) {
       throw new Error("Open a Facebook Marketplace create page in the active tab.");
     }
-    const result = (await chrome.tabs.sendMessage(tab.id, { type: "DRIVEFLOW_FILL", payload })) as FillResult;
+    const result: unknown = await chrome.tabs.sendMessage(tab.id, { type: "DRIVEFLOW_FILL", payload });
+    if (!isFillResult(result)) throw new Error("The page assistant returned an invalid response. Reload the Marketplace page.");
     report(result.message, result.missing.length > 0);
   }).catch((error: unknown) => report(error instanceof Error ? error.message : "Could not prepare fields.", true));
 });
@@ -118,11 +125,14 @@ confirmButton.addEventListener("click", () => {
   if (!payload || !checks.every((item) => item.checked)) return;
   const base = new URL(apiUrl.value);
   confirmButton.disabled = true;
-  void fetch(new URL(`/api/v1/listings/${payload.listingId}/confirm`, base), {
+  void fetch(new URL("/api/v1/extension/preparations", base), {
     method: "POST",
-    credentials: "include",
     headers: { "content-type": "application/json", "x-request-id": crypto.randomUUID() },
-    body: JSON.stringify({ action: "PUBLISHED", ...(externalUrl.value ? { externalUrl: externalUrl.value } : {}) }),
+    body: JSON.stringify({
+      action: "PUBLISHED",
+      token: listingId.value.trim(),
+      ...(externalUrl.value ? { externalUrl: externalUrl.value } : {}),
+    }),
   }).then(async (response) => {
     const result = (await response.json()) as { error?: { message?: string } };
     if (!response.ok) throw new Error(result.error?.message ?? "Confirmation failed.");

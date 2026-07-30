@@ -6,7 +6,7 @@ import { cookies } from "next/headers";
 import type { NextRequest } from "next/server";
 
 import { db, sqlClient } from "@/db";
-import { memberships, organizations, sessions, users } from "@/db/schema";
+import { memberships, organizations, rateLimits, sessions, users } from "@/db/schema";
 import { env } from "@/lib/env";
 import { ApiError } from "@/lib/http";
 
@@ -92,6 +92,10 @@ export async function checkLoginRateLimit(key: string): Promise<void> {
   if (state?.blocked_until && state.blocked_until > new Date()) {
     throw new ApiError(429, "RATE_LIMITED", "Too many sign-in attempts. Try again later.");
   }
+}
+
+export async function clearLoginRateLimit(key: string): Promise<void> {
+  await db().delete(rateLimits).where(eq(rateLimits.key, key));
 }
 
 export async function login(email: string, password: string): Promise<{ token: string; context: AuthContext }> {

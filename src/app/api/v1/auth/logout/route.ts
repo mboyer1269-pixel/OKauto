@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import type { NextRequest, NextResponse } from "next/server";
 
 import { authenticate, logout, SESSION_COOKIE } from "@/lib/auth";
 import { assertMutationOrigin, errorResponse, json, requestId } from "@/lib/http";

@@ -1,5 +1,5 @@
 import { and, count, desc, eq, isNull, or } from "drizzle-orm";
-import { NextRequest } from "next/server";
+import type { NextRequest } from "next/server";
 
 import { db } from "@/db";
 import { inventorySources, listingEvents, listings, memberships, notifications, syncRuns, users, vehicles } from "@/db/schema";

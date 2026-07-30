@@ -2,6 +2,7 @@
   "name": "driveflow",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "description": "Policy-compliant dealership inventory and listing assistance",
   "engines": {
     "node": ">=22"
@@ -12,7 +13,7 @@
     "start": "next start",
     "worker": "tsx src/worker.ts",
     "lint": "eslint . --max-warnings=0",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
@@ -55,5 +56,9 @@
     "typescript": "^6.0.2",
     "typescript-eslint": "^8.65.0",
     "vitest": "^4.1.10"
+  },
+  "overrides": {
+    "postcss": "$postcss",
+    "sharp": "$sharp"
   }
 }

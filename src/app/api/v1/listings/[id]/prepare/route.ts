@@ -1,13 +1,15 @@
 import { and, eq } from "drizzle-orm";
-import { NextRequest, NextResponse } from "next/server";
+import type { NextRequest} from "next/server";
+import { NextResponse } from "next/server";
 
 import { db } from "@/db";
 import { listingEvents, listings, vehicleMedia, vehicles } from "@/db/schema";
 import { audit } from "@/lib/audit";
 import { authenticate } from "@/lib/auth";
+import { createHandoffToken } from "@/lib/handoff";
 import { ApiError, assertMutationOrigin, errorResponse, extensionCors, json, requestId } from "@/lib/http";
 
-export async function OPTIONS(request: NextRequest): Promise<NextResponse> {
+export function OPTIONS(request: NextRequest): NextResponse {
   return extensionCors(
     request,
     new NextResponse(null, {
@@ -54,6 +56,11 @@ export async function POST(request: NextRequest, props: { params: Promise<{ id: 
         {
           data: {
             contractVersion: 1,
+            handoffToken: createHandoffToken({
+              listingId: row.listing.id,
+              organizationId: context.organization.id,
+              userId: context.user.id,
+            }),
             listingId: row.listing.id,
             vehicleId: row.vehicle.id,
             title: row.listing.title,

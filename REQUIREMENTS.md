@@ -167,6 +167,7 @@ All endpoints are under `/api/v1`, return JSON, require a session unless noted, 
 | `GET` | `/inventory/sync-runs` | Source health/history | Owner, manager |
 | `GET/POST` | `/listings` | Filter or create drafts | Any / salesperson+ |
 | `POST` | `/listings/:id/prepare` | Issue short-lived extension payload | Assigned user/manager |
+| `POST` | `/extension/preparations` | Redeem a signed 10-minute preparation code or confirm publication | Scoped handoff |
 | `POST` | `/listings/:id/confirm` | Confirm published/removed/failed state | Assigned user/manager |
 | `POST` | `/descriptions/generate` | Generate grounded description | Salesperson+ |
 | `GET` | `/dashboard` | KPIs, activity, sync health | Any (role-filtered) |
@@ -175,7 +176,7 @@ All endpoints are under `/api/v1`, return JSON, require a session unless noted, 
 | `GET` | `/health/live` | Process liveness | Public |
 | `GET` | `/health/ready` | DB/Redis readiness | Internal |
 
-Errors use `{ "error": { "code": string, "message": string, "details"?: unknown }, "requestId": string }`. Mutations accept `Idempotency-Key`.
+Errors use `{ "error": { "code": string, "message": string, "details"?: unknown }, "requestId": string }`. Inventory/listing retries are duplicate-safe through natural identities and database constraints; outbox jobs use explicit idempotency keys.
 
 ## 8. Security, privacy, and compliance
 

@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import type { NextRequest } from "next/server";
 
 import { sqlClient } from "@/db";
 import { errorResponse, json, requestId } from "@/lib/http";

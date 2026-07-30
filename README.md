@@ -50,8 +50,8 @@ npm run extension:build
 3. Choose **Load unpacked** and select `extension/dist`.
 4. Copy the generated extension ID.
 5. Set `EXTENSION_ORIGINS=chrome-extension://<extension-id>` in the app environment and restart the app.
-6. Sign in to DriveFlow, create a draft, and click **Open assistant** to copy its listing ID.
-7. Open the extension side panel, paste the ID, then follow its explicit download, field-preparation, review, and confirmation steps.
+6. Sign in to DriveFlow, create a draft, and click **Open assistant** to copy a ten-minute, listing-scoped preparation code.
+7. Open the extension side panel, paste the code, then follow its explicit download, field-preparation, review, and confirmation steps.
 
 For a hosted deployment, set the DriveFlow URL in the side panel. Chrome requests access only to that selected origin. The extension content script runs only on Marketplace create pages and never seeks or clicks submit controls.
 
@@ -116,7 +116,15 @@ Managers can post normalized JSON snapshots:
 }
 ```
 
-Mutations require JSON, an authenticated same-site or configured extension origin, and support an `Idempotency-Key` header. API errors consistently return a code, safe message, details, and request ID.
+CSV uses the same fields (with optional snake_case aliases), pipe-separated `photos`, and query parameters:
+
+```bash
+curl -X POST "$APP_URL/api/v1/inventory/import?sourceId=$SOURCE_ID&completeSnapshot=true" \
+  -H "Content-Type: text/csv" \
+  --data-binary @inventory.csv
+```
+
+Mutations require an authenticated same-site or configured extension origin. Inventory imports accept validated JSON or CSV; other mutations require JSON. Natural identity and database constraints make retries duplicate-safe. API errors consistently return a code, safe message, details, and request ID.
 
 ## Operations and deployment
 

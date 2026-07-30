@@ -1,9 +1,9 @@
 import { createHash } from "node:crypto";
 
-import { NextRequest, NextResponse } from "next/server";
+import type { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
-import { checkLoginRateLimit, login, SESSION_COOKIE } from "@/lib/auth";
+import { checkLoginRateLimit, clearLoginRateLimit, login, SESSION_COOKIE } from "@/lib/auth";
 import { assertMutationOrigin, errorResponse, json, requestId } from "@/lib/http";
 
 const inputSchema = z.object({
@@ -17,8 +17,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     assertMutationOrigin(request);
     const input = inputSchema.parse(await request.json());
     const remote = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
-    await checkLoginRateLimit(createHash("sha256").update(`${remote}:${input.email.toLowerCase()}`).digest("hex"));
+    const rateLimitKey = createHash("sha256").update(`${remote}:${input.email.toLowerCase()}`).digest("hex");
+    await checkLoginRateLimit(rateLimitKey);
     const result = await login(input.email, input.password);
+    await clearLoginRateLimit(rateLimitKey);
     const response = json({ user: result.context.user, organization: result.context.organization, role: result.context.role }, {}, id);
     response.cookies.set(SESSION_COOKIE, result.token, {
       httpOnly: true,

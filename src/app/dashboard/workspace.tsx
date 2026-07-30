@@ -147,9 +147,9 @@ export function DashboardClient() {
   async function prepare(listingId: string) {
     setBusy(true);
     try {
-      const result = await api<{ data: { listingId: string } }>(`/api/v1/listings/${listingId}/prepare`, { method: "POST" });
-      await navigator.clipboard.writeText(result.data.listingId);
-      setError("Listing ID copied. Open the DriveFlow extension to continue and review every field before publishing.");
+      const result = await api<{ data: { handoffToken: string } }>(`/api/v1/listings/${listingId}/prepare`, { method: "POST" });
+      await navigator.clipboard.writeText(result.data.handoffToken);
+      setError("One-time preparation code copied. Open the DriveFlow extension to continue and review every field before publishing.");
       await load();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not prepare the listing.");
@@ -248,7 +248,7 @@ export function DashboardClient() {
             </div>
             <div className="table-scroll"><table><thead><tr><th><span className="sr-only">Select</span></th><th>Vehicle</th><th>Stock / VIN</th><th>Mileage</th><th>Price</th><th>Status</th><th>Updated</th></tr></thead>
             <tbody>{visibleVehicles.map((vehicle) => <tr key={vehicle.id}>
-              <td><input aria-label={`Select ${vehicle.year} ${vehicle.make} ${vehicle.model}`} type="checkbox" checked={selected.has(vehicle.id)} disabled={vehicle.status !== "AVAILABLE"} onChange={() => setSelected((current) => { const next = new Set(current); next.has(vehicle.id) ? next.delete(vehicle.id) : next.add(vehicle.id); return next; })} /></td>
+              <td><input aria-label={`Select ${vehicle.year} ${vehicle.make} ${vehicle.model}`} type="checkbox" checked={selected.has(vehicle.id)} disabled={vehicle.status !== "AVAILABLE"} onChange={() => setSelected((current) => { const next = new Set(current); if (next.has(vehicle.id)) next.delete(vehicle.id); else next.add(vehicle.id); return next; })} /></td>
               <td><div className="vehicle-cell">{vehicle.media[0] ? <img src={vehicle.media[0].url} alt="" /> : <span><CarFront /></span>}<div><strong>{vehicle.year} {vehicle.make} {vehicle.model}</strong><small>{vehicle.trim || "Base trim"}</small></div></div></td>
               <td><strong>{vehicle.stockNumber || "—"}</strong><small className="mono">{vehicle.vin || "No VIN"}</small></td>
               <td>{vehicle.mileage?.toLocaleString() ?? "—"}</td><td><strong>{money(vehicle.priceCents)}</strong></td><td><Status value={vehicle.status} /></td><td>{relative(vehicle.updatedAt)}</td>

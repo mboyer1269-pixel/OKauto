@@ -1,4 +1,4 @@
-import { and, eq, inArray, or } from "drizzle-orm";
+import { and, eq, inArray, notInArray } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/db";
@@ -103,7 +103,8 @@ export async function importInventory(organizationId: string, payload: ImportPay
             counts.sold += 1;
             await handleSold(tx, organizationId, vehicleId, `${input.year} ${input.make} ${input.model}`);
           }
-          materiallyChanged ? (counts.updated += 1) : (counts.unchanged += 1);
+          if (materiallyChanged) counts.updated += 1;
+          else counts.unchanged += 1;
         } else {
           const [created] = await tx.insert(vehicles).values(values).returning({ id: vehicles.id });
           if (!created) throw new ApiError(500, "VEHICLE_CREATE_FAILED", "Could not create a vehicle.");
@@ -120,17 +121,16 @@ export async function importInventory(organizationId: string, payload: ImportPay
     }
 
     if (payload.completeSnapshot) {
+      const snapshotConditions = [
+        eq(vehicles.organizationId, organizationId),
+        eq(vehicles.sourceId, payload.sourceId),
+        eq(vehicles.status, "AVAILABLE"),
+      ];
+      if (seenIds.length) snapshotConditions.push(notInArray(vehicles.id, seenIds));
       const candidates = await db()
         .select({ id: vehicles.id })
         .from(vehicles)
-        .where(
-          and(
-            eq(vehicles.organizationId, organizationId),
-            eq(vehicles.sourceId, payload.sourceId),
-            eq(vehicles.status, "AVAILABLE"),
-            seenIds.length ? or(...[inArray(vehicles.id, seenIds).not()]) : undefined,
-          ),
-        );
+        .where(and(...snapshotConditions));
       if (candidates.length) {
         const missing = candidates.map((vehicle) => vehicle.id);
         await db().update(vehicles).set({ status: "STALE", updatedAt: new Date() }).where(inArray(vehicles.id, missing));
