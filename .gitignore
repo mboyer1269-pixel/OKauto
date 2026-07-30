@@ -1,0 +1,30 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# builds
+dist/
+build/
+.next/
+out/
+*.tsbuildinfo
+
+# env
+.env
+.env.local
+.env.*.local
+
+# test artifacts
+coverage/
+playwright-report/
+test-results/
+
+# databases / data
+*.sqlite
+pgdata/
+.pglite/
+
+# logs & misc
+*.log
+.DS_Store
+.turbo/

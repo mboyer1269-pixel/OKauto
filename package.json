@@ -1,0 +1,27 @@
+{
+  "name": "openlot",
+  "private": true,
+  "version": "0.1.0",
+  "description": "OpenLot — open, production-grade inventory-to-Marketplace listing platform for dealerships (dashboard, API, Chrome MV3 extension).",
+  "license": "MIT",
+  "packageManager": "pnpm@10.33.3",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "pnpm -r build",
+    "dev": "pnpm --parallel -r dev",
+    "lint": "eslint .",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "db:generate": "pnpm --filter @openlot/api db:generate",
+    "db:migrate": "pnpm --filter @openlot/api db:migrate",
+    "db:seed": "pnpm --filter @openlot/api db:seed"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.32.0",
+    "eslint": "^9.32.0",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.38.0"
+  }
+}
