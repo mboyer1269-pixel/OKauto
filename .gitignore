@@ -18,3 +18,4 @@ apps/extension/popup.js
 apps/extension/*.js.map
 packages/db/src/generated
 package.json.tmp
+*.tsbuildinfo
