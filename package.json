@@ -1,0 +1,31 @@
+{
+  "name": "lotpilot",
+  "private": true,
+  "version": "0.1.0",
+  "description": "LotPilot — dealership inventory listing platform for Facebook Marketplace (dashboard, API, worker, Chrome MV3 extension)",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@10.33.3",
+  "scripts": {
+    "build": "pnpm -r --filter './packages/*' build && pnpm --filter @lotpilot/web build && pnpm --filter @lotpilot/worker build && pnpm --filter @lotpilot/extension build",
+    "dev": "pnpm --filter @lotpilot/web dev",
+    "dev:worker": "pnpm --filter @lotpilot/worker dev",
+    "lint": "eslint .",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "test:integration": "pnpm --filter @lotpilot/web test:integration",
+    "db:generate": "pnpm --filter @lotpilot/db generate",
+    "db:migrate": "pnpm --filter @lotpilot/db migrate:deploy",
+    "db:seed": "pnpm --filter @lotpilot/db seed",
+    "format": "prettier --write \"**/*.{ts,tsx,md,json,yml,yaml,css}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,md,json,yml,yaml,css}\""
+  },
+  "devDependencies": {
+    "eslint": "^9.18.0",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.20.0"
+  }
+}
