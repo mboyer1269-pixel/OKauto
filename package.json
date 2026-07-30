@@ -1,0 +1,30 @@
+{
+  "name": "okauto",
+  "version": "0.1.0",
+  "private": true,
+  "description": "OKauto — clean-room Facebook Marketplace listing platform for vehicle dealerships (extension + dashboard + API).",
+  "packageManager": "pnpm@10.33.3",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "pnpm -r --filter ./packages/* build && pnpm --filter @okauto/web build && pnpm --filter @okauto/extension build",
+    "build:packages": "pnpm -r --filter ./packages/* build",
+    "dev": "pnpm --filter @okauto/web dev",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "db:generate": "pnpm --filter @okauto/db generate",
+    "db:migrate": "pnpm --filter @okauto/db migrate",
+    "db:seed": "pnpm --filter @okauto/db seed",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\""
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "@types/node": "^22.10.0",
+    "eslint": "^9.17.0",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.18.0"
+  }
+}
