@@ -1,0 +1,129 @@
+name: CI
+
+on:
+  push:
+    branches: [main, 'cursor/**']
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-typecheck-test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: okauto
+          POSTGRES_PASSWORD: okauto
+          POSTGRES_DB: okauto
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://okauto:okauto@localhost:5432/okauto?schema=public
+      REDIS_URL: redis://localhost:6379
+      JWT_SECRET: ci-test-secret-minimum-32-characters-long
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm db:generate
+
+      - name: Run migrations
+        run: pnpm --filter @okauto/database exec prisma migrate deploy
+
+      - name: Seed database for integration tests
+        run: pnpm db:seed
+
+      - name: Typecheck packages
+        run: |
+          pnpm --filter @okauto/shared typecheck
+          pnpm --filter @okauto/database typecheck
+          pnpm --filter @okauto/extension typecheck
+          pnpm --filter @okauto/worker typecheck
+
+      - name: Unit & integration tests
+        run: pnpm test
+
+      - name: Build all packages
+        run: pnpm build
+        env:
+          NODE_ENV: production
+
+      - name: Extension build verification
+        run: pnpm --filter @okauto/extension test
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs: lint-typecheck-test
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: okauto
+          POSTGRES_PASSWORD: okauto
+          POSTGRES_DB: okauto
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://okauto:okauto@localhost:5432/okauto?schema=public
+      JWT_SECRET: ci-test-secret-minimum-32-characters-long
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Setup database
+        run: |
+          pnpm db:generate
+          pnpm --filter @okauto/database exec prisma migrate deploy
+          pnpm db:seed
+
+      - name: Install Playwright
+        run: pnpm --filter @okauto/web exec playwright install --with-deps chromium
+
+      - name: Run E2E tests
+        run: pnpm --filter @okauto/web test:e2e
