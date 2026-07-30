@@ -1,0 +1,41 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  @apply bg-ink-950 text-ink-200 antialiased;
+}
+
+::selection {
+  @apply bg-brand-600/40;
+}
+
+/* Visible, consistent keyboard focus */
+:focus-visible {
+  @apply outline-none ring-2 ring-brand-400 ring-offset-1 ring-offset-ink-950;
+}
+
+/* Slim scrollbars for dark UI */
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+  @apply rounded-full bg-ink-700;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
