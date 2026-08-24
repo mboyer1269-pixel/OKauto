@@ -6,7 +6,7 @@ import { ProtectedRoute } from '@/components/protected-route';
 import { useAuth } from '@/components/auth-provider';
 import { formatCurrency, formatNumber, getStatusBadgeClass, formatDateTime } from '@/lib/utils';
 import { PhotoManager } from '@/components/photo-manager';
-import { Sparkles, Search } from 'lucide-react';
+import { ExternalLink, Sparkles, Search } from 'lucide-react';
 
 export default function VehicleDetailPage() {
   return (
@@ -78,9 +78,15 @@ function VehicleDetail() {
             <div className="mt-4 space-y-2 text-sm">
               <p><strong>Stock:</strong> {(vehicle.stockNumber as string) ?? '—'}</p>
               <p><strong>VIN:</strong> {(vehicle.vin as string) ?? '—'}</p>
-              <p><strong>Mileage:</strong> {formatNumber(vehicle.mileage as number)} mi</p>
+              <p>
+                <strong>Mileage:</strong> {formatNumber(vehicle.mileage as number)}{' '}
+                {String(vehicle.sourceUrl ?? '').includes('buckinghamgm.com') ? 'km' : 'mi'}
+              </p>
+              <p><strong>Condition:</strong> {(vehicle.condition as string) ?? '—'}</p>
               <p><strong>Color:</strong> {(vehicle.exteriorColor as string) ?? '—'}</p>
               <p><strong>Transmission:</strong> {(vehicle.transmission as string) ?? '—'}</p>
+              <p><strong>Drivetrain:</strong> {(vehicle.drivetrain as string) ?? '—'}</p>
+              <p><strong>Engine:</strong> {(vehicle.engine as string) ?? '—'}</p>
             </div>
             <div className="flex flex-wrap gap-2 mt-4">
               {Boolean(vehicle.vin) && (
@@ -91,6 +97,16 @@ function VehicleDetail() {
               <button onClick={handleGenerateDesc} className="btn-secondary text-xs">
                 <Sparkles size={14} className="mr-1" /> Generate Description
               </button>
+              {Boolean(vehicle.sourceUrl) && (
+                <a
+                  href={vehicle.sourceUrl as string}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn-secondary text-xs"
+                >
+                  <ExternalLink size={14} className="mr-1" /> Dealer Page
+                </a>
+              )}
               {vehicle.status !== 'SOLD' && (
                 <button onClick={handleMarkSold} className="btn-danger text-xs">Mark Sold</button>
               )}

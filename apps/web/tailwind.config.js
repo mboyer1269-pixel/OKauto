@@ -1,20 +1,20 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-  content: ['./src/**/*.{js,ts,jsx,tsx,mdx}'],
+  content: ["./src/**/*.{js,ts,jsx,tsx,mdx}"],
   theme: {
     extend: {
       colors: {
         brand: {
-          50: '#eff6ff',
-          100: '#dbeafe',
-          200: '#bfdbfe',
-          300: '#93c5fd',
-          400: '#60a5fa',
-          500: '#3b82f6',
-          600: '#2563eb',
-          700: '#1d4ed8',
-          800: '#1e40af',
-          900: '#1e3a8a',
+          50: "#eef8ff",
+          100: "#d9f0ff",
+          200: "#bce6ff",
+          300: "#7dd3fc",
+          400: "#39bdf8",
+          500: "#0e91e8",
+          600: "#0967d2",
+          700: "#0752ae",
+          800: "#0a438c",
+          900: "#0b396f",
         },
       },
     },

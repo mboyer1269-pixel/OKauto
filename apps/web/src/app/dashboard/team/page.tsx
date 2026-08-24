@@ -1,13 +1,43 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { ProtectedRoute } from '@/components/protected-route';
-import { useAuth } from '@/components/auth-provider';
+import { useCallback, useEffect, useState } from "react";
+import {
+  CheckCircle2,
+  Copy,
+  Eye,
+  EyeOff,
+  KeyRound,
+  Plus,
+  RefreshCw,
+  Users,
+} from "lucide-react";
+import { ProtectedRoute } from "@/components/protected-route";
+import { useAuth } from "@/components/auth-provider";
+import { getTeamAccessLabel, getTeamMemberTitle } from "@/lib/team-members";
 
 interface Member {
   id: string;
   role: string;
   user: { id: string; name: string; email: string; isActive: boolean };
+}
+
+interface CreatedMember {
+  name: string;
+  email: string;
+  temporaryPassword: string | null;
+}
+
+const EMPTY_INVITE = { name: "", email: "", password: "", role: "SALESPERSON" };
+
+function generateTemporaryPassword() {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+  const values = new Uint32Array(10);
+  crypto.getRandomValues(values);
+  const randomPart = Array.from(
+    values,
+    (value) => alphabet[value % alphabet.length],
+  ).join("");
+  return `Ok!${randomPart}7a`;
 }
 
 export default function TeamPage() {
@@ -22,79 +52,405 @@ function TeamContent() {
   const { apiFetch, role } = useAuth();
   const [members, setMembers] = useState<Member[]>([]);
   const [showInvite, setShowInvite] = useState(false);
-  const [invite, setInvite] = useState({ name: '', email: '', password: '', role: 'SALESPERSON' });
-  const [error, setError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [invite, setInvite] = useState(EMPTY_INVITE);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [pageError, setPageError] = useState("");
+  const [formError, setFormError] = useState("");
+  const [createdMember, setCreatedMember] = useState<CreatedMember | null>(
+    null,
+  );
+  const [copied, setCopied] = useState(false);
 
-  const load = () => {
-    apiFetch('/api/v1/organizations/members').then((r) => r.json()).then(setMembers);
-  };
-
-  useEffect(() => { load(); }, [apiFetch]);
-
-  const handleInvite = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    const res = await apiFetch('/api/v1/organizations/members', {
-      method: 'POST',
-      body: JSON.stringify(invite),
-    });
-    if (!res.ok) {
-      const err = await res.json();
-      setError(err.error);
-      return;
+  const loadMembers = useCallback(async () => {
+    setPageError("");
+    try {
+      const response = await apiFetch("/api/v1/organizations/members");
+      if (!response.ok)
+        throw new Error("Impossible de charger les membres de l’équipe.");
+      setMembers((await response.json()) as Member[]);
+    } catch (loadError) {
+      setPageError(
+        loadError instanceof Error
+          ? loadError.message
+          : "Une erreur est survenue.",
+      );
+    } finally {
+      setLoading(false);
     }
-    setShowInvite(false);
-    setInvite({ name: '', email: '', password: '', role: 'SALESPERSON' });
-    load();
+  }, [apiFetch]);
+
+  useEffect(() => {
+    void loadMembers();
+  }, [loadMembers]);
+
+  const openInviteForm = () => {
+    setCreatedMember(null);
+    setFormError("");
+    setShowPassword(false);
+    setInvite({ ...EMPTY_INVITE, password: generateTemporaryPassword() });
+    setShowInvite(true);
   };
 
-  const canManage = role === 'OWNER' || role === 'ADMIN';
+  const closeInviteForm = () => {
+    setShowInvite(false);
+    setFormError("");
+    setInvite(EMPTY_INVITE);
+  };
+
+  const handleInvite = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setFormError("");
+    setSaving(true);
+
+    const submittedInvite = {
+      ...invite,
+      name: invite.name.trim(),
+      email: invite.email.trim().toLocaleLowerCase("fr-CA"),
+    };
+
+    try {
+      const response = await apiFetch("/api/v1/organizations/members", {
+        method: "POST",
+        body: JSON.stringify(submittedInvite),
+      });
+      const result = (await response.json()) as {
+        error?: string;
+        temporaryPasswordCreated?: boolean;
+      };
+
+      if (!response.ok) {
+        throw new Error(result.error ?? "Le compte n’a pas pu être créé.");
+      }
+
+      setCreatedMember({
+        name: submittedInvite.name,
+        email: submittedInvite.email,
+        temporaryPassword:
+          result.temporaryPasswordCreated === false
+            ? null
+            : submittedInvite.password,
+      });
+      setShowInvite(false);
+      setInvite(EMPTY_INVITE);
+      await loadMembers();
+    } catch (inviteError) {
+      setFormError(
+        inviteError instanceof Error
+          ? inviteError.message
+          : "Une erreur est survenue.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const copyCredentials = async () => {
+    if (!createdMember) return;
+    const details = createdMember.temporaryPassword
+      ? `Accès Suivia Auto\nCourriel : ${createdMember.email}\nMot de passe temporaire : ${createdMember.temporaryPassword}`
+      : `Accès Suivia Auto\nCourriel : ${createdMember.email}\nUtilisez votre mot de passe Suivia Auto actuel.`;
+
+    try {
+      await navigator.clipboard.writeText(details);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setPageError(
+        "La copie automatique a échoué. Les accès restent visibles ci-dessus.",
+      );
+    }
+  };
+
+  const canManage = role === "OWNER" || role === "ADMIN";
 
   return (
-    <div>
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Team</h1>
-        {canManage && (
-          <button onClick={() => setShowInvite(!showInvite)} className="btn-primary">Invite Member</button>
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+            Accès et responsabilités
+          </p>
+          <h1 className="mt-1 text-2xl font-bold text-slate-950">Équipe</h1>
+          <p className="mt-1 text-sm text-slate-600">
+            {members.length} membre{members.length === 1 ? "" : "s"} peut
+            {members.length === 1 ? "" : "vent"} accéder à Suivia Auto.
+          </p>
+        </div>
+        {canManage && !showInvite && (
+          <button
+            type="button"
+            onClick={openInviteForm}
+            className="btn-primary"
+          >
+            <Plus className="mr-2" size={17} /> Ajouter un membre
+          </button>
         )}
       </div>
 
+      {createdMember && (
+        <section
+          className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5"
+          aria-live="polite"
+        >
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex gap-3">
+              <CheckCircle2
+                className="mt-0.5 shrink-0 text-emerald-700"
+                size={22}
+              />
+              <div>
+                <h2 className="font-bold text-emerald-950">
+                  {createdMember.name} a été ajouté à l’équipe
+                </h2>
+                <p className="mt-1 text-sm text-emerald-800">
+                  {createdMember.temporaryPassword
+                    ? "Copiez les accès et transmettez-les à la personne de façon sécuritaire."
+                    : "Ce courriel avait déjà un compte Suivia Auto; son mot de passe actuel demeure valide."}
+                </p>
+                <div className="mt-3 rounded-xl border border-emerald-200 bg-white/80 px-4 py-3 font-mono text-sm text-slate-800">
+                  <p>{createdMember.email}</p>
+                  {createdMember.temporaryPassword && (
+                    <p className="mt-1">{createdMember.temporaryPassword}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="flex shrink-0 flex-wrap gap-2">
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => void copyCredentials()}
+              >
+                <Copy className="mr-2" size={16} />{" "}
+                {copied ? "Copié" : "Copier les accès"}
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={openInviteForm}
+              >
+                <Plus className="mr-2" size={16} /> Ajouter une autre personne
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
+
       {showInvite && (
-        <form onSubmit={handleInvite} className="card mb-6 max-w-md space-y-3">
-          {error && <div className="p-2 bg-red-50 text-red-700 rounded text-sm">{error}</div>}
-          <input className="input" placeholder="Name" value={invite.name} onChange={(e) => setInvite({ ...invite, name: e.target.value })} required />
-          <input className="input" type="email" placeholder="Email" value={invite.email} onChange={(e) => setInvite({ ...invite, email: e.target.value })} required />
-          <input className="input" type="password" placeholder="Temporary Password" value={invite.password} onChange={(e) => setInvite({ ...invite, password: e.target.value })} required minLength={8} />
-          <select className="input" value={invite.role} onChange={(e) => setInvite({ ...invite, role: e.target.value })}>
-            <option value="SALESPERSON">Salesperson</option>
-            <option value="MANAGER">Manager</option>
-            <option value="ADMIN">Admin</option>
-          </select>
-          <button type="submit" className="btn-primary">Send Invite</button>
+        <form onSubmit={handleInvite} className="card max-w-2xl p-5 sm:p-6">
+          <div className="flex items-start gap-3">
+            <div className="rounded-xl bg-blue-100 p-2 text-blue-700">
+              <Users size={20} />
+            </div>
+            <div>
+              <h2 className="font-bold text-slate-950">
+                Créer un accès pour un membre
+              </h2>
+              <p className="mt-1 text-sm leading-5 text-slate-600">
+                La personne pourra se connecter avec son courriel et le mot de
+                passe temporaire ci-dessous.
+              </p>
+            </div>
+          </div>
+
+          {formError && (
+            <div className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">
+              {formError}
+            </div>
+          )}
+
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            <label className="text-sm font-semibold text-slate-700">
+              Nom complet
+              <input
+                className="input mt-1.5"
+                placeholder="Ex. Marie Tremblay"
+                value={invite.name}
+                onChange={(event) =>
+                  setInvite({ ...invite, name: event.target.value })
+                }
+                autoComplete="name"
+                required
+              />
+            </label>
+            <label className="text-sm font-semibold text-slate-700">
+              Courriel professionnel
+              <input
+                className="input mt-1.5"
+                type="email"
+                placeholder="marie@concession.ca"
+                value={invite.email}
+                onChange={(event) =>
+                  setInvite({ ...invite, email: event.target.value })
+                }
+                autoComplete="email"
+                required
+              />
+            </label>
+            <label className="text-sm font-semibold text-slate-700 sm:col-span-2">
+              Mot de passe temporaire
+              <div className="mt-1.5 flex flex-col gap-2 sm:flex-row">
+                <div className="relative flex-1">
+                  <KeyRound
+                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                    size={17}
+                  />
+                  <input
+                    className="input pl-10 pr-10 font-mono"
+                    type={showPassword ? "text" : "password"}
+                    value={invite.password}
+                    onChange={(event) =>
+                      setInvite({ ...invite, password: event.target.value })
+                    }
+                    autoComplete="new-password"
+                    required
+                    minLength={8}
+                  />
+                  <button
+                    type="button"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-800"
+                    onClick={() => setShowPassword(!showPassword)}
+                    aria-label={
+                      showPassword
+                        ? "Masquer le mot de passe"
+                        : "Afficher le mot de passe"
+                    }
+                  >
+                    {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  className="btn-secondary whitespace-nowrap"
+                  onClick={() =>
+                    setInvite({
+                      ...invite,
+                      password: generateTemporaryPassword(),
+                    })
+                  }
+                >
+                  <RefreshCw className="mr-2" size={16} /> Régénérer
+                </button>
+              </div>
+              <span className="mt-1.5 block text-xs font-normal text-slate-500">
+                Au moins 8 caractères. Un mot de passe sécuritaire est déjà
+                généré.
+              </span>
+            </label>
+            <label className="text-sm font-semibold text-slate-700 sm:col-span-2">
+              Fonction et niveau d’accès
+              <select
+                className="input mt-1.5"
+                value={invite.role}
+                onChange={(event) =>
+                  setInvite({ ...invite, role: event.target.value })
+                }
+              >
+                <option value="SALESPERSON">
+                  Représentant aux ventes — inventaire et publications
+                </option>
+                <option value="MANAGER">
+                  Direction des ventes — gestion opérationnelle
+                </option>
+                <option value="ADMIN">
+                  Administration — gestion complète, incluant l’équipe
+                </option>
+              </select>
+            </label>
+          </div>
+
+          <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={closeInviteForm}
+              disabled={saving}
+            >
+              Annuler
+            </button>
+            <button type="submit" className="btn-primary" disabled={saving}>
+              {saving ? "Création en cours…" : "Créer le compte"}
+            </button>
+          </div>
         </form>
       )}
 
-      <div className="card">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b text-left text-slate-500">
-              <th className="pb-3">Name</th>
-              <th className="pb-3">Email</th>
-              <th className="pb-3">Role</th>
-              <th className="pb-3">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {members.map((m) => (
-              <tr key={m.id} className="border-b last:border-0">
-                <td className="py-3 font-medium">{m.user.name}</td>
-                <td className="py-3">{m.user.email}</td>
-                <td className="py-3"><span className="badge-neutral">{m.role}</span></td>
-                <td className="py-3">{m.user.isActive ? 'Active' : 'Inactive'}</td>
-              </tr>
+      {pageError && (
+        <div className="card flex items-center justify-between gap-4 border-red-200 bg-red-50 text-sm text-red-700">
+          <span>{pageError}</span>
+          <button
+            type="button"
+            className="font-semibold underline"
+            onClick={() => void loadMembers()}
+          >
+            Réessayer
+          </button>
+        </div>
+      )}
+
+      <div className="card overflow-hidden p-0">
+        {loading ? (
+          <div className="space-y-3 p-6" aria-label="Chargement de l’équipe">
+            {[1, 2, 3].map((item) => (
+              <div
+                key={item}
+                className="h-12 animate-pulse rounded-lg bg-slate-100"
+              />
             ))}
-          </tbody>
-        </table>
+          </div>
+        ) : members.length === 0 ? (
+          <div className="p-8 text-center text-sm text-slate-600">
+            Aucun membre n’est encore associé à cette organisation.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[680px] text-sm">
+              <thead className="bg-slate-50">
+                <tr className="border-b text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  <th className="px-5 py-3">Membre</th>
+                  <th className="px-5 py-3">Fonction</th>
+                  <th className="px-5 py-3">Accès</th>
+                  <th className="px-5 py-3">Statut</th>
+                </tr>
+              </thead>
+              <tbody>
+                {members.map((member) => (
+                  <tr key={member.id} className="border-b last:border-0">
+                    <td className="px-5 py-4">
+                      <p className="font-semibold text-slate-950">
+                        {member.user.name}
+                      </p>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        {member.user.email}
+                      </p>
+                    </td>
+                    <td className="px-5 py-4">
+                      <span className="badge-neutral">
+                        {getTeamMemberTitle(member.role, member.user)}
+                      </span>
+                    </td>
+                    <td className="px-5 py-4 text-slate-600">
+                      {getTeamAccessLabel(member.role)}
+                    </td>
+                    <td className="px-5 py-4">
+                      <span
+                        className={
+                          member.user.isActive
+                            ? "badge-success"
+                            : "badge-danger"
+                        }
+                      >
+                        {member.user.isActive ? "Actif" : "Inactif"}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

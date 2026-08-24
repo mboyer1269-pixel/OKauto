@@ -3,7 +3,9 @@ import {
   generateTemplateDescription,
   generateListingTitle,
   generateMarketplaceTitle,
+  generateMarketplacePackage,
 } from '../description';
+import { createListingSchema, isFacebookMarketplaceItemUrl } from '../index';
 import { isValidVinFormat, normalizeVin } from '../vin';
 
 describe('description', () => {
@@ -22,24 +24,68 @@ describe('description', () => {
       year: 2022,
       make: 'Honda',
       model: 'Accord',
+      price: 32995,
       mileage: 25000,
       exteriorColor: 'Black',
+      transmission: 'Automatique',
+      features: ['Sièges chauffants', 'Caméra de recul', 'sièges chauffants'],
       dealershipName: 'Demo Motors',
+      contactName: 'Michael Boyer',
       phone: '555-1234',
+      stockNumber: 'U1234',
     });
     expect(desc).toContain('2022 Honda Accord');
-    expect(desc).toContain('25,000 miles');
-    expect(desc).toContain('Demo Motors');
+    expect(desc).toContain('32 995');
+    expect(desc).toContain('25 000 km');
+    expect(desc).toContain('Je vous présente ce véhicule : 2022 Honda Accord.');
+    expect(desc).toContain('Il est présentement disponible chez Demo Motors.');
+    expect(desc).toContain('Côté configuration, il comprend une transmission Automatique.');
+    expect(desc).toContain('POINTS CLÉS');
+    expect(desc).toContain('• Transmission : Automatique');
+    expect(desc).toContain('ÉQUIPEMENTS À RETENIR');
+    expect(desc.match(/Sièges chauffants/gi)).toHaveLength(1);
+    expect(desc).toContain('Écrivez-moi directement ici sur Messenger — Michael Boyer.');
+    expect(desc).toContain('m’appeler directement à la concession au 555-1234 et demander Michael Boyer');
+    expect(desc).not.toContain('Écrivez-nous');
+    expect(desc).toContain('Référence : stock U1234');
+    expect(desc).not.toContain('Quantité disponible');
+    expect(desc).toContain('Aucun frais obligatoire additionnel');
   });
 
-  it('generates marketplace title with mileage', () => {
+  it('does not invent missing vehicle details', () => {
+    const desc = generateTemplateDescription({
+      year: 2024,
+      make: 'GMC',
+      model: 'Terrain',
+      price: 39995,
+    });
+
+    expect(desc).not.toContain('Kilométrage');
+    expect(desc).not.toContain('Transmission');
+    expect(desc).not.toContain('Financement');
+    expect(desc).not.toContain('Garantie');
+  });
+
+  it('generates a concise marketplace title', () => {
     const title = generateMarketplaceTitle({
       year: 2022,
       make: 'Honda',
       model: 'Accord',
       mileage: 25000,
     });
-    expect(title).toContain('25,000 mi');
+    expect(title).toBe('2022 Honda Accord');
+  });
+
+  it('blocks an incomplete used-vehicle package', () => {
+    const pkg = generateMarketplacePackage({
+      year: 2022,
+      make: 'Honda',
+      model: 'Accord',
+      condition: 'Usagé',
+      price: 24000,
+    });
+    expect(pkg.isReady).toBe(false);
+    expect(pkg.blockers).toContain('Kilométrage requis pour un véhicule usagé.');
   });
 });
 
@@ -52,5 +98,25 @@ describe('vin', () => {
     expect(isValidVinFormat('1HGBH41JXMN109186')).toBe(true);
     expect(isValidVinFormat('INVALID')).toBe(false);
     expect(isValidVinFormat('1HGBH41JXMN10918')).toBe(false);
+  });
+});
+
+describe('listing schema', () => {
+  it('accepts decimal prices serialized by Prisma', () => {
+    const listing = createListingSchema.parse({
+      vehicleId: 'vehicle-1',
+      platform: 'facebook_marketplace',
+      externalUrl: 'https://www.facebook.com/marketplace/item/123',
+      priceAtListing: '53995',
+    });
+
+    expect(listing.priceAtListing).toBe(53995);
+  });
+
+  it('only accepts published Facebook Marketplace item URLs', () => {
+    expect(isFacebookMarketplaceItemUrl('https://www.facebook.com/marketplace/item/123456')).toBe(true);
+    expect(isFacebookMarketplaceItemUrl('https://m.facebook.com/marketplace/item/123456/')).toBe(true);
+    expect(isFacebookMarketplaceItemUrl('https://www.facebook.com/marketplace/create/vehicle')).toBe(false);
+    expect(isFacebookMarketplaceItemUrl('https://evilfacebook.com/marketplace/item/123456')).toBe(false);
   });
 });

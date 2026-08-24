@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseSyncFeed } from '../index';
+import { extractD2cDetailPhotos, parseSyncFeed } from '../index';
 
 describe('sync adapters', () => {
   it('generic adapter parses JSON array', () => {
@@ -65,9 +65,83 @@ describe('sync adapters', () => {
     expect(vehicles[0].photos).toEqual(['https://example.com/bmw.jpg']);
   });
 
+  it('d2c adapter extracts a complete dealer inventory card', () => {
+    const html = `
+      <ul>
+        <li class="carBoxWrapper" data-carid="123">
+          <script type="application/ld+json">
+          {
+            "@type": "Vehicle",
+            "vehicleIdentificationNumber": "1GCUKREC0JF123456",
+            "sku": "B24001",
+            "brand": { "name": "Chevrolet" },
+            "image": "https://cdn.example.com/silverado.jpg",
+            "offers": {
+              "price": "48995",
+              "availability": "https://schema.org/InStock",
+              "url": "https://www.buckinghamgm.com/occasion/Chevrolet-Silverado-1500-2018.html"
+            }
+          }
+          </script>
+          <input name="vehicledata" data-vin="1GCUKREC0JF123456"
+            data-stock-number="B24001" data-year="2018" data-make="Chevrolet"
+            data-model="Silverado 1500" data-condition="USED">
+          <span class="divTrim">LT</span>
+          <span class="s-km">87 321 km</span>
+          <span class="s-desc">Cabine double</span>
+          <div class="box-lc"><span>Moteur:</span><span>5.3 L</span></div>
+          <div class="box-lc"><span>Cylindres:</span><span>8</span></div>
+          <div class="box-lc"><span>Transmission:</span><span>Automatique</span></div>
+          <div class="box-lc"><span>Motricité:</span><span>4 roues motrices</span></div>
+          <div class="box-lc"><span>Carburant:</span><span>Essence</span></div>
+          <div class="box-lc"><span>Catégorie:</span><span>Camion</span></div>
+          <div class="box-lc"><span>Couleur extérieure:</span><span>Noir</span></div>
+          <div class="box-lc"><span>Portes:</span><span>4</span></div>
+        </li>
+      </ul>
+    `;
+
+    const vehicles = parseSyncFeed('d2c', html, 'text/html');
+
+    expect(vehicles).toHaveLength(1);
+    expect(vehicles[0]).toMatchObject({
+      vin: '1GCUKREC0JF123456',
+      stockNumber: 'B24001',
+      make: 'Chevrolet',
+      model: 'Silverado 1500',
+      trim: 'LT',
+      mileage: 87321,
+      price: 48995,
+      engine: '5.3 L',
+      cylinders: 8,
+      doors: 4,
+      condition: 'Used',
+      sourceUrl: 'https://www.buckinghamgm.com/occasion/Chevrolet-Silverado-1500-2018.html',
+      status: 'AVAILABLE',
+    });
+    expect(vehicles[0].photos).toEqual(['https://cdn.example.com/silverado.jpg']);
+  });
+
   it('skips items without valid VIN', () => {
     const body = JSON.stringify([{ make: 'Honda', model: 'Civic' }]);
     const vehicles = parseSyncFeed('generic', body);
     expect(vehicles).toHaveLength(0);
+  });
+
+  it('extracts, deduplicates and orders full-size D2C gallery photos', () => {
+    const sourceUrl = 'https://www.buckinghamgm.com/occasion/Volkswagen-Golf_R-2025-id14132487.html';
+    const html = `
+      <img src="https://imagescdn.d2cmedia.ca/s86abc/1964/14132487/1/Volkswagen-Golf_R-2025.jpg">
+      <a href="https://imagescdn.d2cmedia.ca/cb6abc/1964/14132487/10/Volkswagen-Golf_R-2025.jpg"></a>
+      <script>{"image":"https:\\/\\/imagescdn.d2cmedia.ca\\/cb6abc\\/1964\\/14132487\\/2\\/Volkswagen-Golf_R-2025.jpg"}</script>
+      <a href="https://imagescdn.d2cmedia.ca/cb6abc/1964/14132487/1/Volkswagen-Golf_R-2025.jpg"></a>
+      <a href="https://imagescdn.d2cmedia.ca/cb6abc/1964/99999999/1/Other.jpg"></a>
+    `;
+
+    expect(extractD2cDetailPhotos(html, sourceUrl)).toEqual([
+      'https://imagescdn.d2cmedia.ca/cb6abc/1964/14132487/1/Volkswagen-Golf_R-2025.jpg',
+      'https://imagescdn.d2cmedia.ca/cb6abc/1964/14132487/2/Volkswagen-Golf_R-2025.jpg',
+      'https://imagescdn.d2cmedia.ca/cb6abc/1964/14132487/10/Volkswagen-Golf_R-2025.jpg',
+    ]);
   });
 });

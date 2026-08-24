@@ -20,6 +20,21 @@ export function hasMinRole(userRole: RoleType, requiredRole: RoleType): boolean 
   return ROLE_HIERARCHY[userRole] >= ROLE_HIERARCHY[requiredRole];
 }
 
+export function isFacebookMarketplaceItemUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    const hostname = url.hostname.toLowerCase();
+    const isFacebookHost = hostname === 'facebook.com' || hostname.endsWith('.facebook.com');
+    return (
+      url.protocol === 'https:' &&
+      isFacebookHost &&
+      /^\/marketplace\/item\/[^/]+\/?$/.test(url.pathname)
+    );
+  } catch {
+    return false;
+  }
+}
+
 export const VehicleStatus = {
   AVAILABLE: 'AVAILABLE',
   PENDING: 'PENDING',
@@ -100,7 +115,7 @@ export const createListingSchema = z.object({
   platform: z.string().default('facebook_marketplace'),
   externalUrl: z.string().url().optional().nullable(),
   externalId: z.string().optional().nullable(),
-  priceAtListing: z.number().optional().nullable(),
+  priceAtListing: z.coerce.number().finite().nonnegative().optional().nullable(),
   notes: z.string().max(1000).optional().nullable(),
 });
 
@@ -169,7 +184,7 @@ export type ExtensionEventInput = z.infer<typeof extensionEventSchema>;
 export const createSyncSourceSchema = z.object({
   name: z.string().min(1).max(200),
   url: z.string().url(),
-  adapter: z.enum(['generic', 'dealer-json', 'json-ld']).default('generic'),
+  adapter: z.enum(['generic', 'dealer-json', 'json-ld', 'd2c']).default('generic'),
   isActive: z.boolean().optional(),
   intervalMinutes: z.number().int().min(5).max(10080).default(60),
 });

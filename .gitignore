@@ -28,6 +28,7 @@ Thumbs.db
 coverage/
 playwright-report/
 test-results/
+.playwright-cli/
 
 # Extension build
 apps/extension/dist/

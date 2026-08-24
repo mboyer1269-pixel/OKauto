@@ -1,5 +1,9 @@
+export {};
+
 interface Vehicle {
   id: string;
+  vin?: string;
+  stockNumber?: string;
   year: number;
   make: string;
   model: string;
@@ -7,6 +11,14 @@ interface Vehicle {
   mileage?: number;
   price?: number;
   description?: string;
+  contactName?: string;
+  dealershipName?: string;
+  phone?: string;
+  exteriorColor?: string;
+  bodyStyle?: string;
+  condition?: string;
+  fuelType?: string;
+  transmission?: string;
   photos?: string[];
   hasActiveListing?: boolean;
 }
@@ -16,14 +28,29 @@ interface Settings {
   apiUrl: string;
 }
 
-const MARKETPLACE_CREATE_URL = 'https://www.facebook.com/marketplace/create/vehicle';
+const MARKETPLACE_CREATE_URL =
+  "https://www.facebook.com/marketplace/create/vehicle";
+const PENDING_PUBLICATION_KEY = "pendingPublication";
+
+function isMarketplaceCreateUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return (
+      /(^|\.)facebook\.com$/i.test(url.hostname) &&
+      url.pathname.startsWith("/marketplace/create")
+    );
+  } catch {
+    return false;
+  }
+}
+let inventory: Vehicle[] = [];
 
 async function getSettings(): Promise<Settings> {
   return new Promise((resolve) => {
-    chrome.storage.local.get(['apiKey', 'apiUrl'], (result) => {
+    chrome.storage.local.get(["apiKey", "apiUrl"], (result) => {
       resolve({
-        apiKey: (result.apiKey as string) ?? '',
-        apiUrl: (result.apiUrl as string) ?? 'http://localhost:3000',
+        apiKey: (result.apiKey as string) ?? "",
+        apiUrl: (result.apiUrl as string) ?? "http://localhost:3000",
       });
     });
   });
@@ -35,31 +62,35 @@ async function saveSettings(settings: Settings) {
   });
 }
 
-async function apiFetch(path: string, settings: Settings, options: RequestInit = {}) {
+async function apiFetch(
+  path: string,
+  settings: Settings,
+  options: RequestInit = {},
+) {
   const headers = new Headers(options.headers);
-  headers.set('X-API-Key', settings.apiKey);
-  if (options.body) headers.set('Content-Type', 'application/json');
+  headers.set("X-API-Key", settings.apiKey);
+  if (options.body) headers.set("Content-Type", "application/json");
   return fetch(`${settings.apiUrl}${path}`, { ...options, headers });
 }
 
 function showError(msg: string) {
-  const el = document.getElementById('error')!;
+  const el = document.getElementById("error")!;
   el.textContent = msg;
-  el.style.display = 'block';
+  el.style.display = "block";
 }
 
 function hideError() {
-  const el = document.getElementById('error')!;
-  el.style.display = 'none';
+  const el = document.getElementById("error")!;
+  el.style.display = "none";
 }
 
 function renderVehicles(vehicles: Vehicle[]) {
-  const list = document.getElementById('vehicle-list')!;
-  const loading = document.getElementById('loading')!;
-  loading.style.display = 'none';
+  const list = document.getElementById("vehicle-list")!;
+  const loading = document.getElementById("loading")!;
+  loading.style.display = "none";
 
   if (vehicles.length === 0) {
-    list.innerHTML = '<div class="status">No available vehicles.</div>';
+    list.innerHTML = '<div class="status">Aucun véhicule trouvé.</div>';
     return;
   }
 
@@ -70,17 +101,17 @@ function renderVehicles(vehicles: Vehicle[]) {
       ${v.photos?.[0] ? `<img src="${v.photos[0]}" alt="" />` : '<div style="width:60px;height:45px;background:#f1f5f9;border-radius:4px"></div>'}
       <div class="vehicle-info">
         <h3>${v.year} ${v.make} ${v.model}</h3>
-        <p>${v.mileage?.toLocaleString() ?? '—'} mi · $${v.price?.toLocaleString() ?? '—'}</p>
-        ${v.hasActiveListing ? '<span class="badge badge-listed">Listed</span>' : ''}
+        <p>${v.stockNumber ? `Stock ${v.stockNumber} · ` : ""}${v.mileage?.toLocaleString("fr-CA") ?? "—"} km · ${v.price?.toLocaleString("fr-CA") ?? "—"} $ CA</p>
+        ${v.hasActiveListing ? '<span class="badge badge-listed">Publiée</span>' : ""}
       </div>
-      <button class="btn-assist" data-assist="${v.id}">Assist</button>
+      <button class="btn-assist" data-assist="${v.id}">Publier</button>
     </div>
-  `
+  `,
     )
-    .join('');
+    .join("");
 
-  list.querySelectorAll('[data-assist]').forEach((btn) => {
-    btn.addEventListener('click', async () => {
+  list.querySelectorAll("[data-assist]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
       const id = (btn as HTMLElement).dataset.assist!;
       const vehicle = vehicles.find((v) => v.id === id);
       if (vehicle) await assistListing(vehicle);
@@ -90,38 +121,47 @@ function renderVehicles(vehicles: Vehicle[]) {
 
 async function loadInventory(settings: Settings) {
   hideError();
-  document.getElementById('loading')!.style.display = 'block';
-  document.getElementById('vehicle-list')!.innerHTML = '';
+  document.getElementById("loading")!.style.display = "block";
+  document.getElementById("vehicle-list")!.innerHTML = "";
 
   try {
-    const res = await apiFetch('/api/v1/extension', settings);
+    const res = await apiFetch("/api/v1/extension", settings);
     if (!res.ok) {
       const err = await res.json();
-      throw new Error(err.error ?? 'Failed to load inventory');
+      throw new Error(err.error ?? "Failed to load inventory");
     }
     const data = await res.json();
-    document.getElementById('org-name')!.textContent = data.organization?.name ?? 'Listing Assistant';
-    renderVehicles(data.vehicles ?? []);
+    document.getElementById("org-name")!.textContent =
+      data.organization?.name ?? "Listing Assistant";
+    inventory = (data.vehicles ?? []).map((vehicle: Vehicle) => ({
+      ...vehicle,
+      contactName: vehicle.contactName || data.user?.name,
+      dealershipName: vehicle.dealershipName || data.organization?.name,
+      phone: vehicle.phone || data.organization?.phone,
+    }));
+    renderVehicles(inventory);
   } catch (err) {
-    document.getElementById('loading')!.style.display = 'none';
-    showError(err instanceof Error ? err.message : 'Failed to connect');
+    document.getElementById("loading")!.style.display = "none";
+    showError(err instanceof Error ? err.message : "Connexion impossible");
   }
 }
 
 async function assistListing(vehicle: Vehicle) {
   const settings = await getSettings();
   if (!settings.apiKey) {
-    showError('Configure API key in Settings tab');
+    showError("Ajoutez une clé API dans l’onglet Réglages.");
     return;
   }
 
-  await chrome.storage.local.set({ pendingVehicle: vehicle });
+  await chrome.storage.local.set({
+    [PENDING_PUBLICATION_KEY]: { vehicle, startedAt: Date.now() },
+  });
 
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
-  if (tab?.url?.includes('facebook.com/marketplace')) {
+  if (tab?.url && isMarketplaceCreateUrl(tab.url)) {
     chrome.tabs.sendMessage(tab.id!, {
-      type: 'FILL_MARKETPLACE_FORM',
+      type: "FILL_MARKETPLACE_FORM",
       vehicle,
     });
     window.close();
@@ -131,67 +171,86 @@ async function assistListing(vehicle: Vehicle) {
   }
 }
 
-async function reportListing(vehicleId: string, externalUrl: string) {
-  const settings = await getSettings();
-  await apiFetch('/api/v1/extension/events', settings, {
-    method: 'POST',
-    body: JSON.stringify({
-      eventType: 'listing_created',
-      vehicleId,
-      metadata: { externalUrl, source: 'extension' },
-    }),
-  });
-}
-
 // Tab switching
-document.querySelectorAll('.tab').forEach((tab) => {
-  tab.addEventListener('click', () => {
-    document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
-    tab.classList.add('active');
+document.querySelectorAll(".tab").forEach((tab) => {
+  tab.addEventListener("click", () => {
+    document
+      .querySelectorAll(".tab")
+      .forEach((t) => t.classList.remove("active"));
+    tab.classList.add("active");
     const tabName = (tab as HTMLElement).dataset.tab!;
-    document.getElementById('tab-inventory')!.style.display = tabName === 'inventory' ? 'block' : 'none';
-    document.getElementById('tab-settings')!.style.display = tabName === 'settings' ? 'block' : 'none';
+    document.getElementById("tab-inventory")!.style.display =
+      tabName === "inventory" ? "block" : "none";
+    document.getElementById("tab-settings")!.style.display =
+      tabName === "settings" ? "block" : "none";
   });
 });
 
 // Settings
-document.getElementById('save-settings')!.addEventListener('click', async () => {
-  const apiUrl = (document.getElementById('api-url') as HTMLInputElement).value;
-  const apiKey = (document.getElementById('api-key') as HTMLInputElement).value;
-  await saveSettings({ apiUrl, apiKey });
+document
+  .getElementById("save-settings")!
+  .addEventListener("click", async () => {
+    const apiUrl = (document.getElementById("api-url") as HTMLInputElement)
+      .value;
+    const apiKey = (document.getElementById("api-key") as HTMLInputElement)
+      .value;
+    await saveSettings({ apiUrl, apiKey });
 
-  const res = await apiFetch('/api/v1/extension', { apiUrl, apiKey }, {
-    method: 'POST',
-    body: JSON.stringify({ apiKey }),
+    const res = await apiFetch(
+      "/api/v1/extension",
+      { apiUrl, apiKey },
+      {
+        method: "POST",
+        body: JSON.stringify({ apiKey }),
+      },
+    );
+
+    if (res.ok) {
+      hideError();
+      document
+        .querySelector('[data-tab="inventory"]')!
+        .dispatchEvent(new Event("click"));
+      loadInventory({ apiUrl, apiKey });
+    } else {
+      showError("Clé API ou URL invalide.");
+    }
   });
 
-  if (res.ok) {
-    hideError();
-    document.querySelector('[data-tab="inventory"]')!.dispatchEvent(new Event('click'));
-    loadInventory({ apiUrl, apiKey });
-  } else {
-    showError('Invalid API key or URL');
-  }
-});
-
-// Listen for listing confirmations from content script
-chrome.runtime.onMessage.addListener((message) => {
-  if (message.type === 'LISTING_CONFIRMED') {
-    reportListing(message.vehicleId, message.externalUrl);
-  }
-});
+document
+  .getElementById("vehicle-search")!
+  .addEventListener("input", (event) => {
+    const query = (event.target as HTMLInputElement).value.trim().toLowerCase();
+    renderVehicles(
+      inventory.filter((vehicle) =>
+        [
+          vehicle.year,
+          vehicle.make,
+          vehicle.model,
+          vehicle.trim,
+          vehicle.stockNumber,
+          vehicle.vin,
+        ].some((value) =>
+          String(value ?? "")
+            .toLowerCase()
+            .includes(query),
+        ),
+      ),
+    );
+  });
 
 // Init
 (async () => {
   const settings = await getSettings();
-  (document.getElementById('api-url') as HTMLInputElement).value = settings.apiUrl;
-  (document.getElementById('api-key') as HTMLInputElement).value = settings.apiKey;
+  (document.getElementById("api-url") as HTMLInputElement).value =
+    settings.apiUrl;
+  (document.getElementById("api-key") as HTMLInputElement).value =
+    settings.apiKey;
 
   if (settings.apiKey) {
     loadInventory(settings);
   } else {
-    document.getElementById('loading')!.style.display = 'none';
-    document.getElementById('vehicle-list')!.innerHTML =
-      '<div class="status">Configure your API key in Settings to get started.</div>';
+    document.getElementById("loading")!.style.display = "none";
+    document.getElementById("vehicle-list")!.innerHTML =
+      '<div class="status">Ajoutez votre clé API dans Réglages pour commencer.</div>';
   }
 })();

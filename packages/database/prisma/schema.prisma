@@ -121,6 +121,8 @@ model Vehicle {
   id             String        @id @default(cuid())
   organizationId String
   assignedToId   String?
+  syncSourceId   String?
+  sourceUrl      String?
   vin            String?
   stockNumber    String?
   year           Int?
@@ -151,12 +153,14 @@ model Vehicle {
 
   organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   assignedTo   User?          @relation("AssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+  syncSource   SyncSource?    @relation(fields: [syncSourceId], references: [id], onDelete: SetNull)
   photos       VehiclePhoto[]
   listings     Listing[]
 
   @@unique([organizationId, vin])
   @@index([organizationId, status])
   @@index([organizationId, stockNumber])
+  @@index([syncSourceId])
   @@map("vehicles")
 }
 
@@ -272,6 +276,7 @@ model SyncSource {
   updatedAt      DateTime  @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  vehicles     Vehicle[]
 
   @@index([organizationId])
   @@map("sync_sources")

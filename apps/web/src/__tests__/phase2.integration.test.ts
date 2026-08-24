@@ -43,12 +43,12 @@ describe('Phase 2 API integration', () => {
     const owner = await prisma.user.upsert({
       where: { email: 'owner@demo.okauto.local' },
       update: { passwordHash },
-      create: { email: 'owner@demo.okauto.local', passwordHash, name: 'Alex Owner' },
+      create: { email: 'owner@demo.okauto.local', passwordHash, name: 'Michael Boyer' },
     });
     const sales = await prisma.user.upsert({
       where: { email: 'sales@demo.okauto.local' },
       update: { passwordHash },
-      create: { email: 'sales@demo.okauto.local', passwordHash, name: 'Sam Salesperson' },
+      create: { email: 'sales@demo.okauto.local', passwordHash, name: 'Équipe Marketplace' },
     });
     const org = await prisma.organization.upsert({
       where: { slug: 'demo-motors' },

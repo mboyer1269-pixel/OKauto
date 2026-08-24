@@ -15,6 +15,10 @@ export interface SyncVehicle {
   drivetrain?: string | null;
   engine?: string | null;
   bodyStyle?: string | null;
+  doors?: number | null;
+  cylinders?: number | null;
+  condition?: string | null;
+  sourceUrl?: string | null;
   status?: 'AVAILABLE' | 'PENDING' | 'SOLD' | 'ARCHIVED' | string;
   photos?: string[];
 }
@@ -24,5 +28,5 @@ export interface SyncAdapter {
   parse(body: string, contentType?: string | null): SyncVehicle[];
 }
 
-export const SYNC_ADAPTERS = ['generic', 'dealer-json', 'json-ld'] as const;
+export const SYNC_ADAPTERS = ['generic', 'dealer-json', 'json-ld', 'd2c'] as const;
 export type SyncAdapterName = (typeof SYNC_ADAPTERS)[number];

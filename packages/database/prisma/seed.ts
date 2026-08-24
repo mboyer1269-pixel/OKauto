@@ -31,7 +31,7 @@ const SAMPLE_VEHICLES = [
 ];
 
 function generateDescription(v: (typeof SAMPLE_VEHICLES)[0]): string {
-  return `Clean ${v.year} ${v.make} ${v.model} ${v.trim || ''} with ${v.mileage?.toLocaleString()} miles. ${v.exteriorColor ? `Exterior: ${v.exteriorColor}.` : ''} Well-maintained and ready for its next owner. Contact Demo Motors today for a test drive!`;
+  return `${v.year} ${v.make} ${v.model} ${v.trim || ''}, ${v.mileage?.toLocaleString('fr-CA')} km. ${v.exteriorColor ? `Couleur extérieure : ${v.exteriorColor}.` : ''} Communiquez avec Michael Boyer chez Buckingham Chevrolet Buick GMC pour planifier une visite.`;
 }
 
 function placeholderPhoto(make: string, model: string, year: number): string {
@@ -42,35 +42,56 @@ function placeholderPhoto(make: string, model: string, year: number): string {
 async function main() {
   console.log('🌱 Seeding database...');
 
+  const existingOwner = await prisma.user.findUnique({
+    where: { email: 'owner@demo.okauto.local' },
+    select: { id: true },
+  });
+  if (existingOwner) {
+    await prisma.user.update({
+      where: { id: existingOwner.id },
+      data: { name: 'Michael Boyer' },
+    });
+    await prisma.user.updateMany({
+      where: { email: 'manager@demo.okauto.local' },
+      data: { name: 'Direction des ventes' },
+    });
+    await prisma.user.updateMany({
+      where: { email: 'sales@demo.okauto.local' },
+      data: { name: 'Équipe Marketplace' },
+    });
+    console.log('✓ Database already initialized; existing dealership data was preserved.');
+    return;
+  }
+
   const passwordHash = await bcrypt.hash(DEMO_PASSWORD, 12);
 
   const owner = await prisma.user.upsert({
     where: { email: 'owner@demo.okauto.local' },
-    update: {},
+    update: { name: 'Michael Boyer' },
     create: {
       email: 'owner@demo.okauto.local',
       passwordHash,
-      name: 'Alex Owner',
+      name: 'Michael Boyer',
     },
   });
 
   const manager = await prisma.user.upsert({
     where: { email: 'manager@demo.okauto.local' },
-    update: {},
+    update: { name: 'Direction des ventes' },
     create: {
       email: 'manager@demo.okauto.local',
       passwordHash,
-      name: 'Maria Manager',
+      name: 'Direction des ventes',
     },
   });
 
   const sales = await prisma.user.upsert({
     where: { email: 'sales@demo.okauto.local' },
-    update: {},
+    update: { name: 'Équipe Marketplace' },
     create: {
       email: 'sales@demo.okauto.local',
       passwordHash,
-      name: 'Sam Salesperson',
+      name: 'Équipe Marketplace',
     },
   });
 
@@ -78,14 +99,14 @@ async function main() {
     where: { slug: 'demo-motors' },
     update: {},
     create: {
-      name: 'Demo Motors',
+      name: 'Buckingham Chevrolet Buick GMC',
       slug: 'demo-motors',
-      website: 'https://demo-motors.example.com',
-      phone: '(555) 123-4567',
-      address: '123 Auto Row',
-      city: 'Oklahoma City',
-      state: 'OK',
-      zip: '73102',
+      website: 'https://www.buckinghamgm.com',
+      phone: '819-986-6714',
+      address: '975 Chemin de Masson',
+      city: 'Gatineau',
+      state: 'QC',
+      zip: 'J8M 1R4',
     },
   });
 

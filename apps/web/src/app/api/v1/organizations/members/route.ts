@@ -1,13 +1,15 @@
-import { prisma } from '@okauto/database';
-import { inviteMemberSchema, updateMemberSchema } from '@okauto/shared';
-import { withAuth, jsonResponse, errorResponse, parseBody } from '@/lib/api';
-import { hashPassword } from '@/lib/auth';
+import { prisma } from "@okauto/database";
+import { inviteMemberSchema, updateMemberSchema } from "@okauto/shared";
+import { withAuth, jsonResponse, errorResponse, parseBody } from "@/lib/api";
+import { hashPassword } from "@/lib/auth";
 
 export const GET = withAuth(async (_request, { auth }) => {
   const members = await prisma.organizationMember.findMany({
     where: { organizationId: auth.orgId },
-    include: { user: { select: { id: true, email: true, name: true, isActive: true } } },
-    orderBy: { joinedAt: 'asc' },
+    include: {
+      user: { select: { id: true, email: true, name: true, isActive: true } },
+    },
+    orderBy: { joinedAt: "asc" },
   });
   return jsonResponse(members);
 });
@@ -17,12 +19,24 @@ export const POST = withAuth(
     const body = await parseBody<unknown>(request);
     const data = inviteMemberSchema.parse(body);
 
-    const existing = await prisma.user.findUnique({ where: { email: data.email } });
+    const existing = await prisma.user.findUnique({
+      where: { email: data.email },
+    });
     if (existing) {
       const memberExists = await prisma.organizationMember.findUnique({
-        where: { organizationId_userId: { organizationId: auth.orgId, userId: existing.id } },
+        where: {
+          organizationId_userId: {
+            organizationId: auth.orgId,
+            userId: existing.id,
+          },
+        },
       });
-      if (memberExists) return errorResponse('User is already a member', 409);
+      if (memberExists) {
+        return errorResponse(
+          "Cette personne fait déjà partie de l’équipe",
+          409,
+        );
+      }
     }
 
     const passwordHash = await hashPassword(data.password);
@@ -41,7 +55,10 @@ export const POST = withAuth(
       include: { user: { select: { id: true, email: true, name: true } } },
     });
 
-    return jsonResponse(member, 201);
+    return jsonResponse(
+      { ...member, temporaryPasswordCreated: !existing },
+      201,
+    );
   },
-  { minRole: 'ADMIN' }
+  { minRole: "ADMIN" },
 );

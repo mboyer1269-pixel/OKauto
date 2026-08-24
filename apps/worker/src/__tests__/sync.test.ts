@@ -67,6 +67,7 @@ describe('runSyncSource', () => {
     });
     expect(vehicle?.make).toBe('Test');
     expect(vehicle?.photos.length).toBe(1);
+    expect(vehicle?.syncSourceId).toBe(sourceId);
 
     const source = await prisma.syncSource.findUnique({ where: { id: sourceId } });
     expect(source?.lastSyncStatus).toBe('success');
@@ -96,6 +97,56 @@ describe('runSyncSource', () => {
       take: 5,
     });
     expect(notifications.some((n) => n.message.includes('23,000'))).toBe(true);
+  });
+
+  it('marks vehicles removed from a source as sold', async () => {
+    await runSyncSource(sourceId);
+    const [vehicle, member] = await Promise.all([
+      prisma.vehicle.findFirstOrThrow({ where: { vin: testVin, organizationId: orgId } }),
+      prisma.organizationMember.findFirstOrThrow({ where: { organizationId: orgId } }),
+    ]);
+    const listing = await prisma.listing.create({
+      data: {
+        organizationId: orgId,
+        vehicleId: vehicle.id,
+        userId: member.userId,
+        status: 'ACTIVE',
+        externalUrl: 'https://www.facebook.com/marketplace/item/test-sync-listing',
+      },
+    });
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        headers: { get: () => 'application/json' },
+        text: async () =>
+          JSON.stringify([
+            {
+              vin: 'TESTSYNC987654321',
+              year: 2025,
+              make: 'Test',
+              model: 'Replacement',
+              price: 30000,
+            },
+          ]),
+      })
+    );
+
+    const result = await runSyncSource(sourceId);
+    expect(result.sold).toBe(1);
+
+    const removedVehicle = await prisma.vehicle.findFirst({
+      where: { vin: testVin, organizationId: orgId },
+    });
+    expect(removedVehicle?.status).toBe('SOLD');
+    expect(removedVehicle?.soldAt).not.toBeNull();
+    const staleListing = await prisma.listing.findUnique({ where: { id: listing.id } });
+    expect(staleListing?.status).toBe('STALE');
+
+    await prisma.vehicle.deleteMany({
+      where: { vin: 'TESTSYNC987654321', organizationId: orgId },
+    });
   });
 
   it('marks source as error on fetch failure', async () => {

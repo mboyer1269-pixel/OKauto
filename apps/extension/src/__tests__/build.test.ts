@@ -22,5 +22,14 @@ describe.skipIf(!hasDist)('extension build output', () => {
   it('has background and content scripts', () => {
     expect(existsSync(resolve(dist, 'background.js'))).toBe(true);
     expect(existsSync(resolve(dist, 'content.js'))).toBe(true);
+    expect(existsSync(resolve(dist, 'app-bridge.js'))).toBe(true);
+  });
+
+  it('keeps manifest content scripts self-contained', () => {
+    const content = readFileSync(resolve(dist, 'content.js'), 'utf-8');
+    const appBridge = readFileSync(resolve(dist, 'app-bridge.js'), 'utf-8');
+
+    expect(content).not.toMatch(/^\s*import\s/m);
+    expect(appBridge).not.toMatch(/^\s*import\s/m);
   });
 });

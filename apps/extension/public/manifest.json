@@ -1,17 +1,18 @@
 {
   "manifest_version": 3,
-  "name": "OKauto Listing Assistant",
-  "version": "0.1.0",
-  "description": "Human-in-the-loop Facebook Marketplace listing assistant for dealerships",
+  "name": "Suivia Auto — Assistant Marketplace",
+  "version": "0.2.0",
+  "description": "Assistant de publication Facebook Marketplace pour les équipes automobiles",
   "permissions": ["storage", "activeTab"],
   "host_permissions": [
     "https://www.facebook.com/*",
     "http://localhost:3000/*",
-    "https://*.okauto.app/*"
+    "https://suivia.ca/*",
+    "https://*.suivia.ca/*"
   ],
   "action": {
     "default_popup": "popup/index.html",
-    "default_title": "OKauto",
+    "default_title": "Suivia Auto",
     "default_icon": {
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",
@@ -26,6 +27,15 @@
     {
       "matches": ["https://www.facebook.com/marketplace/*"],
       "js": ["content.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "http://localhost:3000/*",
+        "https://suivia.ca/*",
+        "https://*.suivia.ca/*"
+      ],
+      "js": ["app-bridge.js"],
       "run_at": "document_idle"
     }
   ],

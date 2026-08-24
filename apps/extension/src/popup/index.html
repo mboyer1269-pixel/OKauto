@@ -1,63 +1,204 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>OKauto</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { width: 380px; font-family: system-ui, sans-serif; background: #f8fafc; }
-    .header { background: #1e40af; color: white; padding: 16px; }
-    .header h1 { font-size: 18px; }
-    .header p { font-size: 12px; opacity: 0.8; margin-top: 2px; }
-    .content { padding: 16px; }
-    .settings { padding: 16px; border-bottom: 1px solid #e2e8f0; }
-    label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 4px; color: #475569; }
-    input { width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; margin-bottom: 10px; }
-    button { padding: 8px 16px; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; }
-    .btn-primary { background: #2563eb; color: white; width: 100%; }
-    .btn-primary:hover { background: #1d4ed8; }
-    .btn-secondary { background: white; color: #475569; border: 1px solid #cbd5e1; }
-    .btn-assist { background: #22c55e; color: white; padding: 6px 12px; font-size: 12px; }
-    .vehicle-card { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; margin-bottom: 8px; display: flex; gap: 10px; align-items: center; }
-    .vehicle-card img { width: 60px; height: 45px; object-fit: cover; border-radius: 4px; background: #f1f5f9; }
-    .vehicle-info { flex: 1; min-width: 0; }
-    .vehicle-info h3 { font-size: 13px; font-weight: 600; }
-    .vehicle-info p { font-size: 11px; color: #64748b; }
-    .badge { display: inline-block; padding: 1px 6px; border-radius: 10px; font-size: 10px; font-weight: 600; }
-    .badge-listed { background: #dbeafe; color: #1d4ed8; }
-    .status { text-align: center; padding: 20px; color: #64748b; font-size: 13px; }
-    .error { background: #fef2f2; color: #dc2626; padding: 8px; border-radius: 6px; font-size: 12px; margin-bottom: 10px; }
-    .tabs { display: flex; border-bottom: 1px solid #e2e8f0; }
-    .tab { flex: 1; padding: 10px; text-align: center; font-size: 13px; font-weight: 600; cursor: pointer; color: #64748b; border-bottom: 2px solid transparent; }
-    .tab.active { color: #2563eb; border-bottom-color: #2563eb; }
-    .compliance { font-size: 10px; color: #94a3b8; text-align: center; padding: 8px; }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <h1>OKauto</h1>
-    <p id="org-name">Listing Assistant</p>
-  </div>
-  <div class="tabs">
-    <div class="tab active" data-tab="inventory">Inventory</div>
-    <div class="tab" data-tab="settings">Settings</div>
-  </div>
-  <div id="tab-inventory" class="content">
-    <div id="error" class="error" style="display:none"></div>
-    <div id="vehicle-list"></div>
-    <div id="loading" class="status">Loading inventory...</div>
-  </div>
-  <div id="tab-settings" class="content" style="display:none">
-    <label>API URL</label>
-    <input type="url" id="api-url" placeholder="http://localhost:3000" />
-    <label>API Key</label>
-    <input type="password" id="api-key" placeholder="okauto_..." />
-    <button class="btn-primary" id="save-settings">Save & Connect</button>
-    <p class="compliance" style="margin-top:12px">
-      Human-in-the-loop assist only. You must review and publish each listing on Facebook.
-    </p>
-  </div>
-  <script type="module" src="./popup.ts"></script>
-</body>
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Suivia Auto</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        width: 400px;
+        font-family: Aptos, system-ui, sans-serif;
+        background: #f4f7fb;
+        color: #071426;
+      }
+      .header {
+        background: #071426;
+        color: white;
+        padding: 18px;
+        border-bottom: 3px solid #d6b75a;
+      }
+      .header h1 {
+        font-size: 19px;
+        font-weight: 800;
+        letter-spacing: -0.03em;
+      }
+      .header p {
+        font-size: 12px;
+        opacity: 0.8;
+        margin-top: 2px;
+      }
+      .content {
+        padding: 16px;
+      }
+      .search {
+        margin-bottom: 10px;
+      }
+      .settings {
+        padding: 16px;
+        border-bottom: 1px solid #e2e8f0;
+      }
+      label {
+        display: block;
+        font-size: 12px;
+        font-weight: 600;
+        margin-bottom: 4px;
+        color: #475569;
+      }
+      input {
+        width: 100%;
+        padding: 9px 10px;
+        border: 1px solid #cbd5e1;
+        border-radius: 9px;
+        font-size: 13px;
+        margin-bottom: 10px;
+      }
+      button {
+        padding: 8px 16px;
+        border: none;
+        border-radius: 9px;
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .btn-primary {
+        background: #0b4da2;
+        color: white;
+        width: 100%;
+      }
+      .btn-primary:hover {
+        background: #083d82;
+      }
+      .btn-secondary {
+        background: white;
+        color: #475569;
+        border: 1px solid #cbd5e1;
+      }
+      .btn-assist {
+        background: #0b4da2;
+        color: white;
+        padding: 7px 12px;
+        font-size: 12px;
+      }
+      .vehicle-card {
+        background: white;
+        border: 1px solid #dbe4ef;
+        border-radius: 12px;
+        padding: 10px;
+        margin-bottom: 8px;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        box-shadow: 0 6px 18px -16px #071426;
+      }
+      .vehicle-card img {
+        width: 68px;
+        height: 51px;
+        object-fit: cover;
+        border-radius: 8px;
+        background: #f1f5f9;
+      }
+      .vehicle-info {
+        flex: 1;
+        min-width: 0;
+      }
+      .vehicle-info h3 {
+        font-size: 13px;
+        font-weight: 600;
+      }
+      .vehicle-info p {
+        font-size: 11px;
+        color: #64748b;
+      }
+      .badge {
+        display: inline-block;
+        padding: 1px 6px;
+        border-radius: 10px;
+        font-size: 10px;
+        font-weight: 600;
+      }
+      .badge-listed {
+        background: #dbeafe;
+        color: #1d4ed8;
+      }
+      .status {
+        text-align: center;
+        padding: 20px;
+        color: #64748b;
+        font-size: 13px;
+      }
+      .error {
+        background: #fef2f2;
+        color: #dc2626;
+        padding: 8px;
+        border-radius: 6px;
+        font-size: 12px;
+        margin-bottom: 10px;
+      }
+      .tabs {
+        display: flex;
+        border-bottom: 1px solid #e2e8f0;
+      }
+      .tab {
+        flex: 1;
+        padding: 10px;
+        text-align: center;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        color: #64748b;
+        border-bottom: 2px solid transparent;
+      }
+      .tab.active {
+        color: #0b4da2;
+        border-bottom-color: #0b4da2;
+      }
+      .compliance {
+        font-size: 10px;
+        color: #94a3b8;
+        text-align: center;
+        padding: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <h1>Suivia Auto</h1>
+      <p id="org-name">Assistant de publication</p>
+    </div>
+    <div class="tabs">
+      <div class="tab active" data-tab="inventory">Inventaire</div>
+      <div class="tab" data-tab="settings">Réglages</div>
+    </div>
+    <div id="tab-inventory" class="content">
+      <div id="error" class="error" style="display: none"></div>
+      <label for="vehicle-search">Rechercher</label>
+      <input
+        class="search"
+        type="search"
+        id="vehicle-search"
+        placeholder="Stock, NIV, marque ou modèle…"
+      />
+      <div id="vehicle-list"></div>
+      <div id="loading" class="status">Chargement de l’inventaire…</div>
+    </div>
+    <div id="tab-settings" class="content" style="display: none">
+      <label for="api-url">URL de l’application</label>
+      <input type="url" id="api-url" placeholder="http://localhost:3000" />
+      <label for="api-key">Clé API</label>
+      <input type="password" id="api-key" placeholder="okauto_..." />
+      <button class="btn-primary" id="save-settings">
+        Enregistrer et connecter
+      </button>
+      <p class="compliance" style="margin-top: 12px">
+        Assistance seulement. Vous devez vérifier et publier chaque annonce
+        vous-même.
+      </p>
+    </div>
+    <script type="module" src="./popup.ts"></script>
+  </body>
 </html>

@@ -13,11 +13,13 @@ export default defineConfig({
         popup: resolve(__dirname, 'src/popup/index.html'),
         background: resolve(__dirname, 'src/background/index.ts'),
         content: resolve(__dirname, 'src/content/marketplace.ts'),
+        appBridge: resolve(__dirname, 'src/content/app-bridge.ts'),
       },
       output: {
         entryFileNames: (chunk) => {
           if (chunk.name === 'background') return 'background.js';
           if (chunk.name === 'content') return 'content.js';
+          if (chunk.name === 'appBridge') return 'app-bridge.js';
           return 'assets/[name]-[hash].js';
         },
       },

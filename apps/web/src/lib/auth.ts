@@ -1,14 +1,20 @@
-import { SignJWT, jwtVerify } from 'jose';
-import { cookies } from 'next/headers';
-import { NextRequest } from 'next/server';
-import crypto from 'crypto';
-import bcrypt from 'bcryptjs';
-import { prisma, Role } from '@okauto/database';
-import type { RoleType } from '@okauto/shared';
+import { SignJWT, jwtVerify } from "jose";
+import { cookies } from "next/headers";
+import { NextRequest } from "next/server";
+import crypto from "crypto";
+import bcrypt from "bcryptjs";
+import { prisma, Role } from "@okauto/database";
+import type { RoleType } from "@okauto/shared";
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET ?? 'dev-secret-change-in-production-32chars'
-);
+function getJwtSecret(): Uint8Array {
+  const configuredJwtSecret = process.env.JWT_SECRET;
+  if (process.env.NODE_ENV === "production" && !configuredJwtSecret) {
+    throw new Error("JWT_SECRET is required in production");
+  }
+  return new TextEncoder().encode(
+    configuredJwtSecret ?? "dev-secret-change-in-production-32chars",
+  );
+}
 
 export interface TokenPayload {
   sub: string;
@@ -19,15 +25,17 @@ export interface TokenPayload {
 
 export async function signAccessToken(payload: TokenPayload): Promise<string> {
   return new SignJWT({ ...payload })
-    .setProtectedHeader({ alg: 'HS256' })
+    .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
-    .setExpirationTime(process.env.JWT_ACCESS_EXPIRY ?? '15m')
-    .sign(JWT_SECRET);
+    .setExpirationTime(process.env.JWT_ACCESS_EXPIRY ?? "15m")
+    .sign(getJwtSecret());
 }
 
-export async function verifyAccessToken(token: string): Promise<TokenPayload | null> {
+export async function verifyAccessToken(
+  token: string,
+): Promise<TokenPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, JWT_SECRET);
+    const { payload } = await jwtVerify(token, getJwtSecret());
     return payload as unknown as TokenPayload;
   } catch {
     return null;
@@ -35,22 +43,25 @@ export async function verifyAccessToken(token: string): Promise<TokenPayload | n
 }
 
 export function hashToken(token: string): string {
-  return crypto.createHash('sha256').update(token).digest('hex');
+  return crypto.createHash("sha256").update(token).digest("hex");
 }
 
 export function generateRefreshToken(): string {
-  return crypto.randomBytes(48).toString('hex');
+  return crypto.randomBytes(48).toString("hex");
 }
 
 export function generateApiKey(): string {
-  return 'okauto_' + crypto.randomBytes(32).toString('hex');
+  return "suivia_" + crypto.randomBytes(32).toString("hex");
 }
 
 export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 12);
 }
 
-export async function verifyPassword(password: string, hash: string): Promise<boolean> {
+export async function verifyPassword(
+  password: string,
+  hash: string,
+): Promise<boolean> {
   return bcrypt.compare(password, hash);
 }
 
@@ -88,14 +99,16 @@ export async function validateRefreshToken(token: string) {
 }
 
 export function getTokenFromRequest(request: NextRequest): string | null {
-  const authHeader = request.headers.get('authorization');
-  if (authHeader?.startsWith('Bearer ')) {
+  const authHeader = request.headers.get("authorization");
+  if (authHeader?.startsWith("Bearer ")) {
     return authHeader.slice(7);
   }
   return null;
 }
 
-export async function getAuthFromRequest(request: NextRequest): Promise<TokenPayload | null> {
+export async function getAuthFromRequest(
+  request: NextRequest,
+): Promise<TokenPayload | null> {
   const token = getTokenFromRequest(request);
   if (!token) return null;
   return verifyAccessToken(token);
@@ -103,7 +116,7 @@ export async function getAuthFromRequest(request: NextRequest): Promise<TokenPay
 
 export async function getAuthFromCookies(): Promise<TokenPayload | null> {
   const cookieStore = await cookies();
-  const token = cookieStore.get('access_token')?.value;
+  const token = cookieStore.get("access_token")?.value;
   if (!token) return null;
   return verifyAccessToken(token);
 }
@@ -166,8 +179,8 @@ export async function createAuditLog(params: {
       entityType: params.entityType,
       entityId: params.entityId,
       metadata: params.metadata as never,
-      ipAddress: params.request?.headers.get('x-forwarded-for') ?? undefined,
-      userAgent: params.request?.headers.get('user-agent') ?? undefined,
+      ipAddress: params.request?.headers.get("x-forwarded-for") ?? undefined,
+      userAgent: params.request?.headers.get("user-agent") ?? undefined,
     },
   });
 }

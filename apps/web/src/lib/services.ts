@@ -12,6 +12,11 @@ export async function generateVehicleDescription(
 
   if (!vehicle) throw new Error('Vehicle not found');
 
+  const contactName =
+    process.env.MARKETPLACE_CONTACT_NAME?.trim() ||
+    process.env.NEXT_PUBLIC_MARKETPLACE_CONTACT_NAME?.trim() ||
+    'Michael Boyer';
+
   const openaiKey = process.env.OPENAI_API_KEY;
   if (openaiKey) {
     try {
@@ -27,11 +32,11 @@ export async function generateVehicleDescription(
             {
               role: 'system',
               content:
-                'You write concise, compliant Facebook Marketplace vehicle listing descriptions for dealerships. No misleading claims. Include key specs. Max 500 words.',
+                'Tu rédiges à la première personne, en français québécois naturel, des annonces automobiles factuelles et chaleureuses. N’invente jamais une garantie, une certification, un rabais, un taux ni un équipement. Affiche clairement le prix en dollars canadiens et le kilométrage en km. Termine en demandant au client d’écrire directement au conseiller sur Messenger ou d’appeler la concession et de demander ce conseiller. Précise que seules la TPS, la TVQ et le droit sur les pneus neufs peuvent s’ajouter. Maximum 350 mots.',
             },
             {
               role: 'user',
-              content: `Write a listing description for: ${vehicle.year} ${vehicle.make} ${vehicle.model} ${vehicle.trim ?? ''}, ${vehicle.mileage?.toLocaleString()} miles, ${vehicle.exteriorColor} exterior, ${vehicle.transmission}, ${vehicle.fuelType}. Price: $${vehicle.price}. Dealership: ${vehicle.organization.name}.`,
+              content: `Rédige l’annonce pour : ${vehicle.year} ${vehicle.make} ${vehicle.model} ${vehicle.trim ?? ''}, ${vehicle.mileage?.toLocaleString('fr-CA')} km, extérieur ${vehicle.exteriorColor}, transmission ${vehicle.transmission}, carburant ${vehicle.fuelType}. Prix : ${vehicle.price} $ CA. Stock : ${vehicle.stockNumber ?? 'non fourni'}. NIV : ${vehicle.vin ?? 'non fourni'}. Concessionnaire : ${vehicle.organization.name}. Conseiller à contacter : ${contactName}. Téléphone de la concession : ${vehicle.organization.phone ?? 'non fourni'}.`,
             },
           ],
           max_tokens: 600,
@@ -66,7 +71,11 @@ export async function generateVehicleDescription(
     condition: vehicle.condition,
     features: vehicle.features,
     dealershipName: vehicle.organization.name,
+    contactName,
     phone: vehicle.organization.phone ?? undefined,
+    vin: vehicle.vin,
+    stockNumber: vehicle.stockNumber,
+    location: vehicle.location,
   });
 }
 
@@ -111,16 +120,34 @@ export async function notifySoldVehicle(vehicleId: string, organizationId: strin
 }
 
 export async function getDashboardStats(organizationId: string) {
-  const [totalVehicles, availableVehicles, soldVehicles, activeListings, staleListings, members] =
+  const [totalVehicles, availableVehicles, soldVehicles, activeListings, staleListings, readyToList, members, syncSources] =
     await Promise.all([
       prisma.vehicle.count({ where: { organizationId } }),
       prisma.vehicle.count({ where: { organizationId, status: 'AVAILABLE' } }),
       prisma.vehicle.count({ where: { organizationId, status: 'SOLD' } }),
       prisma.listing.count({ where: { organizationId, status: 'ACTIVE' } }),
       prisma.listing.count({ where: { organizationId, status: 'STALE' } }),
+      prisma.vehicle.count({
+        where: {
+          organizationId,
+          status: 'AVAILABLE',
+          listings: { none: { status: 'ACTIVE' } },
+        },
+      }),
       prisma.organizationMember.findMany({
         where: { organizationId },
         include: { user: { select: { id: true, name: true, email: true } } },
+      }),
+      prisma.syncSource.findMany({
+        where: { organizationId, isActive: true },
+        select: {
+          id: true,
+          name: true,
+          lastSyncAt: true,
+          lastSyncStatus: true,
+          lastSyncError: true,
+        },
+        orderBy: { updatedAt: 'desc' },
       }),
     ]);
 
@@ -172,7 +199,9 @@ export async function getDashboardStats(organizationId: string) {
     soldVehicles,
     activeListings,
     staleListings,
+    readyToList,
     listingsThisWeek,
+    syncSources,
     memberStats,
   };
 }
