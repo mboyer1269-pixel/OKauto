@@ -4,12 +4,20 @@
 
 Suivia Auto utilise le Blueprint `render.yaml` afin de déployer ensemble :
 
-- l’application web Next.js;
-- le worker de synchronisation d’inventaire;
-- PostgreSQL;
-- le service Redis compatible BullMQ.
+- l’application web Next.js et le worker de synchronisation dans le même service;
+- PostgreSQL gratuit;
+- le service Key Value gratuit compatible BullMQ.
 
-Cette architecture conserve les synchronisations et les files de travaux, contrairement à un déploiement web stateless sans worker permanent.
+Cette architecture ne demande aucune carte et coûte 0 $. Le worker démarre avec l’application afin d’éviter le service Worker payant.
+
+## Limites du forfait gratuit
+
+- Render met le service web en veille après environ 15 minutes sans trafic. La première ouverture suivante peut prendre près d’une minute.
+- La base PostgreSQL gratuite expire après 30 jours. Il faut alors migrer vers une base gratuite durable externe ou passer à une base Render payante pour conserver les données.
+- Le service Key Value gratuit n’est pas persistant : les travaux en attente peuvent être perdus lors d’un redémarrage, mais l’inventaire enregistré dans PostgreSQL demeure disponible.
+- Le worker fonctionne seulement lorsque le service web est réveillé.
+
+Cette version gratuite convient au lancement et aux essais réels. Elle devra être migrée avant l’expiration de PostgreSQL pour devenir durable.
 
 ## Première mise en ligne
 
