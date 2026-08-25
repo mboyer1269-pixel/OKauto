@@ -14,7 +14,7 @@ services:
   - type: keyvalue
     name: suivia-cache
     plan: free
-    maxmemoryPolicy: allkeys-lru
+    maxmemoryPolicy: noeviction
     ipAllowList: []
 
   - type: web
