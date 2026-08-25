@@ -31,6 +31,7 @@ interface Settings {
 const MARKETPLACE_CREATE_URL =
   "https://www.facebook.com/marketplace/create/vehicle";
 const PENDING_PUBLICATION_KEY = "pendingPublication";
+const DEFAULT_API_URL = "https://suivia.ca";
 
 function isMarketplaceCreateUrl(value: string): boolean {
   try {
@@ -50,7 +51,7 @@ async function getSettings(): Promise<Settings> {
     chrome.storage.local.get(["apiKey", "apiUrl"], (result) => {
       resolve({
         apiKey: (result.apiKey as string) ?? "",
-        apiUrl: (result.apiUrl as string) ?? "http://localhost:3000",
+        apiUrl: (result.apiUrl as string) ?? DEFAULT_API_URL,
       });
     });
   });

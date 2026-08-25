@@ -1,6 +1,5 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@okauto/database";
-import { extensionEventSchema } from "@okauto/shared";
 import { authenticateApiKey } from "@/lib/auth";
 import {
   jsonResponse,

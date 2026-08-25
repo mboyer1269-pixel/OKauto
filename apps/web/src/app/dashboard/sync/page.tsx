@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { ProtectedRoute } from "@/components/protected-route";
 import { useAuth } from "@/components/auth-provider";
-import { formatDateTime, getStatusBadgeClass } from "@/lib/utils";
+import { formatDateTime, formatStatus, getStatusBadgeClass } from "@/lib/utils";
 import {
   isSyncHealthData,
   type SyncHealthData,
@@ -28,7 +28,7 @@ export default function SyncHealthPage() {
 }
 
 function SyncHealthContent() {
-  const { apiFetch } = useAuth();
+  const { apiFetch, role } = useAuth();
   const [data, setData] = useState<SyncHealthData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -40,6 +40,7 @@ function SyncHealthContent() {
     adapter: "generic",
     intervalMinutes: 60,
   });
+  const canManage = role === "OWNER" || role === "ADMIN" || role === "MANAGER";
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -91,7 +92,7 @@ function SyncHealthContent() {
       void load();
     } else {
       const err = await res.json();
-      alert(err.error ?? "Failed to create sync source");
+      alert(err.error ?? "La source de synchronisation n’a pas pu être créée.");
     }
   };
 
@@ -105,21 +106,33 @@ function SyncHealthContent() {
       setTimeout(() => void load(), 2000);
     } else {
       const err = await res.json();
-      alert(err.error ?? "Failed to queue sync");
+      alert(err.error ?? "La synchronisation n’a pas pu être lancée.");
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Delete this sync source?")) return;
-    await apiFetch(`/api/v1/admin/sync-sources/${id}`, { method: "DELETE" });
+    if (!confirm("Supprimer cette source de synchronisation?")) return;
+    const response = await apiFetch(`/api/v1/admin/sync-sources/${id}`, {
+      method: "DELETE",
+    });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      alert(data.error ?? "La source n’a pas pu être supprimée.");
+      return;
+    }
     void load();
   };
 
   const handleToggle = async (source: SyncSource) => {
-    await apiFetch(`/api/v1/admin/sync-sources/${source.id}`, {
+    const response = await apiFetch(`/api/v1/admin/sync-sources/${source.id}`, {
       method: "PATCH",
       body: JSON.stringify({ isActive: !source.isActive }),
     });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      alert(data.error ?? "La source n’a pas pu être modifiée.");
+      return;
+    }
     void load();
   };
 
@@ -155,22 +168,24 @@ function SyncHealthContent() {
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Sync Health</h1>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="btn-primary text-sm"
-        >
-          <Plus size={14} className="mr-1" /> Add Source
-        </button>
+        <h1 className="text-2xl font-bold">Synchronisation</h1>
+        {canManage && (
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="btn-primary text-sm"
+          >
+            <Plus size={14} className="mr-1" /> Ajouter une source
+          </button>
+        )}
       </div>
 
-      {showForm && (
+      {showForm && canManage && (
         <form onSubmit={handleCreate} className="card mb-6 space-y-4">
-          <h2 className="font-semibold">New Sync Source</h2>
+          <h2 className="font-semibold">Nouvelle source</h2>
           <div className="grid md:grid-cols-2 gap-4">
             <input
               className="input"
-              placeholder="Name (e.g. Dealer Website)"
+              placeholder="Nom (ex. Site du concessionnaire)"
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               required
@@ -180,14 +195,14 @@ function SyncHealthContent() {
               value={form.adapter}
               onChange={(e) => setForm({ ...form, adapter: e.target.value })}
             >
-              <option value="generic">Generic JSON</option>
-              <option value="dealer-json">Dealer JSON Feed</option>
-              <option value="json-ld">JSON-LD (HTML page)</option>
-              <option value="d2c">D2C Media Dealer Website</option>
+              <option value="generic">JSON générique</option>
+              <option value="dealer-json">Flux JSON concessionnaire</option>
+              <option value="json-ld">JSON-LD (page HTML)</option>
+              <option value="d2c">Site concessionnaire D2C Media</option>
             </select>
             <input
               className="input md:col-span-2"
-              placeholder="Feed URL"
+              placeholder="URL du flux ou du site"
               type="url"
               value={form.url}
               onChange={(e) => setForm({ ...form, url: e.target.value })}
@@ -197,7 +212,7 @@ function SyncHealthContent() {
               className="input"
               type="number"
               min={5}
-              placeholder="Interval (minutes)"
+              placeholder="Intervalle (minutes)"
               value={form.intervalMinutes}
               onChange={(e) =>
                 setForm({ ...form, intervalMinutes: Number(e.target.value) })
@@ -206,14 +221,14 @@ function SyncHealthContent() {
           </div>
           <div className="flex gap-2">
             <button type="submit" className="btn-primary text-sm">
-              Create
+              Créer
             </button>
             <button
               type="button"
               onClick={() => setShowForm(false)}
               className="btn-secondary text-sm"
             >
-              Cancel
+              Annuler
             </button>
           </div>
         </form>
@@ -223,27 +238,28 @@ function SyncHealthContent() {
         {statusIcon}
         <div>
           <p className="font-semibold capitalize">
-            {data.health.status.replace("_", " ")}
+            {formatStatus(data.health.status)}
           </p>
           <p className="text-sm text-slate-500">
-            {data.health.activeSources} active source(s) · Last sync:{" "}
-            {formatDateTime(data.health.lastSyncAt)}
+            {data.health.activeSources} source(s) active(s) · Dernière
+            synchronisation : {formatDateTime(data.health.lastSyncAt)}
           </p>
         </div>
         <button
           onClick={() => void load()}
           className="btn-secondary ml-auto text-sm"
         >
-          <RefreshCw size={14} className="mr-1" /> Refresh
+          <RefreshCw size={14} className="mr-1" /> Actualiser
         </button>
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">
         <div className="card">
-          <h2 className="font-semibold mb-4">Sync Sources</h2>
+          <h2 className="font-semibold mb-4">Sources de synchronisation</h2>
           {data.sources.length === 0 ? (
             <p className="text-sm text-slate-500">
-              No sync sources configured. Add one to sync inventory from a URL.
+              Aucune source configurée. Ajoutez-en une pour synchroniser
+              l’inventaire depuis une URL.
             </p>
           ) : (
             <div className="space-y-3">
@@ -256,35 +272,37 @@ function SyncHealthContent() {
                         ({s.adapter})
                       </span>
                     </div>
-                    <div className="flex gap-1">
-                      <button
-                        onClick={() => handleSync(s.id)}
-                        disabled={syncing === s.id}
-                        className="btn-secondary text-xs px-2 py-1"
-                        title="Sync now"
-                      >
-                        <Zap
-                          size={12}
-                          className={syncing === s.id ? "animate-pulse" : ""}
-                        />
-                      </button>
-                      <button
-                        onClick={() => handleToggle(s)}
-                        className="btn-secondary text-xs px-2 py-1"
-                      >
-                        {s.isActive ? "Pause" : "Resume"}
-                      </button>
-                      <button
-                        onClick={() => handleDelete(s.id)}
-                        className="btn-danger text-xs px-2 py-1"
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
+                    {canManage && (
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => handleSync(s.id)}
+                          disabled={syncing === s.id}
+                          className="btn-secondary text-xs px-2 py-1"
+                          title="Synchroniser maintenant"
+                        >
+                          <Zap
+                            size={12}
+                            className={syncing === s.id ? "animate-pulse" : ""}
+                          />
+                        </button>
+                        <button
+                          onClick={() => handleToggle(s)}
+                          className="btn-secondary text-xs px-2 py-1"
+                        >
+                          {s.isActive ? "Suspendre" : "Reprendre"}
+                        </button>
+                        <button
+                          onClick={() => handleDelete(s.id)}
+                          className="btn-danger text-xs px-2 py-1"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    )}
                   </div>
                   <p className="text-xs text-slate-500 truncate">{s.url}</p>
                   <p className="text-xs mt-1">
-                    Every {s.intervalMinutes}m ·{" "}
+                    Toutes les {s.intervalMinutes} min ·{" "}
                     {s.lastSyncStatus ? (
                       <span
                         className={
@@ -293,10 +311,11 @@ function SyncHealthContent() {
                             : "text-red-600"
                         }
                       >
-                        {s.lastSyncStatus} · {formatDateTime(s.lastSyncAt)}
+                        {formatStatus(s.lastSyncStatus)} ·{" "}
+                        {formatDateTime(s.lastSyncAt)}
                       </span>
                     ) : (
-                      "Never synced"
+                      "Jamais synchronisée"
                     )}
                   </p>
                   {s.lastSyncError && (
@@ -311,9 +330,11 @@ function SyncHealthContent() {
         </div>
 
         <div className="card">
-          <h2 className="font-semibold mb-4">Recent Import Jobs</h2>
+          <h2 className="font-semibold mb-4">Importations récentes</h2>
           {data.recentJobs.length === 0 ? (
-            <p className="text-sm text-slate-500">No import jobs yet.</p>
+            <p className="text-sm text-slate-500">
+              Aucune importation pour le moment.
+            </p>
           ) : (
             <div className="space-y-2">
               {data.recentJobs.map((j) => (
@@ -324,15 +345,15 @@ function SyncHealthContent() {
                   <div>
                     <span className="font-medium">{j.source}</span>
                     <span className="text-slate-500 ml-2">
-                      by {j.user.name}
+                      par {j.user.name}
                     </span>
                     <p className="text-xs text-slate-500">
-                      {j.successCount} ok · {j.errorCount} errors
+                      {j.successCount} réussie(s) · {j.errorCount} erreur(s)
                     </p>
                   </div>
                   <div className="text-right">
                     <span className={getStatusBadgeClass(j.status)}>
-                      {j.status}
+                      {formatStatus(j.status)}
                     </span>
                     <p className="text-xs text-slate-500">
                       {formatDateTime(j.createdAt)}

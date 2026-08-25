@@ -1,6 +1,7 @@
 export {};
 
 const PENDING_PUBLICATION_KEY = "pendingPublication";
+const DEFAULT_API_URL = "https://suivia.ca";
 
 function isMarketplaceItemUrl(value: string): boolean {
   try {
@@ -39,7 +40,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
     chrome.storage.local.get(["apiKey", "apiUrl"], async (result) => {
       try {
-        const apiUrl = String(result.apiUrl ?? "http://localhost:3000");
+        const apiUrl = String(result.apiUrl ?? DEFAULT_API_URL);
         const response = await fetch(`${apiUrl}/api/v1/extension/events`, {
           method: "POST",
           headers: {
@@ -106,7 +107,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === "GET_VEHICLE_PHOTO") {
     chrome.storage.local.get(["apiKey", "apiUrl"], async (result) => {
       try {
-        const apiUrl = String(result.apiUrl ?? "http://localhost:3000");
+        const apiUrl = String(result.apiUrl ?? DEFAULT_API_URL);
         const apiKey = String(result.apiKey ?? "");
         const vehicleId = encodeURIComponent(String(message.vehicleId ?? ""));
         const index = Number.isInteger(message.index) ? message.index : 0;

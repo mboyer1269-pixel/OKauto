@@ -65,14 +65,17 @@ export async function verifyPassword(
   return bcrypt.compare(password, hash);
 }
 
-export async function createRefreshToken(userId: string): Promise<string> {
+export async function createRefreshToken(
+  userId: string,
+  organizationId: string,
+): Promise<string> {
   const token = generateRefreshToken();
   const tokenHash = hashToken(token);
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 7);
 
   await prisma.refreshToken.create({
-    data: { userId, tokenHash, expiresAt },
+    data: { userId, organizationId, tokenHash, expiresAt },
   });
 
   return token;

@@ -1,22 +1,17 @@
-import { prisma } from '@okauto/database';
-import { withAuth, jsonResponse, parseBody } from '@/lib/api';
-
-const CSV_COLUMNS = [
-  'vin', 'stockNumber', 'year', 'make', 'model', 'trim', 'mileage', 'price',
-  'exteriorColor', 'interiorColor', 'transmission', 'fuelType', 'bodyStyle', 'description',
-];
+import { prisma } from "@okauto/database";
+import { withAuth, jsonResponse, parseBody } from "@/lib/api";
 
 function parseCsvLine(line: string): string[] {
   const result: string[] = [];
-  let current = '';
+  let current = "";
   let inQuotes = false;
   for (let i = 0; i < line.length; i++) {
     const char = line[i];
     if (char === '"') {
       inQuotes = !inQuotes;
-    } else if (char === ',' && !inQuotes) {
+    } else if (char === "," && !inQuotes) {
       result.push(current.trim());
-      current = '';
+      current = "";
     } else {
       current += char;
     }
@@ -28,20 +23,29 @@ function parseCsvLine(line: string): string[] {
 export const POST = withAuth(
   async (request, { auth }) => {
     const body = await parseBody<{ csv: string }>(request);
-    if (!body.csv) return jsonResponse({ error: 'CSV content required' }, 400);
+    if (!body.csv) return jsonResponse({ error: "CSV content required" }, 400);
 
-    const lines = body.csv.split('\n').map((l) => l.trim()).filter(Boolean);
-    if (lines.length < 2) return jsonResponse({ error: 'CSV must have header and at least one row' }, 400);
+    const lines = body.csv
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean);
+    if (lines.length < 2)
+      return jsonResponse(
+        { error: "CSV must have header and at least one row" },
+        400,
+      );
 
-    const headers = parseCsvLine(lines[0]).map((h) => h.toLowerCase().replace(/\s+/g, ''));
+    const headers = parseCsvLine(lines[0]).map((h) =>
+      h.toLowerCase().replace(/\s+/g, ""),
+    );
     const rows = lines.slice(1);
 
     const job = await prisma.importJob.create({
       data: {
         organizationId: auth.orgId,
         userId: auth.sub,
-        status: 'PROCESSING',
-        source: 'csv',
+        status: "PROCESSING",
+        source: "csv",
         totalRows: rows.length,
         startedAt: new Date(),
       },
@@ -54,14 +58,18 @@ export const POST = withAuth(
       const values = parseCsvLine(rows[i]);
       const row: Record<string, string> = {};
       headers.forEach((h, idx) => {
-        row[h] = values[idx] ?? '';
+        row[h] = values[idx] ?? "";
       });
 
       try {
         const vin = row.vin || row.vinnumber || undefined;
         const year = row.year ? parseInt(row.year, 10) : undefined;
-        const mileage = row.mileage ? parseInt(row.mileage.replace(/,/g, ''), 10) : undefined;
-        const price = row.price ? parseFloat(row.price.replace(/[$,]/g, '')) : undefined;
+        const mileage = row.mileage
+          ? parseInt(row.mileage.replace(/,/g, ""), 10)
+          : undefined;
+        const price = row.price
+          ? parseFloat(row.price.replace(/[$,]/g, ""))
+          : undefined;
 
         await prisma.vehicle.create({
           data: {
@@ -80,19 +88,27 @@ export const POST = withAuth(
             fuelType: row.fueltype || row.fuel || null,
             bodyStyle: row.bodystyle || null,
             description: row.description || null,
-            status: 'AVAILABLE',
+            status: "AVAILABLE",
           },
         });
         successCount++;
       } catch (err) {
-        errors.push({ row: i + 2, error: err instanceof Error ? err.message : 'Unknown error' });
+        errors.push({
+          row: i + 2,
+          error: err instanceof Error ? err.message : "Unknown error",
+        });
       }
     }
 
     const updatedJob = await prisma.importJob.update({
       where: { id: job.id },
       data: {
-        status: errors.length === 0 ? 'COMPLETED' : errors.length < rows.length ? 'PARTIAL' : 'FAILED',
+        status:
+          errors.length === 0
+            ? "COMPLETED"
+            : errors.length < rows.length
+              ? "PARTIAL"
+              : "FAILED",
         processedRows: rows.length,
         successCount,
         errorCount: errors.length,
@@ -107,13 +123,13 @@ export const POST = withAuth(
       errors,
     });
   },
-  { minRole: 'MANAGER' }
+  { minRole: "MANAGER" },
 );
 
 export const GET = withAuth(async (_request, { auth }) => {
   const jobs = await prisma.importJob.findMany({
     where: { organizationId: auth.orgId },
-    orderBy: { createdAt: 'desc' },
+    orderBy: { createdAt: "desc" },
     take: 20,
     include: { user: { select: { id: true, name: true } } },
   });

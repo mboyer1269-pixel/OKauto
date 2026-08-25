@@ -21,8 +21,14 @@ import { useAuth } from "./auth-provider";
 import { cn } from "@/lib/utils";
 import { getTeamMemberTitle } from "@/lib/team-members";
 import { BrandMark } from "@/components/brand-mark";
+import { hasMinRole, type RoleType } from "@okauto/shared";
 
-const navItems = [
+const navItems: Array<{
+  href: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+  minRole?: RoleType;
+}> = [
   { href: "/dashboard", label: "Vue du matin", icon: LayoutDashboard },
   { href: "/dashboard/inventory", label: "Inventaire", icon: Car },
   { href: "/dashboard/listings", label: "Publications", icon: List },
@@ -30,8 +36,18 @@ const navItems = [
   { href: "/dashboard/team", label: "Équipe", icon: Users },
   { href: "/dashboard/notifications", label: "Notifications", icon: Bell },
   { href: "/dashboard/settings", label: "Paramètres", icon: Settings },
-  { href: "/dashboard/api-keys", label: "Clés API", icon: Key },
-  { href: "/dashboard/audit", label: "Journal", icon: FileText },
+  {
+    href: "/dashboard/api-keys",
+    label: "Clés API",
+    icon: Key,
+    minRole: "MANAGER",
+  },
+  {
+    href: "/dashboard/audit",
+    label: "Journal",
+    icon: FileText,
+    minRole: "ADMIN",
+  },
 ];
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -39,6 +55,12 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, organization, role, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const professionalTitle = getTeamMemberTitle(role, user);
+  const currentRole = role as RoleType | null;
+  const visibleNavItems = navItems.filter(
+    (item) =>
+      !item.minRole ||
+      (currentRole !== null && hasMinRole(currentRole, item.minRole)),
+  );
 
   return (
     <div className="min-h-screen bg-[#f4f7fb]">
@@ -72,7 +94,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             </p>
           </div>
           <nav className="p-4 space-y-1">
-            {navItems.map((item) => {
+            {visibleNavItems.map((item) => {
               const Icon = item.icon;
               const active =
                 pathname === item.href ||

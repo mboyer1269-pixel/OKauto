@@ -1,13 +1,18 @@
-import { NextRequest } from 'next/server';
-import { loginSchema } from '@okauto/shared';
-import { prisma } from '@okauto/database';
+import { NextRequest } from "next/server";
+import { loginSchema } from "@okauto/shared";
+import { prisma } from "@okauto/database";
 import {
   verifyPassword,
   signAccessToken,
   createRefreshToken,
   createAuditLog,
-} from '@/lib/auth';
-import { jsonResponse, errorResponse, handleApiError, parseBody } from '@/lib/api';
+} from "@/lib/auth";
+import {
+  jsonResponse,
+  errorResponse,
+  handleApiError,
+  parseBody,
+} from "@/lib/api";
 
 export async function POST(request: NextRequest) {
   try {
@@ -25,17 +30,17 @@ export async function POST(request: NextRequest) {
     });
 
     if (!user || !user.isActive) {
-      return errorResponse('Invalid email or password', 401);
+      return errorResponse("Courriel ou mot de passe invalide", 401);
     }
 
     const valid = await verifyPassword(data.password, user.passwordHash);
     if (!valid) {
-      return errorResponse('Invalid email or password', 401);
+      return errorResponse("Courriel ou mot de passe invalide", 401);
     }
 
     const membership = user.memberships[0];
     if (!membership) {
-      return errorResponse('No organization membership found', 403);
+      return errorResponse("Aucune organisation associée à ce compte", 403);
     }
 
     const accessToken = await signAccessToken({
@@ -44,12 +49,15 @@ export async function POST(request: NextRequest) {
       orgId: membership.organizationId,
       role: membership.role,
     });
-    const refreshToken = await createRefreshToken(user.id);
+    const refreshToken = await createRefreshToken(
+      user.id,
+      membership.organizationId,
+    );
 
     await createAuditLog({
       organizationId: membership.organizationId,
       userId: user.id,
-      action: 'LOGIN',
+      action: "LOGIN",
       request,
     });
 
@@ -65,12 +73,12 @@ export async function POST(request: NextRequest) {
       refreshToken,
     });
 
-    response.cookies.set('access_token', accessToken, {
+    response.cookies.set("access_token", accessToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
       maxAge: 15 * 60,
-      path: '/',
+      path: "/",
     });
 
     return response;

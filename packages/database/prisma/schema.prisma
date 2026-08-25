@@ -57,13 +57,13 @@ enum AuditAction {
 }
 
 model User {
-  id            String   @id @default(cuid())
-  email         String   @unique
-  passwordHash  String
-  name          String
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   memberships      OrganizationMember[]
   refreshTokens    RefreshToken[]
@@ -78,26 +78,27 @@ model User {
 }
 
 model Organization {
-  id          String   @id @default(cuid())
-  name        String
-  slug        String   @unique
-  website     String?
-  phone       String?
-  address     String?
-  city        String?
-  state       String?
-  zip         String?
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  website   String?
+  phone     String?
+  address   String?
+  city      String?
+  state     String?
+  zip       String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  members     OrganizationMember[]
-  vehicles    Vehicle[]
-  listings    Listing[]
-  syncSources SyncSource[]
-  importJobs  ImportJob[]
-  auditLogs   AuditLog[]
-  apiKeys     ApiKey[]
+  members       OrganizationMember[]
+  vehicles      Vehicle[]
+  listings      Listing[]
+  syncSources   SyncSource[]
+  importJobs    ImportJob[]
+  auditLogs     AuditLog[]
+  apiKeys       ApiKey[]
+  refreshTokens RefreshToken[]
 
   @@map("organizations")
 }
@@ -180,25 +181,25 @@ model VehiclePhoto {
 }
 
 model Listing {
-  id              String        @id @default(cuid())
-  organizationId  String
-  vehicleId       String
-  userId          String
-  status          ListingStatus @default(ACTIVE)
-  platform        String        @default("facebook_marketplace")
-  externalUrl     String?
-  externalId      String?
-  listedAt        DateTime      @default(now())
-  removedAt       DateTime?
-  lastCheckedAt   DateTime?
-  priceAtListing  Decimal?      @db.Decimal(12, 2)
-  notes           String?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  id             String        @id @default(cuid())
+  organizationId String
+  vehicleId      String
+  userId         String
+  status         ListingStatus @default(ACTIVE)
+  platform       String        @default("facebook_marketplace")
+  externalUrl    String?
+  externalId     String?
+  listedAt       DateTime      @default(now())
+  removedAt      DateTime?
+  lastCheckedAt  DateTime?
+  priceAtListing Decimal?      @db.Decimal(12, 2)
+  notes          String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
-  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  vehicle      Vehicle       @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
-  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  vehicle      Vehicle        @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   events       ListingEvent[]
 
   @@index([organizationId, status])
@@ -262,18 +263,18 @@ model ImportJob {
 }
 
 model SyncSource {
-  id             String    @id @default(cuid())
-  organizationId String
-  name           String
-  url            String
-  adapter        String    @default("generic")
-  isActive       Boolean   @default(true)
-  intervalMinutes Int      @default(60)
-  lastSyncAt     DateTime?
-  lastSyncStatus String?
-  lastSyncError  String?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id              String    @id @default(cuid())
+  organizationId  String
+  name            String
+  url             String
+  adapter         String    @default("generic")
+  isActive        Boolean   @default(true)
+  intervalMinutes Int       @default(60)
+  lastSyncAt      DateTime?
+  lastSyncStatus  String?
+  lastSyncError   String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   vehicles     Vehicle[]
@@ -302,15 +303,18 @@ model ApiKey {
 }
 
 model RefreshToken {
-  id        String   @id @default(cuid())
-  userId    String
-  tokenHash String   @unique
-  expiresAt DateTime
-  createdAt DateTime @default(now())
+  id             String   @id @default(cuid())
+  userId         String
+  organizationId String?
+  tokenHash      String   @unique
+  expiresAt      DateTime
+  createdAt      DateTime @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([organizationId])
   @@map("refresh_tokens")
 }
 

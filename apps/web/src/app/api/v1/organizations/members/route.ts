@@ -1,5 +1,5 @@
 import { prisma } from "@okauto/database";
-import { inviteMemberSchema, updateMemberSchema } from "@okauto/shared";
+import { inviteMemberSchema } from "@okauto/shared";
 import { withAuth, jsonResponse, errorResponse, parseBody } from "@/lib/api";
 import { hashPassword } from "@/lib/auth";
 

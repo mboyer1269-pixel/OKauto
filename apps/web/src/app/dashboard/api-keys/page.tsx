@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ProtectedRoute } from "@/components/protected-route";
 import { useAuth } from "@/components/auth-provider";
 import { formatDateTime } from "@/lib/utils";
@@ -30,15 +30,15 @@ function ApiKeysContent() {
   const [newKeyName, setNewKeyName] = useState("");
   const [createdKey, setCreatedKey] = useState<string | null>(null);
 
-  const load = () => {
+  const load = useCallback(() => {
     apiFetch("/api/v1/admin/api-keys")
       .then((r) => r.json())
       .then(setKeys);
-  };
+  }, [apiFetch]);
 
   useEffect(() => {
     load();
-  }, [apiFetch]);
+  }, [load]);
 
   const handleCreate = async () => {
     const res = await apiFetch("/api/v1/admin/api-keys", {

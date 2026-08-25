@@ -1,27 +1,34 @@
-import { NextRequest } from 'next/server';
-import { registerSchema, loginSchema, refreshSchema } from '@okauto/shared';
-import { prisma, Role } from '@okauto/database';
+import { NextRequest } from "next/server";
+import { registerSchema } from "@okauto/shared";
+import { prisma, Role } from "@okauto/database";
 import {
   hashPassword,
   signAccessToken,
   createRefreshToken,
   createAuditLog,
-} from '@/lib/auth';
-import { slugify } from '@/lib/utils';
-import { jsonResponse, errorResponse, handleApiError, parseBody } from '@/lib/api';
+} from "@/lib/auth";
+import { slugify } from "@/lib/utils";
+import {
+  jsonResponse,
+  errorResponse,
+  handleApiError,
+  parseBody,
+} from "@/lib/api";
 
 export async function POST(request: NextRequest) {
   try {
     const body = await parseBody<unknown>(request);
     const data = registerSchema.parse(body);
 
-    const existing = await prisma.user.findUnique({ where: { email: data.email } });
+    const existing = await prisma.user.findUnique({
+      where: { email: data.email },
+    });
     if (existing) {
-      return errorResponse('Email already registered', 409);
+      return errorResponse("Ce courriel est déjà enregistré", 409);
     }
 
     const passwordHash = await hashPassword(data.password);
-    const orgName = data.organizationName ?? `${data.name}'s Dealership`;
+    const orgName = data.organizationName ?? `Concession de ${data.name}`;
 
     const result = await prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
@@ -31,7 +38,7 @@ export async function POST(request: NextRequest) {
       const org = await tx.organization.create({
         data: {
           name: orgName,
-          slug: slugify(orgName) + '-' + user.id.slice(-6),
+          slug: slugify(orgName) + "-" + user.id.slice(-6),
         },
       });
 
@@ -48,30 +55,41 @@ export async function POST(request: NextRequest) {
       orgId: result.org.id,
       role: Role.OWNER,
     });
-    const refreshToken = await createRefreshToken(result.user.id);
+    const refreshToken = await createRefreshToken(
+      result.user.id,
+      result.org.id,
+    );
 
     await createAuditLog({
       organizationId: result.org.id,
       userId: result.user.id,
-      action: 'CREATE',
-      entityType: 'user',
+      action: "CREATE",
+      entityType: "user",
       entityId: result.user.id,
       request,
     });
 
     const response = jsonResponse({
-      user: { id: result.user.id, email: result.user.email, name: result.user.name },
-      organization: { id: result.org.id, name: result.org.name, slug: result.org.slug },
+      user: {
+        id: result.user.id,
+        email: result.user.email,
+        name: result.user.name,
+      },
+      organization: {
+        id: result.org.id,
+        name: result.org.name,
+        slug: result.org.slug,
+      },
       accessToken,
       refreshToken,
     });
 
-    response.cookies.set('access_token', accessToken, {
+    response.cookies.set("access_token", accessToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
       maxAge: 15 * 60,
-      path: '/',
+      path: "/",
     });
 
     return response;

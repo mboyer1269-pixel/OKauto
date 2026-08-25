@@ -227,7 +227,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     if (!res.ok) {
       const err = await res.json();
-      throw new Error(err.error ?? "Login failed");
+      throw new Error(err.error ?? "La connexion a échoué.");
     }
     const data = await res.json();
     persist(data);
@@ -246,7 +246,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     if (!res.ok) {
       const err = await res.json();
-      throw new Error(err.error ?? "Registration failed");
+      throw new Error(err.error ?? "La création du compte a échoué.");
     }
     const result = await res.json();
     persist({ ...result, role: "OWNER" });

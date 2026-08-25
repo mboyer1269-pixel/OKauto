@@ -515,7 +515,7 @@ function ListingsContent() {
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <span className="rounded-full border border-[#d6b75a]/50 bg-[#d6b75a]/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-[#f1d77f]">
-                BuckinghamGM · voie de publication
+                {organization.name} · voie de publication
               </span>
               <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 px-3 py-1 text-xs text-slate-300">
                 <Radio
@@ -1030,7 +1030,7 @@ function ListingsContent() {
                     target="_blank"
                     rel="noreferrer"
                   >
-                    Fiche BuckinghamGM{" "}
+                    Fiche {organization.name}{" "}
                     <ExternalLink className="ml-2" size={15} />
                   </a>
                 )}

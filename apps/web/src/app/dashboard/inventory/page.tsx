@@ -4,7 +4,12 @@ import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { ProtectedRoute } from "@/components/protected-route";
 import { useAuth } from "@/components/auth-provider";
-import { formatCurrency, formatNumber, getStatusBadgeClass } from "@/lib/utils";
+import {
+  formatCurrency,
+  formatNumber,
+  formatStatus,
+  getStatusBadgeClass,
+} from "@/lib/utils";
 import {
   Search,
   Plus,
@@ -65,7 +70,9 @@ function InventoryContent() {
 
       const res = await apiFetch(`/api/v1/vehicles?${params}`);
       if (!res.ok) {
-        throw new Error(`Inventory request failed with HTTP ${res.status}`);
+        throw new Error(
+          `La requête d’inventaire a échoué (HTTP ${res.status}).`,
+        );
       }
 
       const data = await res.json();
@@ -95,50 +102,68 @@ function InventoryContent() {
 
   const handleImport = async () => {
     setImporting(true);
-    const res = await apiFetch("/api/v1/vehicles/import/csv", {
-      method: "POST",
-      body: JSON.stringify({ csv }),
-    });
-    const data = await res.json();
-    setImporting(false);
-    setShowImport(false);
-    setCsv("");
-    alert(
-      `Imported ${data.imported} vehicles. ${data.errors?.length ?? 0} errors.`,
-    );
-    load();
+    try {
+      const res = await apiFetch("/api/v1/vehicles/import/csv", {
+        method: "POST",
+        body: JSON.stringify({ csv }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error ?? "L’importation CSV a échoué.");
+      }
+      setShowImport(false);
+      setCsv("");
+      alert(
+        `${data.imported ?? 0} véhicule(s) importé(s). ${data.errors?.length ?? 0} erreur(s).`,
+      );
+      await load();
+    } catch (error) {
+      alert(
+        error instanceof Error ? error.message : "L’importation CSV a échoué.",
+      );
+    } finally {
+      setImporting(false);
+    }
   };
 
   const handleGenerateDesc = async (id: string) => {
-    await apiFetch(`/api/v1/vehicles/${id}/generate-description`, {
-      method: "POST",
-    });
-    load();
+    const response = await apiFetch(
+      `/api/v1/vehicles/${id}/generate-description`,
+      {
+        method: "POST",
+      },
+    );
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      alert(data.error ?? "La description n’a pas pu être générée.");
+      return;
+    }
+    await load();
   };
 
   return (
     <div>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-        <h1 className="text-2xl font-bold">Inventory</h1>
+        <h1 className="text-2xl font-bold">Inventaire</h1>
         <div className="flex gap-2">
           <button
             onClick={() => setShowImport(!showImport)}
             className="btn-secondary"
           >
-            <Upload size={16} className="mr-2" /> Import CSV
+            <Upload size={16} className="mr-2" /> Importer un CSV
           </button>
           <Link href="/dashboard/inventory/new" className="btn-primary">
-            <Plus size={16} className="mr-2" /> Add Vehicle
+            <Plus size={16} className="mr-2" /> Ajouter un véhicule
           </Link>
         </div>
       </div>
 
       {showImport && (
         <div className="card mb-6">
-          <h3 className="font-semibold mb-2">Import CSV</h3>
+          <h3 className="font-semibold mb-2">Importer un fichier CSV</h3>
           <p className="text-sm text-slate-500 mb-3">
-            Columns: vin, stockNumber, year, make, model, trim, mileage, price,
-            exteriorColor, transmission, fuelType, description
+            Colonnes : vin, stockNumber, year, make, model, trim, mileage,
+            price, exteriorColor, transmission, fuelType, description
           </p>
           <textarea
             className="input h-32 font-mono text-xs"
@@ -151,7 +176,7 @@ function InventoryContent() {
             className="btn-primary mt-3"
             disabled={importing || !csv}
           >
-            {importing ? "Importing..." : "Import"}
+            {importing ? "Importation…" : "Importer"}
           </button>
         </div>
       )}
@@ -164,7 +189,7 @@ function InventoryContent() {
           />
           <input
             className="input pl-9"
-            placeholder="Search by make, model, VIN, stock..."
+            placeholder="Rechercher par marque, modèle, NIV ou stock…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -174,20 +199,20 @@ function InventoryContent() {
           value={status}
           onChange={(e) => setStatus(e.target.value)}
         >
-          <option value="">All Status</option>
-          <option value="AVAILABLE">Available</option>
-          <option value="PENDING">Pending</option>
-          <option value="SOLD">Sold</option>
-          <option value="ARCHIVED">Archived</option>
+          <option value="">Tous les statuts</option>
+          <option value="AVAILABLE">Disponible</option>
+          <option value="PENDING">En attente</option>
+          <option value="SOLD">Vendu</option>
+          <option value="ARCHIVED">Archivé</option>
         </select>
       </div>
 
       {!loading && (
         <div className="flex items-center justify-between mb-3 text-sm text-slate-500">
-          <span>{formatNumber(pagination.total)} vehicles</span>
+          <span>{formatNumber(pagination.total)} véhicule(s)</span>
           {pagination.totalPages > 1 && (
             <span>
-              Page {page} of {pagination.totalPages}
+              Page {page} sur {pagination.totalPages}
             </span>
           )}
         </div>
@@ -214,7 +239,8 @@ function InventoryContent() {
         </div>
       ) : vehicles.length === 0 ? (
         <div className="card text-center py-12 text-slate-500">
-          No vehicles found. Add your first vehicle or import a CSV.
+          Aucun véhicule trouvé. Ajoutez votre premier véhicule ou importez un
+          fichier CSV.
         </div>
       ) : (
         <div className="space-y-3">
@@ -237,21 +263,20 @@ function InventoryContent() {
                   {v.year} {v.make} {v.model} {v.trim}
                 </Link>
                 <p className="text-sm text-slate-500">
-                  Stock: {v.stockNumber ?? "—"} · {formatNumber(v.mileage)}{" "}
-                  {v.sourceUrl?.includes("buckinghamgm.com") ? "km" : "mi"} ·{" "}
-                  {v._count.listings} listings
+                  Stock : {v.stockNumber ?? "—"} · {formatNumber(v.mileage)} km{" "}
+                  · {v._count.listings} publication(s)
                 </p>
               </div>
               <div className="text-right">
                 <p className="font-semibold">{formatCurrency(v.price)}</p>
                 <span className={getStatusBadgeClass(v.status)}>
-                  {v.status}
+                  {formatStatus(v.status)}
                 </span>
               </div>
               <button
                 onClick={() => handleGenerateDesc(v.id)}
                 className="btn-secondary text-xs"
-                title="Generate AI description"
+                title="Générer la description"
               >
                 <Sparkles size={14} />
               </button>
@@ -267,10 +292,10 @@ function InventoryContent() {
             onClick={() => setPage((current) => Math.max(1, current - 1))}
             disabled={page === 1}
           >
-            <ChevronLeft size={16} className="mr-1" /> Previous
+            <ChevronLeft size={16} className="mr-1" /> Précédente
           </button>
           <span className="text-sm text-slate-500">
-            Page {page} of {pagination.totalPages}
+            Page {page} sur {pagination.totalPages}
           </span>
           <button
             className="btn-secondary"
@@ -279,7 +304,7 @@ function InventoryContent() {
             }
             disabled={page === pagination.totalPages}
           >
-            Next <ChevronRight size={16} className="ml-1" />
+            Suivante <ChevronRight size={16} className="ml-1" />
           </button>
         </div>
       )}

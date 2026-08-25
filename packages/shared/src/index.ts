@@ -1,10 +1,10 @@
-import { z } from 'zod';
+import { z } from "zod";
 
 export const Role = {
-  OWNER: 'OWNER',
-  ADMIN: 'ADMIN',
-  MANAGER: 'MANAGER',
-  SALESPERSON: 'SALESPERSON',
+  OWNER: "OWNER",
+  ADMIN: "ADMIN",
+  MANAGER: "MANAGER",
+  SALESPERSON: "SALESPERSON",
 } as const;
 
 export type RoleType = (typeof Role)[keyof typeof Role];
@@ -16,7 +16,10 @@ export const ROLE_HIERARCHY: Record<RoleType, number> = {
   SALESPERSON: 1,
 };
 
-export function hasMinRole(userRole: RoleType, requiredRole: RoleType): boolean {
+export function hasMinRole(
+  userRole: RoleType,
+  requiredRole: RoleType,
+): boolean {
   return ROLE_HIERARCHY[userRole] >= ROLE_HIERARCHY[requiredRole];
 }
 
@@ -24,9 +27,10 @@ export function isFacebookMarketplaceItemUrl(value: string): boolean {
   try {
     const url = new URL(value);
     const hostname = url.hostname.toLowerCase();
-    const isFacebookHost = hostname === 'facebook.com' || hostname.endsWith('.facebook.com');
+    const isFacebookHost =
+      hostname === "facebook.com" || hostname.endsWith(".facebook.com");
     return (
-      url.protocol === 'https:' &&
+      url.protocol === "https:" &&
       isFacebookHost &&
       /^\/marketplace\/item\/[^/]+\/?$/.test(url.pathname)
     );
@@ -36,24 +40,25 @@ export function isFacebookMarketplaceItemUrl(value: string): boolean {
 }
 
 export const VehicleStatus = {
-  AVAILABLE: 'AVAILABLE',
-  PENDING: 'PENDING',
-  SOLD: 'SOLD',
-  ARCHIVED: 'ARCHIVED',
+  AVAILABLE: "AVAILABLE",
+  PENDING: "PENDING",
+  SOLD: "SOLD",
+  ARCHIVED: "ARCHIVED",
 } as const;
 
-export type VehicleStatusType = (typeof VehicleStatus)[keyof typeof VehicleStatus];
+export type VehicleStatusType =
+  (typeof VehicleStatus)[keyof typeof VehicleStatus];
 
 // Auth schemas
 export const registerSchema = z.object({
-  email: z.string().email(),
+  email: z.string().trim().toLowerCase().email(),
   password: z.string().min(8).max(128),
   name: z.string().min(1).max(100),
   organizationName: z.string().min(1).max(200).optional(),
 });
 
 export const loginSchema = z.object({
-  email: z.string().email(),
+  email: z.string().trim().toLowerCase().email(),
   password: z.string().min(1),
 });
 
@@ -77,7 +82,7 @@ export const createVehicleSchema = z.object({
   msrp: z.number().min(0).optional().nullable(),
   description: z.string().max(10000).optional().nullable(),
   features: z.array(z.string()).optional(),
-  status: z.enum(['AVAILABLE', 'PENDING', 'SOLD', 'ARCHIVED']).optional(),
+  status: z.enum(["AVAILABLE", "PENDING", "SOLD", "ARCHIVED"]).optional(),
   fuelType: z.string().max(50).optional().nullable(),
   transmission: z.string().max(50).optional().nullable(),
   drivetrain: z.string().max(50).optional().nullable(),
@@ -94,7 +99,7 @@ export const createVehicleSchema = z.object({
         url: z.string().url(),
         sortOrder: z.number().int().optional(),
         isPrimary: z.boolean().optional(),
-      })
+      }),
     )
     .optional(),
 });
@@ -102,7 +107,7 @@ export const createVehicleSchema = z.object({
 export const updateVehicleSchema = createVehicleSchema.partial();
 
 export const vehicleQuerySchema = z.object({
-  status: z.enum(['AVAILABLE', 'PENDING', 'SOLD', 'ARCHIVED']).optional(),
+  status: z.enum(["AVAILABLE", "PENDING", "SOLD", "ARCHIVED"]).optional(),
   assignedToId: z.string().optional(),
   search: z.string().optional(),
   page: z.coerce.number().int().min(1).default(1),
@@ -112,15 +117,20 @@ export const vehicleQuerySchema = z.object({
 // Listing schemas
 export const createListingSchema = z.object({
   vehicleId: z.string(),
-  platform: z.string().default('facebook_marketplace'),
+  platform: z.string().default("facebook_marketplace"),
   externalUrl: z.string().url().optional().nullable(),
   externalId: z.string().optional().nullable(),
-  priceAtListing: z.coerce.number().finite().nonnegative().optional().nullable(),
+  priceAtListing: z.coerce
+    .number()
+    .finite()
+    .nonnegative()
+    .optional()
+    .nullable(),
   notes: z.string().max(1000).optional().nullable(),
 });
 
 export const updateListingSchema = z.object({
-  status: z.enum(['DRAFT', 'ACTIVE', 'SOLD', 'REMOVED', 'STALE']).optional(),
+  status: z.enum(["DRAFT", "ACTIVE", "SOLD", "REMOVED", "STALE"]).optional(),
   externalUrl: z.string().url().optional().nullable(),
   removedAt: z.string().datetime().optional().nullable(),
 });
@@ -128,10 +138,10 @@ export const updateListingSchema = z.object({
 // Extension event schema
 export const extensionEventSchema = z.object({
   eventType: z.enum([
-    'listing_created',
-    'listing_removed',
-    'form_filled',
-    'listing_error',
+    "listing_created",
+    "listing_removed",
+    "form_filled",
+    "listing_error",
   ]),
   vehicleId: z.string(),
   listingId: z.string().optional(),
@@ -140,14 +150,14 @@ export const extensionEventSchema = z.object({
 
 // Invite schema
 export const inviteMemberSchema = z.object({
-  email: z.string().email(),
+  email: z.string().trim().toLowerCase().email(),
   name: z.string().min(1).max(100),
-  role: z.enum(['ADMIN', 'MANAGER', 'SALESPERSON']),
+  role: z.enum(["ADMIN", "MANAGER", "SALESPERSON"]),
   password: z.string().min(8).max(128),
 });
 
 export const updateMemberSchema = z.object({
-  role: z.enum(['OWNER', 'ADMIN', 'MANAGER', 'SALESPERSON']).optional(),
+  role: z.enum(["OWNER", "ADMIN", "MANAGER", "SALESPERSON"]).optional(),
 });
 
 // Organization schema
@@ -169,7 +179,7 @@ export const createApiKeySchema = z.object({
 // Bulk update schema
 export const bulkUpdateVehiclesSchema = z.object({
   vehicleIds: z.array(z.string()).min(1).max(100),
-  status: z.enum(['AVAILABLE', 'PENDING', 'SOLD', 'ARCHIVED']).optional(),
+  status: z.enum(["AVAILABLE", "PENDING", "SOLD", "ARCHIVED"]).optional(),
   assignedToId: z.string().optional().nullable(),
 });
 
@@ -184,7 +194,9 @@ export type ExtensionEventInput = z.infer<typeof extensionEventSchema>;
 export const createSyncSourceSchema = z.object({
   name: z.string().min(1).max(200),
   url: z.string().url(),
-  adapter: z.enum(['generic', 'dealer-json', 'json-ld', 'd2c']).default('generic'),
+  adapter: z
+    .enum(["generic", "dealer-json", "json-ld", "d2c"])
+    .default("generic"),
   isActive: z.boolean().optional(),
   intervalMinutes: z.number().int().min(5).max(10080).default(60),
 });
@@ -207,6 +219,6 @@ export const addPhotoSchema = z.object({
 export type CreateSyncSourceInput = z.infer<typeof createSyncSourceSchema>;
 export type UpdateSyncSourceInput = z.infer<typeof updateSyncSourceSchema>;
 
-export * from './description';
-export * from './vin';
-export * from './sync';
+export * from "./description";
+export * from "./vin";
+export * from "./sync";

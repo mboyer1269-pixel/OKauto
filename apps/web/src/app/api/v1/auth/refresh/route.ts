@@ -1,8 +1,12 @@
-import { NextRequest } from 'next/server';
-import { refreshSchema } from '@okauto/shared';
-import { prisma } from '@okauto/database';
-import { signAccessToken, validateRefreshToken } from '@/lib/auth';
-import { jsonResponse, errorResponse, handleApiError, parseBody } from '@/lib/api';
+import { NextRequest } from "next/server";
+import { refreshSchema } from "@okauto/shared";
+import { signAccessToken, validateRefreshToken } from "@/lib/auth";
+import {
+  jsonResponse,
+  errorResponse,
+  handleApiError,
+  parseBody,
+} from "@/lib/api";
 
 export async function POST(request: NextRequest) {
   try {
@@ -11,12 +15,21 @@ export async function POST(request: NextRequest) {
 
     const record = await validateRefreshToken(data.refreshToken);
     if (!record) {
-      return errorResponse('Invalid or expired refresh token', 401);
+      return errorResponse("Session expirée; veuillez vous reconnecter", 401);
     }
 
-    const membership = record.user.memberships[0];
+    const membership = record.organizationId
+      ? record.user.memberships.find(
+          (item) => item.organizationId === record.organizationId,
+        )
+      : record.user.memberships.length === 1
+        ? record.user.memberships[0]
+        : null;
     if (!membership) {
-      return errorResponse('No organization membership', 403);
+      return errorResponse(
+        "Veuillez vous reconnecter à votre organisation",
+        401,
+      );
     }
 
     const accessToken = await signAccessToken({
@@ -27,12 +40,12 @@ export async function POST(request: NextRequest) {
     });
 
     const response = jsonResponse({ accessToken });
-    response.cookies.set('access_token', accessToken, {
+    response.cookies.set("access_token", accessToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
       maxAge: 15 * 60,
-      path: '/',
+      path: "/",
     });
 
     return response;
