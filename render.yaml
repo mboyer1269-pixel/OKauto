@@ -25,6 +25,7 @@ services:
     healthCheckPath: /api/health
     domains:
       - suivia.ca
+      - www.suivia.ca
     envVars:
       - key: DATABASE_URL
         fromDatabase:
