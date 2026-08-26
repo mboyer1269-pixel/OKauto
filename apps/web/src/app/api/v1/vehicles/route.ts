@@ -1,7 +1,7 @@
-import { prisma } from '@okauto/database';
-import { vehicleQuerySchema, createVehicleSchema } from '@okauto/shared';
-import { withAuth, jsonResponse, parseBody } from '@/lib/api';
-import { createAuditLog } from '@/lib/auth';
+import { prisma } from "@okauto/database";
+import { vehicleQuerySchema, createVehicleSchema } from "@okauto/shared";
+import { withAuth, jsonResponse, parseBody } from "@/lib/api";
+import { createAuditLog } from "@/lib/auth";
 
 export const GET = withAuth(async (request, { auth }) => {
   const url = new URL(request.url);
@@ -11,28 +11,36 @@ export const GET = withAuth(async (request, { auth }) => {
 
   if (query.status) where.status = query.status;
   if (query.assignedToId) where.assignedToId = query.assignedToId;
+  if (query.withoutActiveListing) {
+    where.listings = { none: { status: "ACTIVE" } };
+  }
   if (query.search) {
     where.OR = [
-      { make: { contains: query.search, mode: 'insensitive' } },
-      { model: { contains: query.search, mode: 'insensitive' } },
-      { vin: { contains: query.search, mode: 'insensitive' } },
-      { stockNumber: { contains: query.search, mode: 'insensitive' } },
+      { make: { contains: query.search, mode: "insensitive" } },
+      { model: { contains: query.search, mode: "insensitive" } },
+      { vin: { contains: query.search, mode: "insensitive" } },
+      { stockNumber: { contains: query.search, mode: "insensitive" } },
     ];
   }
 
-  const [vehicles, total] = await Promise.all([
-    prisma.vehicle.findMany({
-      where,
-      include: {
-        photos: { orderBy: { sortOrder: 'asc' } },
-        assignedTo: { select: { id: true, name: true, email: true } },
-        listings: { where: { status: 'ACTIVE' }, take: 1 },
-        _count: { select: { listings: true } },
+  const vehicleQuery = {
+    where,
+    include: {
+      photos: {
+        orderBy: { sortOrder: "asc" as const },
+        ...(query.view === "summary" ? { take: 1 } : {}),
       },
-      orderBy: { updatedAt: 'desc' },
-      skip: (query.page - 1) * query.limit,
-      take: query.limit,
-    }),
+      assignedTo: { select: { id: true, name: true, email: true } },
+      listings: { where: { status: "ACTIVE" as const }, take: 1 },
+      _count: { select: { listings: true } },
+    },
+    orderBy: { updatedAt: "desc" as const },
+    skip: (query.page - 1) * query.limit,
+    take: query.limit,
+  };
+
+  const [vehicles, total] = await Promise.all([
+    prisma.vehicle.findMany(vehicleQuery),
     prisma.vehicle.count({ where }),
   ]);
 
@@ -68,7 +76,7 @@ export const POST = withAuth(async (request, { auth }) => {
       msrp: data.msrp,
       description: data.description,
       features: data.features ?? [],
-      status: data.status ?? 'AVAILABLE',
+      status: data.status ?? "AVAILABLE",
       fuelType: data.fuelType,
       transmission: data.transmission,
       drivetrain: data.drivetrain,
@@ -80,7 +88,13 @@ export const POST = withAuth(async (request, { auth }) => {
       notes: data.notes,
       assignedToId: data.assignedToId,
       photos: data.photos
-        ? { create: data.photos.map((p, i) => ({ url: p.url, sortOrder: p.sortOrder ?? i, isPrimary: p.isPrimary ?? i === 0 })) }
+        ? {
+            create: data.photos.map((p, i) => ({
+              url: p.url,
+              sortOrder: p.sortOrder ?? i,
+              isPrimary: p.isPrimary ?? i === 0,
+            })),
+          }
         : undefined,
     },
     include: { photos: true, assignedTo: { select: { id: true, name: true } } },
@@ -89,8 +103,8 @@ export const POST = withAuth(async (request, { auth }) => {
   await createAuditLog({
     organizationId: auth.orgId,
     userId: auth.sub,
-    action: 'CREATE',
-    entityType: 'vehicle',
+    action: "CREATE",
+    entityType: "vehicle",
     entityId: vehicle.id,
     request: request as never,
   });

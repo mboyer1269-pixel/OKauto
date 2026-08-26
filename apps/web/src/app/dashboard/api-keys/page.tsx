@@ -4,7 +4,16 @@ import { useCallback, useEffect, useState } from "react";
 import { ProtectedRoute } from "@/components/protected-route";
 import { useAuth } from "@/components/auth-provider";
 import { formatDateTime } from "@/lib/utils";
-import { Copy, Trash2 } from "lucide-react";
+import {
+  AlertCircle,
+  Check,
+  Copy,
+  KeyRound,
+  RefreshCw,
+  ShieldCheck,
+  Trash2,
+  X,
+} from "lucide-react";
 
 interface ApiKey {
   id: string;
@@ -29,121 +38,338 @@ function ApiKeysContent() {
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [newKeyName, setNewKeyName] = useState("");
   const [createdKey, setCreatedKey] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [copied, setCopied] = useState(false);
+  const [revokeId, setRevokeId] = useState<string | null>(null);
 
-  const load = useCallback(() => {
-    apiFetch("/api/v1/admin/api-keys")
-      .then((r) => r.json())
-      .then(setKeys);
+  const load = useCallback(async () => {
+    setError("");
+    try {
+      const response = await apiFetch("/api/v1/admin/api-keys");
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !Array.isArray(data))
+        throw new Error("Les clés d’extension n’ont pas pu être chargées.");
+      setKeys(data);
+    } catch (loadError) {
+      setError(
+        loadError instanceof Error
+          ? loadError.message
+          : "Une erreur est survenue.",
+      );
+    } finally {
+      setLoading(false);
+    }
   }, [apiFetch]);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
   const handleCreate = async () => {
-    const res = await apiFetch("/api/v1/admin/api-keys", {
-      method: "POST",
-      body: JSON.stringify({ name: newKeyName || "Extension Chrome" }),
-    });
-    const data = await res.json();
-    setCreatedKey(data.key);
-    setNewKeyName("");
-    load();
+    setSaving(true);
+    setError("");
+    try {
+      const response = await apiFetch("/api/v1/admin/api-keys", {
+        method: "POST",
+        body: JSON.stringify({ name: newKeyName.trim() || "Extension Chrome" }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.key)
+        throw new Error(data.error ?? "La clé n’a pas pu être créée.");
+      setCreatedKey(data.key);
+      setNewKeyName("");
+      await load();
+    } catch (createError) {
+      setError(
+        createError instanceof Error
+          ? createError.message
+          : "La clé n’a pas pu être créée.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const copyCreatedKey = async () => {
+    if (!createdKey) return;
+    try {
+      await navigator.clipboard.writeText(createdKey);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1800);
+    } catch {
+      setError("Chrome a bloqué la copie. Sélectionnez la clé manuellement.");
+    }
   };
 
   const handleRevoke = async (id: string) => {
-    if (!confirm("Révoquer cette clé API?")) return;
-    await apiFetch(`/api/v1/admin/api-keys/${id}`, { method: "DELETE" });
-    load();
+    setSaving(true);
+    setError("");
+    try {
+      const response = await apiFetch(`/api/v1/admin/api-keys/${id}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) throw new Error("La clé n’a pas pu être révoquée.");
+      setRevokeId(null);
+      await load();
+    } catch (revokeError) {
+      setError(
+        revokeError instanceof Error
+          ? revokeError.message
+          : "La clé n’a pas pu être révoquée.",
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
-  return (
-    <div>
-      <h1 className="text-2xl font-bold mb-6">Clés API</h1>
+  const activeCount = keys.filter((key) => key.isActive).length;
 
-      {createdKey && (
-        <div className="card mb-6 border-green-200 bg-green-50">
-          <p className="font-semibold text-green-800 mb-2">
-            Clé créée — copiez-la maintenant
-          </p>
-          <div className="flex items-center gap-2">
-            <code className="flex-1 bg-white p-2 rounded text-xs break-all">
-              {createdKey}
-            </code>
-            <button
-              onClick={() => navigator.clipboard.writeText(createdKey)}
-              className="btn-secondary"
-            >
-              <Copy size={14} />
-            </button>
+  return (
+    <div className="space-y-5">
+      <header className="overflow-hidden rounded-[1.5rem] bg-[#071426] text-white shadow-[0_24px_60px_-42px_rgba(7,20,38,0.95)]">
+        <div className="h-1.5 bg-[linear-gradient(90deg,#0b66d8_0%,#0b66d8_72%,#0e9f6e_72%,#0e9f6e_100%)]" />
+        <div className="grid gap-6 px-5 py-6 sm:px-7 lg:grid-cols-[1fr_auto] lg:items-end">
+          <div>
+            <div className="flex items-center gap-2 text-[#79b7ff]">
+              <KeyRound size={17} />
+              <p className="brand-label text-[11px] font-bold uppercase tracking-[0.18em]">
+                Accès extension Chrome
+              </p>
+            </div>
+            <h1 className="brand-display mt-3 text-3xl font-black tracking-[-0.04em] sm:text-4xl">
+              Connecter un poste de vente
+            </h1>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
+              Une clé par ordinateur. Elle permet à l’extension de lire votre
+              inventaire et d’enregistrer les annonces publiées.
+            </p>
           </div>
+          <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3">
+            <ShieldCheck className="text-emerald-400" size={22} />
+            <div>
+              <p className="text-2xl font-black tabular-nums">{activeCount}</p>
+              <p className="text-xs text-slate-400">
+                poste{activeCount === 1 ? "" : "s"} actif
+                {activeCount === 1 ? "" : "s"}
+              </p>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {error && (
+        <div
+          role="alert"
+          className="flex items-center justify-between rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+        >
+          <span className="flex items-center gap-2">
+            <AlertCircle size={17} />
+            {error}
+          </span>
           <button
-            onClick={() => setCreatedKey(null)}
-            className="text-sm text-green-700 mt-2"
+            type="button"
+            onClick={() => setError("")}
+            className="rounded p-1 hover:bg-red-100"
+            aria-label="Fermer le message"
           >
-            Fermer
+            <X size={16} />
           </button>
         </div>
       )}
 
-      <div className="card mb-6 flex gap-3">
-        <input
-          className="input"
-          placeholder="Nom (ex. Extension de Michael)"
-          value={newKeyName}
-          onChange={(e) => setNewKeyName(e.target.value)}
-        />
-        <button
-          onClick={handleCreate}
-          className="btn-primary whitespace-nowrap"
+      {createdKey && (
+        <section
+          className="rounded-2xl border-2 border-emerald-300 bg-emerald-50 p-5"
+          aria-labelledby="created-key-title"
         >
-          Créer la clé
-        </button>
-      </div>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2
+                id="created-key-title"
+                className="font-black text-emerald-950"
+              >
+                Clé prête à installer
+              </h2>
+              <p className="mt-1 text-sm text-emerald-800">
+                Copiez-la maintenant : elle ne sera plus affichée après avoir
+                fermé ce bloc.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setCreatedKey(null)}
+              className="rounded-lg p-2 text-emerald-800 hover:bg-emerald-100"
+              aria-label="Fermer la nouvelle clé"
+            >
+              <X size={18} />
+            </button>
+          </div>
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+            <code className="min-w-0 flex-1 select-all break-all rounded-xl border border-emerald-200 bg-white p-3 text-xs text-slate-900">
+              {createdKey}
+            </code>
+            <button
+              type="button"
+              onClick={copyCreatedKey}
+              className="btn-primary min-h-11 sm:self-start"
+            >
+              {copied ? (
+                <Check size={16} className="mr-2" />
+              ) : (
+                <Copy size={16} className="mr-2" />
+              )}
+              {copied ? "Copiée" : "Copier la clé"}
+            </button>
+          </div>
+        </section>
+      )}
 
-      <div className="card">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b text-left text-slate-500">
-              <th className="pb-3">Nom</th>
-              <th className="pb-3">Préfixe</th>
-              <th className="pb-3">Créée par</th>
-              <th className="pb-3">Dernière utilisation</th>
-              <th className="pb-3">Statut</th>
-              <th className="pb-3"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {keys.map((k) => (
-              <tr key={k.id} className="border-b last:border-0">
-                <td className="py-3 font-medium">{k.name}</td>
-                <td className="py-3 font-mono text-xs">{k.keyPrefix}...</td>
-                <td className="py-3">{k.user.name}</td>
-                <td className="py-3">
-                  {k.lastUsedAt ? formatDateTime(k.lastUsedAt) : "Jamais"}
-                </td>
-                <td className="py-3">
-                  <span
-                    className={k.isActive ? "badge-success" : "badge-neutral"}
-                  >
-                    {k.isActive ? "Active" : "Révoquée"}
-                  </span>
-                </td>
-                <td className="py-3">
-                  {k.isActive && (
-                    <button
-                      onClick={() => handleRevoke(k.id)}
-                      className="text-red-500 hover:text-red-700"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  )}
-                </td>
-              </tr>
+      <section
+        className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5"
+        aria-labelledby="new-key-title"
+      >
+        <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
+          <label>
+            <span
+              id="new-key-title"
+              className="block text-sm font-black text-slate-950"
+            >
+              Nom du nouvel ordinateur
+            </span>
+            <span className="mb-2 mt-1 block text-xs text-slate-500">
+              Exemple : Chrome — bureau de Michael
+            </span>
+            <input
+              className="input min-h-11"
+              placeholder="Extension Chrome"
+              value={newKeyName}
+              onChange={(event) => setNewKeyName(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !saving) void handleCreate();
+              }}
+            />
+          </label>
+          <button
+            type="button"
+            onClick={handleCreate}
+            className="btn-primary min-h-11"
+            disabled={saving}
+          >
+            {saving ? (
+              <RefreshCw size={16} className="mr-2 animate-spin" />
+            ) : (
+              <KeyRound size={16} className="mr-2" />
+            )}
+            {saving ? "Création…" : "Créer la clé"}
+          </button>
+        </div>
+      </section>
+
+      <section aria-labelledby="key-list-title">
+        <div className="mb-3 flex items-center justify-between">
+          <div>
+            <h2
+              id="key-list-title"
+              className="text-lg font-black text-[#071426]"
+            >
+              Postes autorisés
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Révoquez une clé si un ordinateur change de propriétaire.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void load()}
+            className="btn-secondary px-3"
+            aria-label="Actualiser les clés"
+            disabled={loading}
+          >
+            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="grid gap-3" aria-label="Chargement des clés">
+            {[1, 2, 3].map((item) => (
+              <div
+                key={item}
+                className="h-24 animate-pulse rounded-2xl bg-slate-200"
+              />
             ))}
-          </tbody>
-        </table>
-      </div>
+          </div>
+        ) : keys.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-slate-300 bg-white py-12 text-center text-sm text-slate-500">
+            Aucun poste autorisé pour le moment.
+          </div>
+        ) : (
+          <div className="grid gap-3">
+            {keys.map((key) => (
+              <article
+                key={key.id}
+                className="content-auto grid gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-[1fr_auto] sm:items-center sm:p-5"
+              >
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="truncate font-black text-[#071426]">
+                      {key.name}
+                    </h3>
+                    <span
+                      className={
+                        key.isActive ? "badge-success" : "badge-neutral"
+                      }
+                    >
+                      {key.isActive ? "Active" : "Révoquée"}
+                    </span>
+                  </div>
+                  <p className="brand-label mt-2 text-xs font-bold text-[#0b4da2]">
+                    {key.keyPrefix}…
+                  </p>
+                  <p className="mt-2 text-xs leading-5 text-slate-500">
+                    Créée par {key.user.name} · {formatDateTime(key.createdAt)}{" "}
+                    · Dernière utilisation :{" "}
+                    {key.lastUsedAt ? formatDateTime(key.lastUsedAt) : "jamais"}
+                  </p>
+                </div>
+                {key.isActive &&
+                  (revokeId === key.id ? (
+                    <div className="flex flex-wrap items-center gap-2 rounded-xl bg-red-50 p-2">
+                      <span className="px-1 text-xs font-bold text-red-800">
+                        Confirmer?
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => void handleRevoke(key.id)}
+                        className="btn-danger px-3 py-1.5"
+                        disabled={saving}
+                      >
+                        Révoquer
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRevokeId(null)}
+                        className="btn-secondary px-3 py-1.5"
+                      >
+                        Annuler
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setRevokeId(key.id)}
+                      className="btn-secondary min-h-11 text-red-700 hover:bg-red-50"
+                      aria-label={`Révoquer la clé ${key.name}`}
+                    >
+                      <Trash2 size={16} className="mr-2" /> Révoquer
+                    </button>
+                  ))}
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

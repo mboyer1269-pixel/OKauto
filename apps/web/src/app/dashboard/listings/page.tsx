@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -16,6 +16,7 @@ import {
   History,
   MousePointerClick,
   Radio,
+  RefreshCw,
   Search,
   ShieldCheck,
   Zap,
@@ -121,15 +122,21 @@ export default function ListingsPage() {
 function ListingsContent() {
   const { apiFetch, user } = useAuth();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [readyTotal, setReadyTotal] = useState(0);
   const [listings, setListings] = useState<Listing[]>([]);
   const [organization, setOrganization] = useState<Organization>({
     name: "Votre concession",
   });
   const [queue, setQueue] = useState<Queue>("prepare");
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selected, setSelected] = useState<Vehicle | null>(null);
   const [externalUrl, setExternalUrl] = useState("");
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [preparingVehicleId, setPreparingVehicleId] = useState<string | null>(
+    null,
+  );
   const [saving, setSaving] = useState(false);
   const [downloadingPhotos, setDownloadingPhotos] = useState(false);
   const [launchingMarketplace, setLaunchingMarketplace] = useState(false);
@@ -138,67 +145,128 @@ function ListingsContent() {
   const [error, setError] = useState("");
   const [copied, setCopied] = useState("");
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const [vehicleResponse, listingResponse, orgResponse] = await Promise.all(
-        [
-          apiFetch("/api/v1/vehicles?status=AVAILABLE&limit=100&page=1"),
-          apiFetch("/api/v1/listings?limit=100&page=1"),
-          apiFetch("/api/v1/organizations/current"),
-        ],
-      );
+  const lastListingRefresh = useRef(0);
+  const searchInitialized = useRef(false);
 
-      if (!vehicleResponse.ok || !listingResponse.ok || !orgResponse.ok) {
-        throw new Error("Impossible de charger le centre de publication.");
+  const load = useCallback(
+    async (searchTerm = "", initial = false) => {
+      if (initial) setLoading(true);
+      else setRefreshing(true);
+      setError("");
+      try {
+        const vehicleParams = new URLSearchParams({
+          status: "AVAILABLE",
+          withoutActiveListing: "true",
+          view: "summary",
+          limit: "40",
+          page: "1",
+        });
+        if (searchTerm) vehicleParams.set("search", searchTerm);
+
+        const [vehicleResponse, listingResponse, orgResponse] =
+          await Promise.all([
+            apiFetch(`/api/v1/vehicles?${vehicleParams}`),
+            apiFetch("/api/v1/listings?limit=100&page=1"),
+            apiFetch("/api/v1/organizations/current"),
+          ]);
+
+        if (!vehicleResponse.ok || !listingResponse.ok || !orgResponse.ok) {
+          throw new Error("Impossible de charger le centre de publication.");
+        }
+
+        const [vehicleData, listingData, orgData] = await Promise.all([
+          vehicleResponse.json(),
+          listingResponse.json(),
+          orgResponse.json(),
+        ]);
+
+        setVehicles(vehicleData.vehicles ?? []);
+        setReadyTotal(vehicleData.pagination?.total ?? 0);
+        setListings(listingData.listings ?? []);
+        setOrganization(orgData);
+        lastListingRefresh.current = Date.now();
+      } catch (loadError) {
+        setError(
+          loadError instanceof Error
+            ? loadError.message
+            : "Une erreur est survenue.",
+        );
+      } finally {
+        if (initial) setLoading(false);
+        setRefreshing(false);
       }
+    },
+    [apiFetch],
+  );
 
-      const [vehicleData, listingData, orgData] = await Promise.all([
-        vehicleResponse.json(),
-        listingResponse.json(),
-        orgResponse.json(),
-      ]);
-
-      let allVehicles: Vehicle[] = vehicleData.vehicles ?? [];
-      const totalPages = vehicleData.pagination?.totalPages ?? 1;
-      if (totalPages > 1) {
-        const pageResponses = await Promise.all(
-          Array.from({ length: totalPages - 1 }, (_, index) =>
-            apiFetch(
-              `/api/v1/vehicles?status=AVAILABLE&limit=100&page=${index + 2}`,
-            ),
-          ),
+  const loadReadyVehicles = useCallback(
+    async (searchTerm: string) => {
+      setRefreshing(true);
+      setError("");
+      try {
+        const params = new URLSearchParams({
+          status: "AVAILABLE",
+          withoutActiveListing: "true",
+          view: "summary",
+          limit: "40",
+          page: "1",
+        });
+        if (searchTerm) params.set("search", searchTerm);
+        const response = await apiFetch(`/api/v1/vehicles?${params}`);
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(
+            data.error ?? "La recherche n’a pas pu être chargée.",
+          );
+        }
+        setVehicles(data.vehicles ?? []);
+        setReadyTotal(data.pagination?.total ?? 0);
+      } catch (searchError) {
+        setError(
+          searchError instanceof Error
+            ? searchError.message
+            : "La recherche n’a pas pu être chargée.",
         );
-        const pageData = await Promise.all(
-          pageResponses.map((response) => response.json()),
-        );
-        allVehicles = allVehicles.concat(
-          pageData.flatMap((page) => page.vehicles ?? []),
-        );
+      } finally {
+        setRefreshing(false);
       }
-
-      setVehicles(allVehicles);
-      setListings(listingData.listings ?? []);
-      setOrganization(orgData);
-    } catch (loadError) {
-      setError(
-        loadError instanceof Error
-          ? loadError.message
-          : "Une erreur est survenue.",
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [apiFetch]);
+    },
+    [apiFetch],
+  );
 
   useEffect(() => {
-    load();
+    void load("", true);
   }, [load]);
 
   useEffect(() => {
+    const timer = window.setTimeout(
+      () => setDebouncedSearch(search.trim()),
+      250,
+    );
+    return () => window.clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => {
+    if (loading) return;
+    if (!searchInitialized.current) {
+      searchInitialized.current = true;
+      return;
+    }
+    void loadReadyVehicles(debouncedSearch);
+  }, [debouncedSearch, loadReadyVehicles, loading]);
+
+  const refreshListings = useCallback(async () => {
+    if (Date.now() - lastListingRefresh.current < 15_000) return;
+    const response = await apiFetch("/api/v1/listings?limit=100&page=1");
+    if (!response.ok) return;
+    const data = await response.json();
+    setListings(data.listings ?? []);
+    lastListingRefresh.current = Date.now();
+  }, [apiFetch]);
+
+  useEffect(() => {
     const refreshAfterFacebook = () => {
-      if (document.visibilityState === "visible") void load();
+      if (document.visibilityState === "visible") void refreshListings();
     };
     window.addEventListener("focus", refreshAfterFacebook);
     document.addEventListener("visibilitychange", refreshAfterFacebook);
@@ -206,7 +274,7 @@ function ListingsContent() {
       window.removeEventListener("focus", refreshAfterFacebook);
       document.removeEventListener("visibilitychange", refreshAfterFacebook);
     };
-  }, [load]);
+  }, [refreshListings]);
 
   useEffect(() => {
     if (!selected) return;
@@ -307,7 +375,7 @@ function ListingsContent() {
   );
 
   const counts: Record<Queue, number> = {
-    prepare: readyVehicles.length,
+    prepare: readyTotal,
     active: activeListings.length,
     remove: staleListings.length,
     history: historyListings.length,
@@ -346,6 +414,27 @@ function ListingsContent() {
       setError(
         "La copie a été bloquée par le navigateur. Sélectionnez le texte et copiez-le manuellement.",
       );
+    }
+  };
+
+  const prepareVehicle = async (vehicleId: string) => {
+    setPreparingVehicleId(vehicleId);
+    setError("");
+    try {
+      const response = await apiFetch(`/api/v1/vehicles/${vehicleId}`);
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error ?? "Impossible de préparer ce véhicule.");
+      }
+      setSelected(data as Vehicle);
+    } catch (prepareError) {
+      setError(
+        prepareError instanceof Error
+          ? prepareError.message
+          : "Impossible de préparer ce véhicule.",
+      );
+    } finally {
+      setPreparingVehicleId(null);
     }
   };
 
@@ -695,14 +784,23 @@ function ListingsContent() {
         <section aria-labelledby="prepare-heading">
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <h2
-                id="prepare-heading"
-                className="text-lg font-bold text-slate-950"
-              >
-                Véhicules prêts à préparer
-              </h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Disponibles et sans annonce active enregistrée.
+              <div className="flex items-center gap-2">
+                <h2
+                  id="prepare-heading"
+                  className="text-lg font-bold text-slate-950"
+                >
+                  Véhicules prêts à préparer
+                </h2>
+                {refreshing && (
+                  <RefreshCw
+                    size={14}
+                    className="animate-spin text-[#0b66d8]"
+                    aria-label="Mise à jour des résultats"
+                  />
+                )}
+              </div>
+              <p className="mt-1 text-sm text-slate-500" aria-live="polite">
+                {formatNumber(readyTotal)} disponibles sans annonce active.
               </p>
             </div>
             <label className="relative block w-full sm:w-80">
@@ -737,14 +835,15 @@ function ListingsContent() {
                   <VehicleRow
                     key={vehicle.id}
                     vehicle={vehicle}
-                    onPrepare={() => setSelected(vehicle)}
+                    preparing={preparingVehicleId === vehicle.id}
+                    onPrepare={() => void prepareVehicle(vehicle.id)}
                   />
                 ))}
               </div>
-              {filteredReady.length > 40 && (
+              {readyTotal > 40 && (
                 <p className="mt-4 text-center text-sm text-slate-500">
-                  40 résultats affichés sur {formatNumber(filteredReady.length)}
-                  . Utilisez la recherche pour trouver un stock précis.
+                  40 résultats affichés sur {formatNumber(readyTotal)}. Utilisez
+                  la recherche pour trouver un stock précis.
                 </p>
               )}
             </>
@@ -1081,9 +1180,11 @@ function ListingsContent() {
 
 function VehicleRow({
   vehicle,
+  preparing,
   onPrepare,
 }: {
   vehicle: Vehicle;
+  preparing: boolean;
   onPrepare: () => void;
 }) {
   return (
@@ -1124,8 +1225,14 @@ function VehicleRow({
           type="button"
           className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl bg-[#0b4da2] px-4 text-sm font-black text-white transition hover:bg-[#083d82] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0b4da2] focus-visible:ring-offset-2"
           onClick={onPrepare}
+          disabled={preparing}
         >
-          <MousePointerClick size={16} className="mr-2" /> Publier
+          {preparing ? (
+            <RefreshCw size={16} className="mr-2 animate-spin" />
+          ) : (
+            <MousePointerClick size={16} className="mr-2" />
+          )}
+          {preparing ? "Préparation…" : "Publier"}
         </button>
       </div>
     </article>

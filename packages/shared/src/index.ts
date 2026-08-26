@@ -110,6 +110,11 @@ export const vehicleQuerySchema = z.object({
   status: z.enum(["AVAILABLE", "PENDING", "SOLD", "ARCHIVED"]).optional(),
   assignedToId: z.string().optional(),
   search: z.string().optional(),
+  view: z.enum(["full", "summary"]).default("full"),
+  withoutActiveListing: z
+    .enum(["true", "false"])
+    .transform((value) => value === "true")
+    .optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });

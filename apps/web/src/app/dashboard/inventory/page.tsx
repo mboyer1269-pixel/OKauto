@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { ProtectedRoute } from "@/components/protected-route";
 import { useAuth } from "@/components/auth-provider";
@@ -17,6 +17,8 @@ import {
   Sparkles,
   ChevronLeft,
   ChevronRight,
+  RefreshCw,
+  X,
 } from "lucide-react";
 
 interface Vehicle {
@@ -48,25 +50,34 @@ function InventoryContent() {
   const { apiFetch } = useAuth();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [status, setStatus] = useState("");
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ total: 0, totalPages: 1 });
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [showImport, setShowImport] = useState(false);
   const [csv, setCsv] = useState("");
   const [importing, setImporting] = useState(false);
+  const [notice, setNotice] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
+  const hasLoaded = useRef(false);
 
   const load = useCallback(async () => {
-    setLoading(true);
+    if (hasLoaded.current) setRefreshing(true);
+    else setLoading(true);
     setLoadError(null);
 
     try {
       const params = new URLSearchParams();
-      if (search) params.set("search", search);
+      if (debouncedSearch) params.set("search", debouncedSearch);
       if (status) params.set("status", status);
       params.set("page", String(page));
       params.set("limit", "20");
+      params.set("view", "summary");
 
       const res = await apiFetch(`/api/v1/vehicles?${params}`);
       if (!res.ok) {
@@ -89,16 +100,23 @@ function InventoryContent() {
         "Impossible de charger l’inventaire. Réessayez; si le problème persiste, redémarrez Suivia Auto.",
       );
     } finally {
+      hasLoaded.current = true;
       setLoading(false);
+      setRefreshing(false);
     }
-  }, [apiFetch, page, search, status]);
+  }, [apiFetch, debouncedSearch, page, status]);
 
   useEffect(() => {
     load();
   }, [load]);
   useEffect(() => {
-    setPage(1);
-  }, [search, status]);
+    const timer = window.setTimeout(
+      () => setDebouncedSearch(search.trim()),
+      250,
+    );
+    return () => window.clearTimeout(timer);
+  }, [search]);
+  useEffect(() => setPage(1), [debouncedSearch, status]);
 
   const handleImport = async () => {
     setImporting(true);
@@ -113,14 +131,19 @@ function InventoryContent() {
       }
       setShowImport(false);
       setCsv("");
-      alert(
-        `${data.imported ?? 0} véhicule(s) importé(s). ${data.errors?.length ?? 0} erreur(s).`,
-      );
+      setNotice({
+        type: "success",
+        text: `${data.imported ?? 0} véhicule(s) importé(s). ${data.errors?.length ?? 0} erreur(s).`,
+      });
       await load();
     } catch (error) {
-      alert(
-        error instanceof Error ? error.message : "L’importation CSV a échoué.",
-      );
+      setNotice({
+        type: "error",
+        text:
+          error instanceof Error
+            ? error.message
+            : "L’importation CSV a échoué.",
+      });
     } finally {
       setImporting(false);
     }
@@ -135,31 +158,76 @@ function InventoryContent() {
     );
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
-      alert(data.error ?? "La description n’a pas pu être générée.");
+      setNotice({
+        type: "error",
+        text: data.error ?? "La description n’a pas pu être générée.",
+      });
       return;
     }
+    setNotice({
+      type: "success",
+      text: "La description Marketplace a été mise à jour.",
+    });
     await load();
   };
 
   return (
-    <div>
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-        <h1 className="text-2xl font-bold">Inventaire</h1>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setShowImport(!showImport)}
-            className="btn-secondary"
-          >
-            <Upload size={16} className="mr-2" /> Importer un CSV
-          </button>
-          <Link href="/dashboard/inventory/new" className="btn-primary">
-            <Plus size={16} className="mr-2" /> Ajouter un véhicule
-          </Link>
+    <div className="space-y-5">
+      <header className="overflow-hidden rounded-[1.5rem] border border-[#dce5ef] bg-white shadow-[0_18px_50px_-38px_rgba(7,20,38,0.65)]">
+        <div className="h-1.5 bg-[linear-gradient(90deg,#0b66d8_0%,#0b66d8_68%,#0e9f6e_68%,#0e9f6e_100%)]" />
+        <div className="flex flex-col gap-5 px-5 py-5 sm:flex-row sm:items-end sm:justify-between sm:px-7 sm:py-6">
+          <div>
+            <p className="brand-label text-[11px] font-bold uppercase tracking-[0.18em] text-[#0b66d8]">
+              Lot en direct
+            </p>
+            <div className="mt-2 flex items-end gap-3">
+              <h1 className="brand-display text-3xl font-black tracking-[-0.04em] text-[#071426] sm:text-4xl">
+                Inventaire
+              </h1>
+              <span className="mb-1 font-mono text-sm font-bold tabular-nums text-slate-500">
+                {formatNumber(pagination.total)} unités
+              </span>
+            </div>
+            <p className="mt-2 max-w-xl text-sm leading-6 text-slate-500">
+              Recherchez, vérifiez et préparez un véhicule sans attendre le
+              chargement complet des photos.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setShowImport(!showImport)}
+              className="btn-secondary"
+              aria-expanded={showImport}
+            >
+              <Upload size={16} className="mr-2" /> Importer un CSV
+            </button>
+            <Link href="/dashboard/inventory/new" className="btn-primary">
+              <Plus size={16} className="mr-2" /> Ajouter un véhicule
+            </Link>
+          </div>
         </div>
-      </div>
+      </header>
+
+      {notice && (
+        <div
+          role={notice.type === "error" ? "alert" : "status"}
+          className={`flex items-center justify-between rounded-xl border px-4 py-3 text-sm ${notice.type === "error" ? "border-red-200 bg-red-50 text-red-800" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}
+        >
+          <span>{notice.text}</span>
+          <button
+            type="button"
+            onClick={() => setNotice(null)}
+            className="rounded-md p-1 hover:bg-black/5"
+            aria-label="Fermer le message"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
 
       {showImport && (
-        <div className="card mb-6">
+        <div className="card">
           <h3 className="font-semibold mb-2">Importer un fichier CSV</h3>
           <p className="text-sm text-slate-500 mb-3">
             Colonnes : vin, stockNumber, year, make, model, trim, mileage,
@@ -181,34 +249,46 @@ function InventoryContent() {
         </div>
       )}
 
-      <div className="flex gap-3 mb-6">
-        <div className="relative flex-1">
-          <Search
-            className="absolute left-3 top-2.5 text-slate-400"
-            size={16}
-          />
+      <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:flex-row">
+        <label className="relative flex-1">
+          <span className="sr-only">Rechercher dans l’inventaire</span>
+          <Search className="absolute left-3 top-3 text-slate-400" size={16} />
           <input
-            className="input pl-9"
+            type="search"
+            className="input min-h-11 pl-9 pr-9"
             placeholder="Rechercher par marque, modèle, NIV ou stock…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
-        </div>
-        <select
-          className="input w-auto"
-          value={status}
-          onChange={(e) => setStatus(e.target.value)}
-        >
-          <option value="">Tous les statuts</option>
-          <option value="AVAILABLE">Disponible</option>
-          <option value="PENDING">En attente</option>
-          <option value="SOLD">Vendu</option>
-          <option value="ARCHIVED">Archivé</option>
-        </select>
+          {refreshing && (
+            <RefreshCw
+              className="absolute right-3 top-3 animate-spin text-[#0b66d8]"
+              size={16}
+              aria-label="Mise à jour"
+            />
+          )}
+        </label>
+        <label className="sm:w-52">
+          <span className="sr-only">Filtrer par statut</span>
+          <select
+            className="input min-h-11"
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
+          >
+            <option value="">Tous les statuts</option>
+            <option value="AVAILABLE">Disponible</option>
+            <option value="PENDING">En attente</option>
+            <option value="SOLD">Vendu</option>
+            <option value="ARCHIVED">Archivé</option>
+          </select>
+        </label>
       </div>
 
       {!loading && (
-        <div className="flex items-center justify-between mb-3 text-sm text-slate-500">
+        <div
+          className="flex items-center justify-between text-sm text-slate-500"
+          aria-live="polite"
+        >
           <span>{formatNumber(pagination.total)} véhicule(s)</span>
           {pagination.totalPages > 1 && (
             <span>
@@ -243,44 +323,61 @@ function InventoryContent() {
           fichier CSV.
         </div>
       ) : (
-        <div className="space-y-3">
+        <div
+          className={`space-y-3 ${refreshing ? "opacity-70" : "opacity-100"}`}
+          aria-busy={refreshing}
+        >
           {vehicles.map((v) => (
-            <div key={v.id} className="card flex items-center gap-4">
-              <div className="w-20 h-14 bg-slate-100 rounded-lg overflow-hidden flex-shrink-0">
+            <article
+              key={v.id}
+              className="content-auto group flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm transition-colors hover:border-[#8eb9e8] sm:flex-row sm:items-center"
+            >
+              <div className="h-32 w-full flex-shrink-0 overflow-hidden rounded-xl bg-slate-100 sm:h-20 sm:w-28">
                 {v.photos?.[0] && (
                   <img
                     src={v.photos[0].url}
                     alt=""
-                    className="w-full h-full object-cover"
+                    width={224}
+                    height={160}
+                    loading="lazy"
+                    className="h-full w-full object-cover"
                   />
                 )}
               </div>
               <div className="flex-1 min-w-0">
+                <span className="brand-label inline-flex rounded-md bg-[#edf6ff] px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-[#0b4da2]">
+                  Stock {v.stockNumber ?? "—"}
+                </span>
                 <Link
                   href={`/dashboard/inventory/${v.id}`}
-                  className="font-semibold hover:text-brand-600"
+                  className="mt-2 block truncate text-base font-black tracking-tight text-[#071426] hover:text-[#0b66d8]"
                 >
                   {v.year} {v.make} {v.model} {v.trim}
                 </Link>
-                <p className="text-sm text-slate-500">
-                  Stock : {v.stockNumber ?? "—"} · {formatNumber(v.mileage)} km{" "}
-                  · {v._count.listings} publication(s)
+                <p className="mt-1 text-sm text-slate-500">
+                  {formatNumber(v.mileage)} km · {v._count.listings}{" "}
+                  publication(s)
                 </p>
               </div>
-              <div className="text-right">
-                <p className="font-semibold">{formatCurrency(v.price)}</p>
+              <div className="flex items-center justify-between gap-4 sm:block sm:min-w-32 sm:text-right">
+                <p className="text-lg font-black tabular-nums text-[#071426]">
+                  {formatCurrency(v.price)}
+                </p>
                 <span className={getStatusBadgeClass(v.status)}>
                   {formatStatus(v.status)}
                 </span>
               </div>
               <button
+                type="button"
                 onClick={() => handleGenerateDesc(v.id)}
-                className="btn-secondary text-xs"
+                className="btn-secondary min-h-11 text-xs"
                 title="Générer la description"
+                aria-label={`Générer la description de ${v.year} ${v.make} ${v.model}`}
               >
-                <Sparkles size={14} />
+                <Sparkles size={14} className="sm:mr-0" />
+                <span className="ml-2 sm:sr-only">Générer la description</span>
               </button>
-            </div>
+            </article>
           ))}
         </div>
       )}
