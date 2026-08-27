@@ -26,6 +26,7 @@ describe("API route handlers", () => {
   let extensionApiKey: string;
   let extensionApiKeyId: string;
   let extensionVehicleId: string;
+  let demoVehicleId: string;
   let invitedMemberId: string;
   const invitedMemberEmail = `new-salesperson-${Date.now()}@example.com`;
 
@@ -83,6 +84,23 @@ describe("API route handlers", () => {
       },
     });
     extensionVehicleId = vehicle.id;
+
+    const demoVehicle = await prisma.vehicle.create({
+      data: {
+        organizationId: org.id,
+        stockNumber: `TEST-DEMO-${Date.now()}`,
+        year: 2026,
+        make: "Chevrolet",
+        model: "Suburban",
+        mileage: 10,
+        price: 117995,
+        condition: "New",
+        sourceUrl:
+          "https://www.buckinghamgm.com/demonstrateurs/Chevrolet-Suburban-2026.html",
+        status: "AVAILABLE",
+      },
+    });
+    demoVehicleId = demoVehicle.id;
   });
 
   afterAll(async () => {
@@ -92,7 +110,9 @@ describe("API route handlers", () => {
     await prisma.listing.deleteMany({
       where: { vehicleId: extensionVehicleId },
     });
-    await prisma.vehicle.deleteMany({ where: { id: extensionVehicleId } });
+    await prisma.vehicle.deleteMany({
+      where: { id: { in: [extensionVehicleId, demoVehicleId] } },
+    });
     await prisma.apiKey.deleteMany({ where: { id: extensionApiKeyId } });
     await prisma.organizationMember.deleteMany({
       where: { user: { email: invitedMemberEmail } },
@@ -211,6 +231,11 @@ describe("API route handlers", () => {
         (vehicle: { id: string }) => vehicle.id === extensionVehicleId,
       ),
     ).toBe(false);
+    expect(
+      newData.vehicles.some(
+        (vehicle: { id: string }) => vehicle.id === demoVehicleId,
+      ),
+    ).toBe(false);
 
     const usedReq = makeRequest(
       "http://localhost/api/v1/vehicles?inventoryType=USED",
@@ -225,6 +250,22 @@ describe("API route handlers", () => {
     expect(
       usedData.vehicles.some(
         (vehicle: { id: string }) => vehicle.id === extensionVehicleId,
+      ),
+    ).toBe(true);
+
+    const demoReq = makeRequest(
+      "http://localhost/api/v1/vehicles?inventoryType=DEMO",
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+    );
+    const demoRes = await vehiclesHandler(demoReq, {
+      params: Promise.resolve({}),
+    });
+    const demoData = await demoRes.json();
+
+    expect(demoRes.status).toBe(200);
+    expect(
+      demoData.vehicles.some(
+        (vehicle: { id: string }) => vehicle.id === demoVehicleId,
       ),
     ).toBe(true);
   });

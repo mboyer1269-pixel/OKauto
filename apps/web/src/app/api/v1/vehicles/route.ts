@@ -51,7 +51,10 @@ export const GET = withAuth(async (request, { auth }) => {
   ];
 
   if (query.inventoryType === "NEW") {
-    where.AND = [{ OR: newVehicleSignals }];
+    where.AND = [
+      { OR: newVehicleSignals },
+      { NOT: { OR: demoVehicleSignals } },
+    ];
   } else if (query.inventoryType === "DEMO") {
     where.AND = [{ OR: demoVehicleSignals }];
   } else if (query.inventoryType === "USED") {
