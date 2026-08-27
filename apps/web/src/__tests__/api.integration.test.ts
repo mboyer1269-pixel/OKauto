@@ -74,7 +74,11 @@ describe("API route handlers", () => {
         year: 2025,
         make: "GMC",
         model: "Terrain",
+        mileage: 24500,
         price: 39995,
+        condition: "New",
+        sourceUrl:
+          "https://www.buckinghamgm.com/occasion/GMC-Terrain-2025.html",
         status: "AVAILABLE",
       },
     });
@@ -189,6 +193,40 @@ describe("API route handlers", () => {
     const data = await res.json();
     expect(res.status).toBe(200);
     expect(Array.isArray(data.vehicles)).toBe(true);
+  });
+
+  it("uses the dealer source URL to keep used vehicles out of new inventory", async () => {
+    const newReq = makeRequest(
+      "http://localhost/api/v1/vehicles?inventoryType=NEW",
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+    );
+    const newRes = await vehiclesHandler(newReq, {
+      params: Promise.resolve({}),
+    });
+    const newData = await newRes.json();
+
+    expect(newRes.status).toBe(200);
+    expect(
+      newData.vehicles.some(
+        (vehicle: { id: string }) => vehicle.id === extensionVehicleId,
+      ),
+    ).toBe(false);
+
+    const usedReq = makeRequest(
+      "http://localhost/api/v1/vehicles?inventoryType=USED",
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+    );
+    const usedRes = await vehiclesHandler(usedReq, {
+      params: Promise.resolve({}),
+    });
+    const usedData = await usedRes.json();
+
+    expect(usedRes.status).toBe(200);
+    expect(
+      usedData.vehicles.some(
+        (vehicle: { id: string }) => vehicle.id === extensionVehicleId,
+      ),
+    ).toBe(true);
   });
 
   it("returns dashboard analytics", async () => {

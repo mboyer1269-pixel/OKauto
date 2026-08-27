@@ -1,5 +1,8 @@
 import { prisma } from "@okauto/database";
-import { generateTemplateDescription } from "@okauto/shared";
+import {
+  classifyInventoryKind,
+  generateTemplateDescription,
+} from "@okauto/shared";
 
 export async function generateVehicleDescription(
   vehicleId: string,
@@ -26,6 +29,12 @@ export async function generateVehicleDescription(
     process.env.MARKETPLACE_CONTACT_NAME?.trim() ||
     process.env.NEXT_PUBLIC_MARKETPLACE_CONTACT_NAME?.trim() ||
     "Michael Boyer";
+  const inventoryType = classifyInventoryKind({
+    condition: vehicle.condition,
+    mileage: vehicle.mileage,
+    stockNumber: vehicle.stockNumber,
+    sourceUrl: vehicle.sourceUrl,
+  });
 
   const openaiKey = process.env.OPENAI_API_KEY;
   if (openaiKey) {
@@ -53,7 +62,7 @@ export async function generateVehicleDescription(
                   make: vehicle.make,
                   model: vehicle.model,
                   trim: vehicle.trim,
-                  condition: vehicle.condition,
+                  inventoryType,
                   bodyStyle: vehicle.bodyStyle,
                   mileageKm: vehicle.mileage,
                   priceCad: vehicle.price ? Number(vehicle.price) : null,
@@ -110,6 +119,7 @@ export async function generateVehicleDescription(
     phone: vehicle.organization.phone ?? undefined,
     vin: vehicle.vin,
     stockNumber: vehicle.stockNumber,
+    sourceUrl: vehicle.sourceUrl,
     location: vehicle.location,
   });
 }

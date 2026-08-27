@@ -19,6 +19,7 @@ export interface VehicleData {
   phone?: string;
   vin?: string | null;
   stockNumber?: string | null;
+  sourceUrl?: string | null;
   location?: string | null;
 }
 
@@ -62,19 +63,28 @@ function uniqueFeatures(features: string[] = []): string[] {
   });
 }
 
-function inventoryKind(vehicle: VehicleData): "new" | "demo" | "used" | null {
+export function classifyInventoryKind(
+  vehicle: VehicleData,
+): "new" | "demo" | "used" | null {
   const condition = cleanValue(vehicle.condition).toLocaleLowerCase("fr-CA");
   const stockNumber = cleanValue(vehicle.stockNumber).toLocaleUpperCase(
     "fr-CA",
   );
+  const sourceUrl = cleanValue(vehicle.sourceUrl).toLocaleLowerCase("fr-CA");
 
-  if (condition.includes("demo") || stockNumber.includes("-DEMO")) {
+  if (
+    condition.includes("demo") ||
+    stockNumber.includes("-DEMO") ||
+    sourceUrl.includes("/demonstrateurs/")
+  ) {
     return "demo";
   }
+  if (sourceUrl.includes("/occasion/")) return "used";
   if (
-    condition.includes("new") ||
-    condition.includes("neuf") ||
-    stockNumber.includes("-NEUF")
+    stockNumber.includes("-NEUF") ||
+    sourceUrl.includes("/neufs/") ||
+    ((condition === "new" || condition === "neuf") &&
+      (vehicle.mileage == null || vehicle.mileage <= 1_000))
   ) {
     return "new";
   }
@@ -87,7 +97,7 @@ function generateHumanIntro(
   dealershipName: string,
 ): string[] {
   const vehicleTitle = title || "ce véhicule";
-  const kind = inventoryKind(vehicle);
+  const kind = classifyInventoryKind(vehicle);
   const availability = dealershipName ? ` chez ${dealershipName}` : "";
   const lines = [
     kind === "new"

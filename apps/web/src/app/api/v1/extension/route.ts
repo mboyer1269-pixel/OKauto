@@ -95,6 +95,7 @@ export async function GET(request: NextRequest) {
           phone: auth.organization.phone ?? undefined,
           vin: v.vin,
           stockNumber: v.stockNumber,
+          sourceUrl: v.sourceUrl,
           location: [
             auth.organization.address,
             auth.organization.city,

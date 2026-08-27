@@ -114,7 +114,10 @@ function parseNumber(value?: string | null): number | null {
 }
 
 function mapCondition(value: string | undefined, sourceUrl: string | undefined): string | null {
-  if (sourceUrl?.includes('/demonstrateurs/')) return 'Demo';
+  const normalizedUrl = sourceUrl?.toLowerCase() ?? '';
+  if (normalizedUrl.includes('/demonstrateurs/')) return 'Demo';
+  if (normalizedUrl.includes('/occasion/')) return 'Used';
+  if (normalizedUrl.includes('/neufs/')) return 'New';
   const normalized = value?.toLowerCase() ?? '';
   if (normalized.includes('new')) return 'New';
   if (normalized.includes('used')) return 'Used';

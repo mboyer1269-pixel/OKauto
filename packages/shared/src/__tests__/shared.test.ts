@@ -78,6 +78,22 @@ describe("description", () => {
     expect(desc).not.toContain("Garantie");
   });
 
+  it("trusts the dealer URL over an incorrect new condition", () => {
+    const desc = generateTemplateDescription({
+      year: 2025,
+      make: "Volkswagen",
+      model: "Golf R",
+      condition: "New",
+      mileage: 24500,
+      stockNumber: "U17404",
+      sourceUrl:
+        "https://www.buckinghamgm.com/occasion/Volkswagen-Golf_R-2025.html",
+    });
+
+    expect(desc).toContain("d’occasion");
+    expect(desc).not.toContain("Golf R neuf");
+  });
+
   it("generates a concise marketplace title", () => {
     const title = generateMarketplaceTitle({
       year: 2022,

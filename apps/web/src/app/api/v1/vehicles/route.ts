@@ -23,14 +23,31 @@ export const GET = withAuth(async (request, { auth }) => {
     ];
   }
 
-  const newVehicleSignals = [
-    { condition: { contains: "new", mode: "insensitive" } },
-    { condition: { contains: "neuf", mode: "insensitive" } },
-    { stockNumber: { contains: "-NEUF", mode: "insensitive" } },
-  ];
   const demoVehicleSignals = [
     { condition: { contains: "demo", mode: "insensitive" } },
     { stockNumber: { contains: "-DEMO", mode: "insensitive" } },
+    { sourceUrl: { contains: "/demonstrateurs/", mode: "insensitive" } },
+  ];
+  const usedSourceSignals = [
+    { sourceUrl: { contains: "/occasion/", mode: "insensitive" } },
+    { condition: { equals: "Used", mode: "insensitive" } },
+    { condition: { equals: "Usagé", mode: "insensitive" } },
+  ];
+  const newVehicleSignals = [
+    { stockNumber: { contains: "-NEUF", mode: "insensitive" } },
+    { sourceUrl: { contains: "/neufs/", mode: "insensitive" } },
+    {
+      AND: [
+        {
+          OR: [
+            { condition: { equals: "New", mode: "insensitive" } },
+            { condition: { equals: "Neuf", mode: "insensitive" } },
+          ],
+        },
+        { OR: [{ mileage: null }, { mileage: { lte: 1_000 } }] },
+        { NOT: { OR: usedSourceSignals } },
+      ],
+    },
   ];
 
   if (query.inventoryType === "NEW") {

@@ -85,7 +85,7 @@ describe('sync adapters', () => {
           </script>
           <input name="vehicledata" data-vin="1GCUKREC0JF123456"
             data-stock-number="B24001" data-year="2018" data-make="Chevrolet"
-            data-model="Silverado 1500" data-condition="USED">
+            data-model="Silverado 1500" data-condition="NEW">
           <span class="divTrim">LT</span>
           <span class="s-km">87 321 km</span>
           <span class="s-desc">Cabine double</span>
