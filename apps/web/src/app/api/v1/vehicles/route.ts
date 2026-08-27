@@ -23,6 +23,26 @@ export const GET = withAuth(async (request, { auth }) => {
     ];
   }
 
+  const newVehicleSignals = [
+    { condition: { contains: "new", mode: "insensitive" } },
+    { condition: { contains: "neuf", mode: "insensitive" } },
+    { stockNumber: { contains: "-NEUF", mode: "insensitive" } },
+  ];
+  const demoVehicleSignals = [
+    { condition: { contains: "demo", mode: "insensitive" } },
+    { stockNumber: { contains: "-DEMO", mode: "insensitive" } },
+  ];
+
+  if (query.inventoryType === "NEW") {
+    where.AND = [{ OR: newVehicleSignals }];
+  } else if (query.inventoryType === "DEMO") {
+    where.AND = [{ OR: demoVehicleSignals }];
+  } else if (query.inventoryType === "USED") {
+    where.AND = [
+      { NOT: { OR: [...newVehicleSignals, ...demoVehicleSignals] } },
+    ];
+  }
+
   const vehicleQuery = {
     where,
     include: {

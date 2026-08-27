@@ -7,6 +7,7 @@ import {
   handleApiError,
   parseBody,
 } from "@/lib/api";
+import { generateTemplateDescription } from "@okauto/shared";
 
 export async function POST(request: NextRequest) {
   try {
@@ -67,9 +68,41 @@ export async function GET(request: NextRequest) {
         mileage: v.mileage,
         price: v.price ? Number(v.price) : null,
         exteriorColor: v.exteriorColor,
+        interiorColor: v.interiorColor,
         transmission: v.transmission,
         fuelType: v.fuelType,
-        description: v.description,
+        drivetrain: v.drivetrain,
+        engine: v.engine,
+        features: v.features,
+        description: generateTemplateDescription({
+          year: v.year,
+          make: v.make,
+          model: v.model,
+          trim: v.trim,
+          mileage: v.mileage,
+          price: v.price ? Number(v.price) : null,
+          exteriorColor: v.exteriorColor,
+          interiorColor: v.interiorColor,
+          transmission: v.transmission,
+          fuelType: v.fuelType,
+          drivetrain: v.drivetrain,
+          engine: v.engine,
+          bodyStyle: v.bodyStyle,
+          condition: v.condition,
+          features: v.features,
+          dealershipName: auth.organization.name,
+          contactName: auth.user.name,
+          phone: auth.organization.phone ?? undefined,
+          vin: v.vin,
+          stockNumber: v.stockNumber,
+          location: [
+            auth.organization.address,
+            auth.organization.city,
+            auth.organization.state,
+          ]
+            .filter(Boolean)
+            .join(", "),
+        }),
         contactName: auth.user.name,
         dealershipName: auth.organization.name,
         phone: auth.organization.phone,

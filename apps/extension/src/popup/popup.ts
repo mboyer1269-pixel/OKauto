@@ -15,10 +15,14 @@ interface Vehicle {
   dealershipName?: string;
   phone?: string;
   exteriorColor?: string;
+  interiorColor?: string;
   bodyStyle?: string;
   condition?: string;
   fuelType?: string;
   transmission?: string;
+  drivetrain?: string;
+  engine?: string;
+  features?: string[];
   photos?: string[];
   hasActiveListing?: boolean;
 }

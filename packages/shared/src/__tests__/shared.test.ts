@@ -42,17 +42,18 @@ describe("description", () => {
     expect(desc).toContain("2022 Honda Accord");
     expect(desc).toContain("32 995");
     expect(desc).toContain("25 000 km");
-    expect(desc).toContain("Je vous présente ce véhicule : 2022 Honda Accord.");
-    expect(desc).toContain("Il est présentement disponible chez Demo Motors.");
     expect(desc).toContain(
-      "Côté configuration, il comprend une transmission Automatique.",
+      "Voici le 2022 Honda Accord d’occasion que j’ai présentement en inventaire chez Demo Motors.",
     );
-    expect(desc).toContain("POINTS CLÉS");
+    expect(desc).toContain(
+      "Sa configuration comprend une transmission Automatique.",
+    );
+    expect(desc).toContain("LA FICHE EN BREF");
     expect(desc).toContain("• Transmission : Automatique");
-    expect(desc).toContain("ÉQUIPEMENTS À RETENIR");
+    expect(desc).toContain("ÉQUIPEMENTS QUI RESSORTENT");
     expect(desc.match(/Sièges chauffants/gi)).toHaveLength(1);
     expect(desc).toContain(
-      "Écrivez-moi directement ici sur Messenger — Michael Boyer.",
+      "Écrivez-moi directement ici sur Messenger — Michael Boyer — et je vous répondrai personnellement.",
     );
     expect(desc).toContain(
       "m’appeler directement à la concession au 555-1234 et demander Michael Boyer",

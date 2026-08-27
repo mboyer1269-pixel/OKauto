@@ -77,6 +77,7 @@ interface Organization {
 }
 
 type Queue = "prepare" | "active" | "remove" | "history";
+type InventoryType = "" | "NEW" | "USED" | "DEMO";
 
 const MARKETPLACE_CREATE_URL =
   "https://www.facebook.com/marketplace/create/vehicle";
@@ -90,6 +91,13 @@ const QUEUES: Array<{ id: Queue; label: string; icon: typeof Clipboard }> = [
   { id: "active", label: "Publiées", icon: CheckCircle2 },
   { id: "remove", label: "À retirer", icon: AlertTriangle },
   { id: "history", label: "Historique", icon: History },
+];
+
+const INVENTORY_TYPES: Array<{ id: InventoryType; label: string }> = [
+  { id: "", label: "Tous" },
+  { id: "NEW", label: "Neufs" },
+  { id: "USED", label: "Occasion" },
+  { id: "DEMO", label: "Démonstrateurs" },
 ];
 
 function vehicleName(vehicle: Vehicle) {
@@ -123,6 +131,7 @@ function ListingsContent() {
   const { apiFetch, user } = useAuth();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [readyTotal, setReadyTotal] = useState(0);
+  const [allReadyTotal, setAllReadyTotal] = useState(0);
   const [listings, setListings] = useState<Listing[]>([]);
   const [organization, setOrganization] = useState<Organization>({
     name: "Votre concession",
@@ -130,10 +139,13 @@ function ListingsContent() {
   const [queue, setQueue] = useState<Queue>("prepare");
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [inventoryType, setInventoryType] = useState<InventoryType>("");
+  const [readyPage, setReadyPage] = useState(1);
   const [selected, setSelected] = useState<Vehicle | null>(null);
   const [externalUrl, setExternalUrl] = useState("");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [preparingVehicleId, setPreparingVehicleId] = useState<string | null>(
     null,
   );
@@ -147,6 +159,7 @@ function ListingsContent() {
 
   const lastListingRefresh = useRef(0);
   const searchInitialized = useRef(false);
+  const readyRequestId = useRef(0);
 
   const load = useCallback(
     async (searchTerm = "", initial = false) => {
@@ -182,6 +195,8 @@ function ListingsContent() {
 
         setVehicles(vehicleData.vehicles ?? []);
         setReadyTotal(vehicleData.pagination?.total ?? 0);
+        setAllReadyTotal(vehicleData.pagination?.total ?? 0);
+        setReadyPage(1);
         setListings(listingData.listings ?? []);
         setOrganization(orgData);
         lastListingRefresh.current = Date.now();
@@ -200,8 +215,16 @@ function ListingsContent() {
   );
 
   const loadReadyVehicles = useCallback(
-    async (searchTerm: string) => {
-      setRefreshing(true);
+    async (
+      searchTerm: string,
+      type: InventoryType,
+      page = 1,
+      append = false,
+    ) => {
+      const requestId = readyRequestId.current + 1;
+      readyRequestId.current = requestId;
+      if (append) setLoadingMore(true);
+      else setRefreshing(true);
       setError("");
       try {
         const params = new URLSearchParams({
@@ -209,9 +232,10 @@ function ListingsContent() {
           withoutActiveListing: "true",
           view: "summary",
           limit: "40",
-          page: "1",
+          page: String(page),
         });
         if (searchTerm) params.set("search", searchTerm);
+        if (type) params.set("inventoryType", type);
         const response = await apiFetch(`/api/v1/vehicles?${params}`);
         const data = await response.json().catch(() => ({}));
         if (!response.ok) {
@@ -219,8 +243,21 @@ function ListingsContent() {
             data.error ?? "La recherche n’a pas pu être chargée.",
           );
         }
-        setVehicles(data.vehicles ?? []);
+        if (requestId !== readyRequestId.current) return;
+        const nextVehicles = (data.vehicles ?? []) as Vehicle[];
+        setVehicles((current) => {
+          if (!append) return nextVehicles;
+          const existingIds = new Set(current.map((vehicle) => vehicle.id));
+          return [
+            ...current,
+            ...nextVehicles.filter((vehicle) => !existingIds.has(vehicle.id)),
+          ];
+        });
         setReadyTotal(data.pagination?.total ?? 0);
+        if (!searchTerm && !type) {
+          setAllReadyTotal(data.pagination?.total ?? 0);
+        }
+        setReadyPage(page);
       } catch (searchError) {
         setError(
           searchError instanceof Error
@@ -228,7 +265,10 @@ function ListingsContent() {
             : "La recherche n’a pas pu être chargée.",
         );
       } finally {
-        setRefreshing(false);
+        if (requestId === readyRequestId.current) {
+          setRefreshing(false);
+          setLoadingMore(false);
+        }
       }
     },
     [apiFetch],
@@ -252,17 +292,20 @@ function ListingsContent() {
       searchInitialized.current = true;
       return;
     }
-    void loadReadyVehicles(debouncedSearch);
-  }, [debouncedSearch, loadReadyVehicles, loading]);
+    void loadReadyVehicles(debouncedSearch, inventoryType);
+  }, [debouncedSearch, inventoryType, loadReadyVehicles, loading]);
 
-  const refreshListings = useCallback(async () => {
-    if (Date.now() - lastListingRefresh.current < 15_000) return;
-    const response = await apiFetch("/api/v1/listings?limit=100&page=1");
-    if (!response.ok) return;
-    const data = await response.json();
-    setListings(data.listings ?? []);
-    lastListingRefresh.current = Date.now();
-  }, [apiFetch]);
+  const refreshListings = useCallback(
+    async (force = false) => {
+      if (!force && Date.now() - lastListingRefresh.current < 15_000) return;
+      const response = await apiFetch("/api/v1/listings?limit=100&page=1");
+      if (!response.ok) return;
+      const data = await response.json();
+      setListings(data.listings ?? []);
+      lastListingRefresh.current = Date.now();
+    },
+    [apiFetch],
+  );
 
   useEffect(() => {
     const refreshAfterFacebook = () => {
@@ -345,6 +388,11 @@ function ListingsContent() {
 
   useEffect(() => {
     if (!selected || !activeVehicleIds.has(selected.id)) return;
+    setVehicles((current) =>
+      current.filter((vehicle) => vehicle.id !== selected.id),
+    );
+    setReadyTotal((current) => Math.max(0, current - 1));
+    setAllReadyTotal((current) => Math.max(0, current - 1));
     setSelected(null);
     setExternalUrl("");
     setQueue("active");
@@ -375,7 +423,7 @@ function ListingsContent() {
   );
 
   const counts: Record<Queue, number> = {
-    prepare: readyTotal,
+    prepare: allReadyTotal,
     active: activeListings.length,
     remove: staleListings.length,
     history: historyListings.length,
@@ -560,7 +608,10 @@ function ListingsContent() {
       setSelected(null);
       setExternalUrl("");
       setQueue("active");
-      await load();
+      await Promise.all([
+        loadReadyVehicles(debouncedSearch, inventoryType),
+        refreshListings(true),
+      ]);
     } catch (publishError) {
       setError(
         publishError instanceof Error ? publishError.message : "URL invalide.",
@@ -590,7 +641,7 @@ function ListingsContent() {
       return;
     }
     setMessage("Retrait confirmé et ajouté au journal.");
-    await load();
+    await refreshListings(true);
   };
 
   return (
@@ -819,6 +870,29 @@ function ListingsContent() {
             </label>
           </div>
 
+          <div
+            className="mb-4 flex gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm"
+            role="group"
+            aria-label="Type d’inventaire"
+          >
+            {INVENTORY_TYPES.map((type) => (
+              <button
+                key={type.id || "all"}
+                type="button"
+                aria-pressed={inventoryType === type.id}
+                onClick={() => setInventoryType(type.id)}
+                className={cn(
+                  "min-h-10 shrink-0 rounded-xl px-3 text-sm font-bold transition-colors",
+                  inventoryType === type.id
+                    ? "bg-[#0b66d8] text-white"
+                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-950",
+                )}
+              >
+                {type.label}
+              </button>
+            ))}
+          </div>
+
           {filteredReady.length === 0 ? (
             <EmptyState
               title="Aucun véhicule dans cette file"
@@ -831,7 +905,7 @@ function ListingsContent() {
           ) : (
             <>
               <div className="grid min-w-0 gap-3">
-                {filteredReady.slice(0, 40).map((vehicle) => (
+                {filteredReady.map((vehicle) => (
                   <VehicleRow
                     key={vehicle.id}
                     vehicle={vehicle}
@@ -840,11 +914,46 @@ function ListingsContent() {
                   />
                 ))}
               </div>
-              {readyTotal > 40 && (
-                <p className="mt-4 text-center text-sm text-slate-500">
-                  40 résultats affichés sur {formatNumber(readyTotal)}. Utilisez
-                  la recherche pour trouver un stock précis.
-                </p>
+              {vehicles.length < readyTotal && (
+                <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4 text-center shadow-sm">
+                  <p
+                    className="text-sm font-semibold text-slate-700"
+                    aria-live="polite"
+                  >
+                    {formatNumber(vehicles.length)} affichés sur{" "}
+                    {formatNumber(readyTotal)}
+                  </p>
+                  <div className="mx-auto mt-3 h-1.5 max-w-md overflow-hidden rounded-full bg-slate-100">
+                    <div
+                      className="h-full rounded-full bg-[#0b66d8] transition-[width] motion-reduce:transition-none"
+                      style={{
+                        width: `${Math.min(100, (vehicles.length / readyTotal) * 100)}%`,
+                      }}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-primary mt-4 min-h-11"
+                    onClick={() =>
+                      void loadReadyVehicles(
+                        debouncedSearch,
+                        inventoryType,
+                        readyPage + 1,
+                        true,
+                      )
+                    }
+                    disabled={loadingMore}
+                  >
+                    {loadingMore ? (
+                      <RefreshCw size={16} className="mr-2 animate-spin" />
+                    ) : (
+                      <Download size={16} className="mr-2" />
+                    )}
+                    {loadingMore
+                      ? "Chargement…"
+                      : `Afficher les ${formatNumber(Math.min(40, readyTotal - vehicles.length))} suivants`}
+                  </button>
+                </div>
               )}
             </>
           )}

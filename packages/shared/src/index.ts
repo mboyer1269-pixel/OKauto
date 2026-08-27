@@ -110,6 +110,7 @@ export const vehicleQuerySchema = z.object({
   status: z.enum(["AVAILABLE", "PENDING", "SOLD", "ARCHIVED"]).optional(),
   assignedToId: z.string().optional(),
   search: z.string().optional(),
+  inventoryType: z.enum(["NEW", "USED", "DEMO"]).optional(),
   view: z.enum(["full", "summary"]).default("full"),
   withoutActiveListing: z
     .enum(["true", "false"])
@@ -163,6 +164,7 @@ export const inviteMemberSchema = z.object({
 
 export const updateMemberSchema = z.object({
   role: z.enum(["OWNER", "ADMIN", "MANAGER", "SALESPERSON"]).optional(),
+  password: z.string().min(8).max(128).optional(),
 });
 
 // Organization schema

@@ -52,6 +52,7 @@ function InventoryContent() {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [status, setStatus] = useState("");
+  const [inventoryType, setInventoryType] = useState("");
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ total: 0, totalPages: 1 });
   const [loading, setLoading] = useState(true);
@@ -75,8 +76,9 @@ function InventoryContent() {
       const params = new URLSearchParams();
       if (debouncedSearch) params.set("search", debouncedSearch);
       if (status) params.set("status", status);
+      if (inventoryType) params.set("inventoryType", inventoryType);
       params.set("page", String(page));
-      params.set("limit", "20");
+      params.set("limit", "50");
       params.set("view", "summary");
 
       const res = await apiFetch(`/api/v1/vehicles?${params}`);
@@ -104,7 +106,7 @@ function InventoryContent() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [apiFetch, debouncedSearch, page, status]);
+  }, [apiFetch, debouncedSearch, inventoryType, page, status]);
 
   useEffect(() => {
     load();
@@ -116,7 +118,7 @@ function InventoryContent() {
     );
     return () => window.clearTimeout(timer);
   }, [search]);
-  useEffect(() => setPage(1), [debouncedSearch, status]);
+  useEffect(() => setPage(1), [debouncedSearch, inventoryType, status]);
 
   const handleImport = async () => {
     setImporting(true);
@@ -249,7 +251,7 @@ function InventoryContent() {
         </div>
       )}
 
-      <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:flex-row">
+      <div className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:grid-cols-2 xl:grid-cols-[1fr_13rem_13rem]">
         <label className="relative flex-1">
           <span className="sr-only">Rechercher dans l’inventaire</span>
           <Search className="absolute left-3 top-3 text-slate-400" size={16} />
@@ -268,7 +270,7 @@ function InventoryContent() {
             />
           )}
         </label>
-        <label className="sm:w-52">
+        <label>
           <span className="sr-only">Filtrer par statut</span>
           <select
             className="input min-h-11"
@@ -280,6 +282,19 @@ function InventoryContent() {
             <option value="PENDING">En attente</option>
             <option value="SOLD">Vendu</option>
             <option value="ARCHIVED">Archivé</option>
+          </select>
+        </label>
+        <label>
+          <span className="sr-only">Filtrer par type d’inventaire</span>
+          <select
+            className="input min-h-11"
+            value={inventoryType}
+            onChange={(event) => setInventoryType(event.target.value)}
+          >
+            <option value="">Neufs et occasion</option>
+            <option value="NEW">Véhicules neufs</option>
+            <option value="USED">Véhicules d’occasion</option>
+            <option value="DEMO">Démonstrateurs</option>
           </select>
         </label>
       </div>

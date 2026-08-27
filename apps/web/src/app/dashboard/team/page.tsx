@@ -25,6 +25,7 @@ interface CreatedMember {
   name: string;
   email: string;
   temporaryPassword: string | null;
+  action: "created" | "reset";
 }
 
 const EMPTY_INVITE = { name: "", email: "", password: "", role: "SALESPERSON" };
@@ -62,6 +63,8 @@ function TeamContent() {
     null,
   );
   const [copied, setCopied] = useState(false);
+  const [resettingMember, setResettingMember] = useState<Member | null>(null);
+  const [resetPassword, setResetPassword] = useState("");
 
   const loadMembers = useCallback(async () => {
     setPageError("");
@@ -86,6 +89,7 @@ function TeamContent() {
   }, [loadMembers]);
 
   const openInviteForm = () => {
+    setResettingMember(null);
     setCreatedMember(null);
     setFormError("");
     setShowPassword(false);
@@ -127,6 +131,7 @@ function TeamContent() {
       setCreatedMember({
         name: submittedInvite.name,
         email: submittedInvite.email,
+        action: "created",
         temporaryPassword:
           result.temporaryPasswordCreated === false
             ? null
@@ -140,6 +145,55 @@ function TeamContent() {
         inviteError instanceof Error
           ? inviteError.message
           : "Une erreur est survenue.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const openPasswordReset = (member: Member) => {
+    setShowInvite(false);
+    setPageError("");
+    setCreatedMember(null);
+    setResetPassword(generateTemporaryPassword());
+    setResettingMember(member);
+  };
+
+  const handlePasswordReset = async () => {
+    if (!resettingMember || resetPassword.length < 8) return;
+    setSaving(true);
+    setPageError("");
+    try {
+      const response = await apiFetch(
+        `/api/v1/organizations/members/${resettingMember.id}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ password: resetPassword }),
+        },
+      );
+      const result = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        passwordUpdated?: boolean;
+      };
+      if (!response.ok || !result.passwordUpdated) {
+        throw new Error(
+          result.error ?? "Le nouvel accès n’a pas pu être créé.",
+        );
+      }
+      setCreatedMember({
+        name: resettingMember.user.name,
+        email: resettingMember.user.email,
+        temporaryPassword: resetPassword,
+        action: "reset",
+      });
+      setResettingMember(null);
+      setResetPassword("");
+      await loadMembers();
+    } catch (resetError) {
+      setPageError(
+        resetError instanceof Error
+          ? resetError.message
+          : "Le nouvel accès n’a pas pu être créé.",
       );
     } finally {
       setSaving(false);
@@ -174,8 +228,8 @@ function TeamContent() {
           </p>
           <h1 className="mt-1 text-2xl font-bold text-slate-950">Équipe</h1>
           <p className="mt-1 text-sm text-slate-600">
-            {members.length} membre{members.length === 1 ? "" : "s"} peut
-            {members.length === 1 ? "" : "vent"} accéder à Suivia Auto.
+            {members.length} membre{members.length === 1 ? "" : "s"}{" "}
+            {members.length === 1 ? "peut" : "peuvent"} accéder à Suivia Auto.
           </p>
         </div>
         {canManage && !showInvite && (
@@ -202,12 +256,16 @@ function TeamContent() {
               />
               <div>
                 <h2 className="font-bold text-emerald-950">
-                  {createdMember.name} a été ajouté à l’équipe
+                  {createdMember.action === "reset"
+                    ? `Nouvel accès prêt pour ${createdMember.name}`
+                    : `${createdMember.name} a été ajouté à l’équipe`}
                 </h2>
                 <p className="mt-1 text-sm text-emerald-800">
-                  {createdMember.temporaryPassword
-                    ? "Copiez les accès et transmettez-les à la personne de façon sécuritaire."
-                    : "Ce courriel avait déjà un compte Suivia Auto; son mot de passe actuel demeure valide."}
+                  {createdMember.action === "reset"
+                    ? "Toutes les anciennes sessions ont été fermées. Copiez ce nouveau mot de passe temporaire et transmettez-le de façon sécuritaire."
+                    : createdMember.temporaryPassword
+                      ? "Copiez les accès et transmettez-les à la personne de façon sécuritaire."
+                      : "Ce courriel avait déjà un compte Suivia Auto; son mot de passe actuel demeure valide."}
                 </p>
                 <div className="mt-3 rounded-xl border border-emerald-200 bg-white/80 px-4 py-3 font-mono text-sm text-slate-800">
                   <p>{createdMember.email}</p>
@@ -390,6 +448,56 @@ function TeamContent() {
         </div>
       )}
 
+      {resettingMember && (
+        <section
+          className="rounded-2xl border-2 border-blue-200 bg-blue-50 p-5"
+          aria-labelledby="reset-access-title"
+        >
+          <h2 id="reset-access-title" className="font-bold text-blue-950">
+            Réinitialiser l’accès de {resettingMember.user.name}
+          </h2>
+          <p className="mt-1 text-sm leading-5 text-blue-800">
+            Ce nouveau mot de passe remplacera l’ancien et fermera ses sessions
+            existantes.
+          </p>
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+            <label className="min-w-0 flex-1">
+              <span className="sr-only">Nouveau mot de passe temporaire</span>
+              <input
+                className="input min-h-11 font-mono"
+                value={resetPassword}
+                onChange={(event) => setResetPassword(event.target.value)}
+                minLength={8}
+              />
+            </label>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => setResetPassword(generateTemporaryPassword())}
+              disabled={saving}
+            >
+              <RefreshCw className="mr-2" size={16} /> Régénérer
+            </button>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => void handlePasswordReset()}
+              disabled={saving || resetPassword.length < 8}
+            >
+              {saving ? "Réinitialisation…" : "Créer le nouvel accès"}
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => setResettingMember(null)}
+              disabled={saving}
+            >
+              Annuler
+            </button>
+          </div>
+        </section>
+      )}
+
       <div className="card overflow-hidden p-0">
         {loading ? (
           <div className="space-y-3 p-6" aria-label="Chargement de l’équipe">
@@ -413,6 +521,7 @@ function TeamContent() {
                   <th className="px-5 py-3">Fonction</th>
                   <th className="px-5 py-3">Accès</th>
                   <th className="px-5 py-3">Statut</th>
+                  {canManage && <th className="px-5 py-3">Action</th>}
                 </tr>
               </thead>
               <tbody>
@@ -445,6 +554,20 @@ function TeamContent() {
                         {member.user.isActive ? "Actif" : "Inactif"}
                       </span>
                     </td>
+                    {canManage && (
+                      <td className="px-5 py-4">
+                        {(member.role !== "OWNER" || role === "OWNER") && (
+                          <button
+                            type="button"
+                            className="btn-secondary min-h-10 whitespace-nowrap px-3 py-2 text-xs"
+                            onClick={() => openPasswordReset(member)}
+                          >
+                            <KeyRound className="mr-2" size={14} />
+                            Réinitialiser l’accès
+                          </button>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

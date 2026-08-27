@@ -8,6 +8,7 @@ import { GET as dashboardHandler } from "@/app/api/v1/analytics/dashboard/route"
 import { GET as healthHandler } from "@/app/api/health/route";
 import { POST as extensionEventHandler } from "@/app/api/v1/extension/events/route";
 import { POST as inviteMemberHandler } from "@/app/api/v1/organizations/members/route";
+import { PATCH as updateMemberHandler } from "@/app/api/v1/organizations/members/[id]/route";
 import { hashToken } from "@/lib/auth";
 
 function makeRequest(url: string, options: RequestInit = {}): Request {
@@ -25,6 +26,7 @@ describe("API route handlers", () => {
   let extensionApiKey: string;
   let extensionApiKeyId: string;
   let extensionVehicleId: string;
+  let invitedMemberId: string;
   const invitedMemberEmail = `new-salesperson-${Date.now()}@example.com`;
 
   beforeAll(async () => {
@@ -147,6 +149,36 @@ describe("API route handlers", () => {
     expect(data.user.name).toBe("Marie Tremblay");
     expect(data.role).toBe("SALESPERSON");
     expect(data.temporaryPasswordCreated).toBe(true);
+    invitedMemberId = data.id;
+  });
+
+  it("lets an owner reset a team member temporary password", async () => {
+    const req = makeRequest(
+      `http://localhost/api/v1/organizations/members/${invitedMemberId}`,
+      {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ password: "New!Temporary8b" }),
+      },
+    );
+    const res = await updateMemberHandler(req, {
+      params: Promise.resolve({ id: invitedMemberId }),
+    });
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data.passwordUpdated).toBe(true);
+
+    const login = await loginHandler(
+      makeRequest("http://localhost/api/v1/auth/login", {
+        method: "POST",
+        body: JSON.stringify({
+          email: invitedMemberEmail,
+          password: "New!Temporary8b",
+        }),
+      }) as never,
+    );
+    expect(login.status).toBe(200);
   });
 
   it("lists vehicles for authenticated user", async () => {
