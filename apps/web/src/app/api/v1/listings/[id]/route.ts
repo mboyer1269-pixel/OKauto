@@ -8,7 +8,11 @@ export const PATCH = withAuth(async (request, { auth, params }) => {
   const data = updateListingSchema.parse(body);
 
   const existing = await prisma.listing.findFirst({
-    where: { id: params!.id, organizationId: auth.orgId },
+    where: {
+      id: params!.id,
+      organizationId: auth.orgId,
+      userId: auth.sub,
+    },
   });
   if (!existing) return errorResponse('Listing not found', 404);
 

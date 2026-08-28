@@ -30,6 +30,7 @@ export async function POST(request: NextRequest) {
         where: {
           organizationId: auth.orgId,
           vehicleId: data.vehicleId,
+          userId: auth.user.id,
           platform: 'facebook_marketplace',
           status: 'ACTIVE',
         },
@@ -59,6 +60,7 @@ export async function POST(request: NextRequest) {
           id: data.listingId,
           organizationId: auth.orgId,
           vehicleId: data.vehicleId,
+          userId: auth.user.id,
         },
       });
       if (!listing) return errorResponse('Listing not found', 404);
@@ -79,6 +81,7 @@ export async function POST(request: NextRequest) {
           id: data.listingId,
           organizationId: auth.orgId,
           vehicleId: data.vehicleId,
+          userId: auth.user.id,
         },
       });
       if (!listing) return errorResponse('Listing not found', 404);

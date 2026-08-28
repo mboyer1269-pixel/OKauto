@@ -12,7 +12,9 @@ export const GET = withAuth(async (request, { auth }) => {
   if (query.status) where.status = query.status;
   if (query.assignedToId) where.assignedToId = query.assignedToId;
   if (query.withoutActiveListing) {
-    where.listings = { none: { status: "ACTIVE" } };
+    where.listings = {
+      none: { status: "ACTIVE", userId: auth.sub },
+    };
   }
   if (query.search) {
     where.OR = [
@@ -71,8 +73,13 @@ export const GET = withAuth(async (request, { auth }) => {
         ...(query.view === "summary" ? { take: 1 } : {}),
       },
       assignedTo: { select: { id: true, name: true, email: true } },
-      listings: { where: { status: "ACTIVE" as const }, take: 1 },
-      _count: { select: { listings: true } },
+      listings: {
+        where: { status: "ACTIVE" as const, userId: auth.sub },
+        take: 1,
+      },
+      _count: {
+        select: { listings: { where: { userId: auth.sub } } },
+      },
     },
     orderBy: { updatedAt: "desc" as const },
     skip: (query.page - 1) * query.limit,

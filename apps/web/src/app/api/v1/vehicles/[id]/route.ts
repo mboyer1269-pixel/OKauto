@@ -10,7 +10,11 @@ export const GET = withAuth(async (_request, { auth, params }) => {
     include: {
       photos: { orderBy: { sortOrder: 'asc' } },
       assignedTo: { select: { id: true, name: true, email: true } },
-      listings: { orderBy: { listedAt: 'desc' }, include: { user: { select: { id: true, name: true } } } },
+      listings: {
+        where: { userId: auth.sub },
+        orderBy: { listedAt: 'desc' },
+        include: { user: { select: { id: true, name: true } } },
+      },
     },
   });
 

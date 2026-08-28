@@ -167,7 +167,10 @@ export async function notifySoldVehicle(
   });
 }
 
-export async function getDashboardStats(organizationId: string) {
+export async function getDashboardStats(
+  organizationId: string,
+  userId: string,
+) {
   const [
     totalVehicles,
     availableVehicles,
@@ -181,13 +184,17 @@ export async function getDashboardStats(organizationId: string) {
     prisma.vehicle.count({ where: { organizationId } }),
     prisma.vehicle.count({ where: { organizationId, status: "AVAILABLE" } }),
     prisma.vehicle.count({ where: { organizationId, status: "SOLD" } }),
-    prisma.listing.count({ where: { organizationId, status: "ACTIVE" } }),
-    prisma.listing.count({ where: { organizationId, status: "STALE" } }),
+    prisma.listing.count({
+      where: { organizationId, userId, status: "ACTIVE" },
+    }),
+    prisma.listing.count({
+      where: { organizationId, userId, status: "STALE" },
+    }),
     prisma.vehicle.count({
       where: {
         organizationId,
         status: "AVAILABLE",
-        listings: { none: { status: "ACTIVE" } },
+        listings: { none: { status: "ACTIVE", userId } },
       },
     }),
     prisma.organizationMember.findMany({
@@ -211,7 +218,7 @@ export async function getDashboardStats(organizationId: string) {
   weekAgo.setDate(weekAgo.getDate() - 7);
 
   const listingsThisWeek = await prisma.listing.count({
-    where: { organizationId, listedAt: { gte: weekAgo } },
+    where: { organizationId, userId, listedAt: { gte: weekAgo } },
   });
 
   const memberStats = await Promise.all(

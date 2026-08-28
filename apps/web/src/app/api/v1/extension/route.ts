@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
       include: {
         photos: { orderBy: { sortOrder: "asc" } },
         listings: {
-          where: { status: "ACTIVE" },
+          where: { status: "ACTIVE", userId: auth.user.id },
           select: { id: true, status: true },
         },
       },

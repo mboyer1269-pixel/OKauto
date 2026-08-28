@@ -4,8 +4,15 @@ import bcrypt from "bcryptjs";
 import { POST as loginHandler } from "@/app/api/v1/auth/login/route";
 import { GET as currentUserHandler } from "@/app/api/v1/auth/me/route";
 import { GET as vehiclesHandler } from "@/app/api/v1/vehicles/route";
+import { GET as vehicleDetailsHandler } from "@/app/api/v1/vehicles/[id]/route";
+import {
+  GET as listingsHandler,
+  POST as createListingHandler,
+} from "@/app/api/v1/listings/route";
+import { PATCH as updateListingHandler } from "@/app/api/v1/listings/[id]/route";
 import { GET as dashboardHandler } from "@/app/api/v1/analytics/dashboard/route";
 import { GET as healthHandler } from "@/app/api/health/route";
+import { GET as extensionInventoryHandler } from "@/app/api/v1/extension/route";
 import { POST as extensionEventHandler } from "@/app/api/v1/extension/events/route";
 import { POST as inviteMemberHandler } from "@/app/api/v1/organizations/members/route";
 import { PATCH as updateMemberHandler } from "@/app/api/v1/organizations/members/[id]/route";
@@ -23,8 +30,10 @@ function makeRequest(url: string, options: RequestInit = {}): Request {
 
 describe("API route handlers", () => {
   let accessToken: string;
+  let salespersonAccessToken: string;
   let extensionApiKey: string;
   let extensionApiKeyId: string;
+  let salespersonExtensionApiKeyId: string;
   let extensionVehicleId: string;
   let demoVehicleId: string;
   let invitedMemberId: string;
@@ -117,6 +126,11 @@ describe("API route handlers", () => {
     await prisma.vehicle.deleteMany({
       where: { id: { in: [extensionVehicleId, demoVehicleId] } },
     });
+    if (salespersonExtensionApiKeyId) {
+      await prisma.apiKey.deleteMany({
+        where: { id: salespersonExtensionApiKeyId },
+      });
+    }
     await prisma.apiKey.deleteMany({ where: { id: extensionApiKeyId } });
     await prisma.organizationMember.deleteMany({
       where: {
@@ -216,6 +230,9 @@ describe("API route handlers", () => {
       }) as never,
     );
     expect(login.status).toBe(200);
+    const loginData = await login.json();
+    salespersonAccessToken = loginData.accessToken;
+    expect(salespersonAccessToken).toBeTruthy();
   });
 
   it("opens the shared dealer inventory for an existing user added to the team", async () => {
@@ -401,6 +418,185 @@ describe("API route handlers", () => {
     });
     expect(listing?.externalUrl).toBe(
       "https://www.facebook.com/marketplace/item/123456789",
+    );
+  });
+
+  it("keeps publication history private while sharing the same inventory", async () => {
+    const ownerListingsResponse = await listingsHandler(
+      makeRequest("http://localhost/api/v1/listings?limit=100", {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      }),
+      { params: Promise.resolve({}) },
+    );
+    const ownerListingsData = await ownerListingsResponse.json();
+    const ownerListing = ownerListingsData.listings.find(
+      (listing: { vehicleId: string }) =>
+        listing.vehicleId === extensionVehicleId,
+    );
+
+    expect(ownerListingsResponse.status).toBe(200);
+    expect(ownerListing).toBeTruthy();
+
+    const salespersonListingsBefore = await listingsHandler(
+      makeRequest("http://localhost/api/v1/listings?limit=100", {
+        headers: {
+          Authorization: `Bearer ${salespersonAccessToken}`,
+        },
+      }),
+      { params: Promise.resolve({}) },
+    );
+    const salespersonListingsBeforeData =
+      await salespersonListingsBefore.json();
+    expect(
+      salespersonListingsBeforeData.listings.some(
+        (listing: { vehicleId: string }) =>
+          listing.vehicleId === extensionVehicleId,
+      ),
+    ).toBe(false);
+
+    const readyResponse = await vehiclesHandler(
+      makeRequest(
+        "http://localhost/api/v1/vehicles?withoutActiveListing=true&limit=100",
+        {
+          headers: {
+            Authorization: `Bearer ${salespersonAccessToken}`,
+          },
+        },
+      ),
+      { params: Promise.resolve({}) },
+    );
+    const readyData = await readyResponse.json();
+    expect(
+      readyData.vehicles.some(
+        (vehicle: { id: string }) => vehicle.id === extensionVehicleId,
+      ),
+    ).toBe(true);
+
+    const salesperson = await prisma.user.findUniqueOrThrow({
+      where: { email: invitedMemberEmail },
+    });
+    const salespersonApiKey = `okauto_test_salesperson_${Date.now()}`;
+    const storedSalespersonApiKey = await prisma.apiKey.create({
+      data: {
+        organizationId: dealerOrganizationId,
+        userId: salesperson.id,
+        name: "Salesperson extension isolation test",
+        keyHash: hashToken(salespersonApiKey),
+        keyPrefix: salespersonApiKey.slice(0, 12),
+      },
+    });
+    salespersonExtensionApiKeyId = storedSalespersonApiKey.id;
+
+    const extensionInventoryBefore = await extensionInventoryHandler(
+      makeRequest("http://localhost/api/v1/extension", {
+        headers: { "X-API-Key": salespersonApiKey },
+      }) as never,
+    );
+    const extensionInventoryBeforeData =
+      await extensionInventoryBefore.json();
+    const extensionVehicleBefore = extensionInventoryBeforeData.vehicles.find(
+      (vehicle: { id: string }) => vehicle.id === extensionVehicleId,
+    );
+    expect(extensionVehicleBefore?.hasActiveListing).toBe(false);
+
+    const unauthorizedExtensionUpdate = await extensionEventHandler(
+      makeRequest("http://localhost/api/v1/extension/events", {
+        method: "POST",
+        headers: { "X-API-Key": salespersonApiKey },
+        body: JSON.stringify({
+          eventType: "listing_removed",
+          vehicleId: extensionVehicleId,
+          listingId: ownerListing.id,
+        }),
+      }) as never,
+    );
+    expect(unauthorizedExtensionUpdate.status).toBe(404);
+
+    const createResponse = await createListingHandler(
+      makeRequest("http://localhost/api/v1/listings", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${salespersonAccessToken}`,
+        },
+        body: JSON.stringify({
+          vehicleId: extensionVehicleId,
+          platform: "facebook_marketplace",
+          externalUrl:
+            "https://www.facebook.com/marketplace/item/987654321",
+        }),
+      }),
+      { params: Promise.resolve({}) },
+    );
+    const salespersonListing = await createResponse.json();
+    expect(createResponse.status).toBe(201);
+    expect(salespersonListing.userId).toBe(salesperson.id);
+
+    const extensionInventoryAfter = await extensionInventoryHandler(
+      makeRequest("http://localhost/api/v1/extension", {
+        headers: { "X-API-Key": salespersonApiKey },
+      }) as never,
+    );
+    const extensionInventoryAfterData = await extensionInventoryAfter.json();
+    const extensionVehicleAfter = extensionInventoryAfterData.vehicles.find(
+      (vehicle: { id: string }) => vehicle.id === extensionVehicleId,
+    );
+    expect(extensionVehicleAfter?.hasActiveListing).toBe(true);
+
+    const ownerListingsAfter = await listingsHandler(
+      makeRequest("http://localhost/api/v1/listings?limit=100", {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      }),
+      { params: Promise.resolve({}) },
+    );
+    const ownerListingsAfterData = await ownerListingsAfter.json();
+    expect(
+      ownerListingsAfterData.listings.some(
+        (listing: { id: string }) => listing.id === salespersonListing.id,
+      ),
+    ).toBe(false);
+
+    const salespersonVehicleDetails = await vehicleDetailsHandler(
+      makeRequest(
+        `http://localhost/api/v1/vehicles/${extensionVehicleId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${salespersonAccessToken}`,
+          },
+        },
+      ),
+      { params: Promise.resolve({ id: extensionVehicleId }) },
+    );
+    const salespersonVehicleData = await salespersonVehicleDetails.json();
+    expect(
+      salespersonVehicleData.listings.map(
+        (listing: { id: string }) => listing.id,
+      ),
+    ).toEqual([salespersonListing.id]);
+
+    const unauthorizedUpdate = await updateListingHandler(
+      makeRequest(
+        `http://localhost/api/v1/listings/${ownerListing.id}`,
+        {
+          method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${salespersonAccessToken}`,
+          },
+          body: JSON.stringify({ status: "REMOVED" }),
+        },
+      ),
+      { params: Promise.resolve({ id: ownerListing.id }) },
+    );
+    expect(unauthorizedUpdate.status).toBe(404);
+
+    const activeListings = await prisma.listing.findMany({
+      where: {
+        organizationId: dealerOrganizationId,
+        vehicleId: extensionVehicleId,
+        status: "ACTIVE",
+      },
+    });
+    expect(new Set(activeListings.map((listing) => listing.userId)).size).toBe(
+      2,
     );
   });
 });
