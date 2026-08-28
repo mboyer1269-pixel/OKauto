@@ -108,7 +108,15 @@ async function scheduleSyncJobs() {
     const lastSync = source.lastSyncAt?.getTime() ?? 0;
     const intervalMs = source.intervalMinutes * 60 * 1000;
     if (Date.now() - lastSync >= intervalMs) {
-      await syncQueue.add("sync", { syncSourceId: source.id });
+      await syncQueue.add(
+        "sync",
+        { syncSourceId: source.id },
+        {
+          jobId: `sync-${source.id}`,
+          removeOnComplete: true,
+          removeOnFail: true,
+        },
+      );
     }
   }
 }

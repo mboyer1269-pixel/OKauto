@@ -6,12 +6,12 @@ describe("sync health response validation", () => {
     expect(
       isSyncHealthData({
         sources: [],
-        recentJobs: [],
+        recentRuns: [],
         health: {
           status: "healthy",
           sourceCount: 1,
           activeSources: 1,
-          failedJobsLast10: 0,
+          failedRunsLast10: 0,
           lastSyncAt: null,
         },
       }),
@@ -20,6 +20,6 @@ describe("sync health response validation", () => {
 
   it("rejects API error responses instead of letting the page crash", () => {
     expect(isSyncHealthData({ error: "Unauthorized" })).toBe(false);
-    expect(isSyncHealthData({ sources: [], recentJobs: [] })).toBe(false);
+    expect(isSyncHealthData({ sources: [], recentRuns: [] })).toBe(false);
   });
 });

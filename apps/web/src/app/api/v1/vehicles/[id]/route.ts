@@ -1,24 +1,28 @@
-import { prisma } from '@okauto/database';
-import { updateVehicleSchema } from '@okauto/shared';
-import { withAuth, jsonResponse, errorResponse, parseBody } from '@/lib/api';
-import { createAuditLog } from '@/lib/auth';
-import { notifySoldVehicle } from '@/lib/services';
+import { prisma } from "@okauto/database";
+import { updateVehicleSchema } from "@okauto/shared";
+import { withAuth, jsonResponse, errorResponse, parseBody } from "@/lib/api";
+import { createAuditLog } from "@/lib/auth";
+import { notifySoldVehicle } from "@/lib/services";
 
 export const GET = withAuth(async (_request, { auth, params }) => {
   const vehicle = await prisma.vehicle.findFirst({
     where: { id: params!.id, organizationId: auth.orgId },
     include: {
-      photos: { orderBy: { sortOrder: 'asc' } },
+      photos: { orderBy: { sortOrder: "asc" } },
       assignedTo: { select: { id: true, name: true, email: true } },
       listings: {
         where: { userId: auth.sub },
-        orderBy: { listedAt: 'desc' },
+        orderBy: { listedAt: "desc" },
         include: { user: { select: { id: true, name: true } } },
+      },
+      marketplaceDrafts: {
+        where: { userId: auth.sub, platform: "facebook_marketplace" },
+        take: 1,
       },
     },
   });
 
-  if (!vehicle) return errorResponse('Vehicle not found', 404);
+  if (!vehicle) return errorResponse("Vehicle not found", 404);
   return jsonResponse(vehicle);
 });
 
@@ -29,9 +33,9 @@ export const PATCH = withAuth(async (request, { auth, params }) => {
   const existing = await prisma.vehicle.findFirst({
     where: { id: params!.id, organizationId: auth.orgId },
   });
-  if (!existing) return errorResponse('Vehicle not found', 404);
+  if (!existing) return errorResponse("Vehicle not found", 404);
 
-  const wasSold = existing.status !== 'SOLD' && data.status === 'SOLD';
+  const wasSold = existing.status !== "SOLD" && data.status === "SOLD";
 
   const vehicle = await prisma.vehicle.update({
     where: { id: params!.id },
@@ -61,7 +65,11 @@ export const PATCH = withAuth(async (request, { auth, params }) => {
       location: data.location,
       notes: data.notes,
       assignedToId: data.assignedToId === null ? null : data.assignedToId,
-      soldAt: wasSold ? new Date() : data.status === 'SOLD' ? existing.soldAt : undefined,
+      soldAt: wasSold
+        ? new Date()
+        : data.status === "SOLD"
+          ? existing.soldAt
+          : undefined,
     },
     include: { photos: true, assignedTo: { select: { id: true, name: true } } },
   });
@@ -73,8 +81,8 @@ export const PATCH = withAuth(async (request, { auth, params }) => {
   await createAuditLog({
     organizationId: auth.orgId,
     userId: auth.sub,
-    action: 'UPDATE',
-    entityType: 'vehicle',
+    action: "UPDATE",
+    entityType: "vehicle",
     entityId: vehicle.id,
     metadata: { changes: data },
     request: request as never,
@@ -88,20 +96,20 @@ export const DELETE = withAuth(
     const existing = await prisma.vehicle.findFirst({
       where: { id: params!.id, organizationId: auth.orgId },
     });
-    if (!existing) return errorResponse('Vehicle not found', 404);
+    if (!existing) return errorResponse("Vehicle not found", 404);
 
     await prisma.vehicle.delete({ where: { id: params!.id } });
 
     await createAuditLog({
       organizationId: auth.orgId,
       userId: auth.sub,
-      action: 'DELETE',
-      entityType: 'vehicle',
+      action: "DELETE",
+      entityType: "vehicle",
       entityId: params!.id,
       request: request as never,
     });
 
     return jsonResponse({ success: true });
   },
-  { minRole: 'MANAGER' }
+  { minRole: "MANAGER" },
 );

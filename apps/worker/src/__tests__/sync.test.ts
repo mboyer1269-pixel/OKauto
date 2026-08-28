@@ -1,22 +1,24 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { prisma } from '@okauto/database';
-import { runSyncSource } from '../sync.js';
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { prisma } from "@okauto/database";
+import { runSyncSource } from "../sync.js";
 
-describe('runSyncSource', () => {
+describe("runSyncSource", () => {
   let orgId: string;
   let sourceId: string;
-  const testVin = 'TESTSYNC123456789';
+  const testVin = "TESTSYNC123456789";
 
   beforeEach(async () => {
-    const org = await prisma.organization.findFirst({ where: { slug: 'demo-motors' } });
+    const org = await prisma.organization.findFirst({
+      where: { slug: "demo-motors" },
+    });
     orgId = org!.id;
 
     const source = await prisma.syncSource.create({
       data: {
         organizationId: orgId,
-        name: 'Test Sync',
-        url: 'https://mock.test/inventory.json',
-        adapter: 'generic',
+        name: "Test Sync",
+        url: "https://mock.test/inventory.json",
+        adapter: "generic",
         isActive: true,
         intervalMinutes: 60,
       },
@@ -24,23 +26,23 @@ describe('runSyncSource', () => {
     sourceId = source.id;
 
     vi.stubGlobal(
-      'fetch',
+      "fetch",
       vi.fn().mockResolvedValue({
         ok: true,
-        headers: { get: () => 'application/json' },
+        headers: { get: () => "application/json" },
         text: async () =>
           JSON.stringify([
             {
               vin: testVin,
               year: 2024,
-              make: 'Test',
-              model: 'SyncCar',
+              make: "Test",
+              model: "SyncCar",
               price: 25000,
               mileage: 1000,
-              photos: ['https://example.com/car.jpg'],
+              photos: ["https://example.com/car.jpg"],
             },
           ]),
-      })
+      }),
     );
   });
 
@@ -49,14 +51,16 @@ describe('runSyncSource', () => {
     await prisma.vehiclePhoto.deleteMany({
       where: { vehicle: { vin: testVin, organizationId: orgId } },
     });
-    await prisma.vehicle.deleteMany({ where: { vin: testVin, organizationId: orgId } });
+    await prisma.vehicle.deleteMany({
+      where: { vin: testVin, organizationId: orgId },
+    });
     await prisma.notification.deleteMany({
-      where: { metadata: { path: ['vin'], equals: testVin } },
+      where: { metadata: { path: ["vin"], equals: testVin } },
     });
     await prisma.syncSource.deleteMany({ where: { id: sourceId } });
   });
 
-  it('syncs vehicles from JSON feed', async () => {
+  it("syncs vehicles from JSON feed", async () => {
     const result = await runSyncSource(sourceId);
     expect(result.synced).toBe(1);
     expect(result.errors).toBe(0);
@@ -65,73 +69,95 @@ describe('runSyncSource', () => {
       where: { vin: testVin, organizationId: orgId },
       include: { photos: true },
     });
-    expect(vehicle?.make).toBe('Test');
+    expect(vehicle?.make).toBe("Test");
     expect(vehicle?.photos.length).toBe(1);
     expect(vehicle?.syncSourceId).toBe(sourceId);
 
-    const source = await prisma.syncSource.findUnique({ where: { id: sourceId } });
-    expect(source?.lastSyncStatus).toBe('success');
+    const source = await prisma.syncSource.findUnique({
+      where: { id: sourceId },
+    });
+    expect(source?.lastSyncStatus).toBe("success");
   });
 
-  it('detects price changes on re-sync', async () => {
+  it("detects price changes on re-sync", async () => {
     await runSyncSource(sourceId);
 
     vi.stubGlobal(
-      'fetch',
+      "fetch",
       vi.fn().mockResolvedValue({
         ok: true,
-        headers: { get: () => 'application/json' },
+        headers: { get: () => "application/json" },
         text: async () =>
           JSON.stringify([
-            { vin: testVin, year: 2024, make: 'Test', model: 'SyncCar', price: 23000 },
+            {
+              vin: testVin,
+              year: 2024,
+              make: "Test",
+              model: "SyncCar",
+              price: 23000,
+            },
           ]),
-      })
+      }),
     );
 
     const result = await runSyncSource(sourceId);
     expect(result.priceChanges).toBe(1);
 
     const notifications = await prisma.notification.findMany({
-      where: { type: 'PRICE_CHANGE' },
-      orderBy: { createdAt: 'desc' },
+      where: { type: "PRICE_CHANGE" },
+      orderBy: { createdAt: "desc" },
       take: 5,
     });
-    expect(notifications.some((n) => n.message.includes('23,000'))).toBe(true);
+    expect(notifications.some((n) => n.message.includes("23,000"))).toBe(true);
   });
 
-  it('marks vehicles removed from a source as sold', async () => {
+  it("marks vehicles sold only after two consecutive feed absences", async () => {
     await runSyncSource(sourceId);
     const [vehicle, member] = await Promise.all([
-      prisma.vehicle.findFirstOrThrow({ where: { vin: testVin, organizationId: orgId } }),
-      prisma.organizationMember.findFirstOrThrow({ where: { organizationId: orgId } }),
+      prisma.vehicle.findFirstOrThrow({
+        where: { vin: testVin, organizationId: orgId },
+      }),
+      prisma.organizationMember.findFirstOrThrow({
+        where: { organizationId: orgId },
+      }),
     ]);
     const listing = await prisma.listing.create({
       data: {
         organizationId: orgId,
         vehicleId: vehicle.id,
         userId: member.userId,
-        status: 'ACTIVE',
-        externalUrl: 'https://www.facebook.com/marketplace/item/test-sync-listing',
+        status: "ACTIVE",
+        externalUrl:
+          "https://www.facebook.com/marketplace/item/test-sync-listing",
       },
     });
 
     vi.stubGlobal(
-      'fetch',
+      "fetch",
       vi.fn().mockResolvedValue({
         ok: true,
-        headers: { get: () => 'application/json' },
+        headers: { get: () => "application/json" },
         text: async () =>
           JSON.stringify([
             {
-              vin: 'TESTSYNC987654321',
+              vin: "TESTSYNC987654321",
               year: 2025,
-              make: 'Test',
-              model: 'Replacement',
+              make: "Test",
+              model: "Replacement",
               price: 30000,
             },
           ]),
-      })
+      }),
     );
+
+    const firstMissingResult = await runSyncSource(sourceId);
+    expect(firstMissingResult.sold).toBe(0);
+
+    const afterFirstMiss = await prisma.vehicle.findFirst({
+      where: { vin: testVin, organizationId: orgId },
+    });
+    expect(afterFirstMiss?.status).toBe("AVAILABLE");
+    expect(afterFirstMiss?.missingSyncCount).toBe(1);
 
     const result = await runSyncSource(sourceId);
     expect(result.sold).toBe(1);
@@ -139,25 +165,36 @@ describe('runSyncSource', () => {
     const removedVehicle = await prisma.vehicle.findFirst({
       where: { vin: testVin, organizationId: orgId },
     });
-    expect(removedVehicle?.status).toBe('SOLD');
+    expect(removedVehicle?.status).toBe("SOLD");
     expect(removedVehicle?.soldAt).not.toBeNull();
-    const staleListing = await prisma.listing.findUnique({ where: { id: listing.id } });
-    expect(staleListing?.status).toBe('STALE');
+    const staleListing = await prisma.listing.findUnique({
+      where: { id: listing.id },
+    });
+    expect(staleListing?.status).toBe("STALE");
 
     await prisma.vehicle.deleteMany({
-      where: { vin: 'TESTSYNC987654321', organizationId: orgId },
+      where: { vin: "TESTSYNC987654321", organizationId: orgId },
     });
   });
 
-  it('marks source as error on fetch failure', async () => {
+  it("marks source as error on fetch failure", async () => {
     vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({ ok: false, status: 500, headers: { get: () => null }, text: async () => '' })
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue({
+          ok: false,
+          status: 500,
+          headers: { get: () => null },
+          text: async () => "",
+        }),
     );
 
-    await expect(runSyncSource(sourceId)).rejects.toThrow('HTTP 500');
+    await expect(runSyncSource(sourceId)).rejects.toThrow("HTTP 500");
 
-    const source = await prisma.syncSource.findUnique({ where: { id: sourceId } });
-    expect(source?.lastSyncStatus).toBe('error');
+    const source = await prisma.syncSource.findUnique({
+      where: { id: sourceId },
+    });
+    expect(source?.lastSyncStatus).toBe("error");
   });
 });

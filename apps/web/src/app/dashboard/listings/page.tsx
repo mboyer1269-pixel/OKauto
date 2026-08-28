@@ -19,6 +19,7 @@ import {
   RefreshCw,
   Search,
   ShieldCheck,
+  Sparkles,
   Zap,
   X,
 } from "lucide-react";
@@ -55,6 +56,11 @@ interface Vehicle {
   updatedAt: string;
   photos: Array<{ url: string; isPrimary: boolean }>;
   listings: Array<{ id: string; status: string }>;
+  marketplaceDrafts?: Array<{
+    title: string;
+    description: string;
+    photoOrder: string[];
+  }>;
 }
 
 interface Listing {
@@ -133,6 +139,9 @@ function ListingsContent() {
   const [readyTotal, setReadyTotal] = useState(0);
   const [allReadyTotal, setAllReadyTotal] = useState(0);
   const [listings, setListings] = useState<Listing[]>([]);
+  const [listingCounts, setListingCounts] = useState<Record<string, number>>(
+    {},
+  );
   const [organization, setOrganization] = useState<Organization>({
     name: "Votre concession",
   });
@@ -151,6 +160,7 @@ function ListingsContent() {
   );
   const [saving, setSaving] = useState(false);
   const [downloadingPhotos, setDownloadingPhotos] = useState(false);
+  const [generatingDescription, setGeneratingDescription] = useState(false);
   const [launchingMarketplace, setLaunchingMarketplace] = useState(false);
   const [extensionConnected, setExtensionConnected] = useState(false);
   const [message, setMessage] = useState("");
@@ -179,7 +189,7 @@ function ListingsContent() {
         const [vehicleResponse, listingResponse, orgResponse] =
           await Promise.all([
             apiFetch(`/api/v1/vehicles?${vehicleParams}`),
-            apiFetch("/api/v1/listings?limit=100&page=1"),
+            apiFetch("/api/v1/listings?limit=250&page=1"),
             apiFetch("/api/v1/organizations/current"),
           ]);
 
@@ -198,6 +208,7 @@ function ListingsContent() {
         setAllReadyTotal(vehicleData.pagination?.total ?? 0);
         setReadyPage(1);
         setListings(listingData.listings ?? []);
+        setListingCounts(listingData.counts ?? {});
         setOrganization(orgData);
         lastListingRefresh.current = Date.now();
       } catch (loadError) {
@@ -298,10 +309,11 @@ function ListingsContent() {
   const refreshListings = useCallback(
     async (force = false) => {
       if (!force && Date.now() - lastListingRefresh.current < 15_000) return;
-      const response = await apiFetch("/api/v1/listings?limit=100&page=1");
+      const response = await apiFetch("/api/v1/listings?limit=250&page=1");
       if (!response.ok) return;
       const data = await response.json();
       setListings(data.listings ?? []);
+      setListingCounts(data.counts ?? {});
       lastListingRefresh.current = Date.now();
     },
     [apiFetch],
@@ -424,22 +436,33 @@ function ListingsContent() {
 
   const counts: Record<Queue, number> = {
     prepare: allReadyTotal,
-    active: activeListings.length,
-    remove: staleListings.length,
-    history: historyListings.length,
+    active: listingCounts.ACTIVE ?? activeListings.length,
+    remove: listingCounts.STALE ?? staleListings.length,
+    history:
+      (listingCounts.REMOVED ?? 0) + (listingCounts.SOLD ?? 0) ||
+      historyListings.length,
   };
 
-  const listingPackage = selected
-    ? generateMarketplacePackage({
-        ...selected,
-        dealershipName: organization.name,
-        contactName: user?.name || MARKETPLACE_CONTACT_NAME,
-        phone: organization.phone ?? undefined,
-        location: [organization.address, organization.city, organization.state]
-          .filter(Boolean)
-          .join(", "),
-      })
-    : null;
+  const listingPackage = useMemo(() => {
+    if (!selected) return null;
+    const generated = generateMarketplacePackage({
+      ...selected,
+      dealershipName: organization.name,
+      contactName: user?.name || MARKETPLACE_CONTACT_NAME,
+      phone: organization.phone ?? undefined,
+      location: [organization.address, organization.city, organization.state]
+        .filter(Boolean)
+        .join(", "),
+    });
+    const draft = selected.marketplaceDrafts?.[0];
+    return draft
+      ? {
+          ...generated,
+          title: draft.title || generated.title,
+          description: draft.description || generated.description,
+        }
+      : generated;
+  }, [organization, selected, user?.name]);
   const marketplaceReady = Boolean(
     listingPackage?.isReady && selected?.photos.length,
   );
@@ -531,6 +554,38 @@ function ListingsContent() {
     }
   };
 
+  const improveDescription = async () => {
+    if (!selected) return;
+    setGeneratingDescription(true);
+    setError("");
+    try {
+      const response = await apiFetch(
+        `/api/v1/vehicles/${selected.id}/generate-description`,
+        { method: "POST" },
+      );
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.draft) {
+        throw new Error(
+          data.error ?? "La description n’a pas pu être améliorée.",
+        );
+      }
+      setSelected((current) =>
+        current ? { ...current, marketplaceDrafts: [data.draft] } : current,
+      );
+      setMessage(
+        "Description personnalisée créée pour votre profil. Elle sera utilisée par l’extension.",
+      );
+    } catch (generationError) {
+      setError(
+        generationError instanceof Error
+          ? generationError.message
+          : "La description n’a pas pu être améliorée.",
+      );
+    } finally {
+      setGeneratingDescription(false);
+    }
+  };
+
   const startMarketplace = async () => {
     if (!selected || !listingPackage || !marketplaceReady) return;
 
@@ -549,6 +604,7 @@ function ListingsContent() {
           dealershipName: organization.name,
           phone: organization.phone ?? undefined,
           description: listingPackage.description,
+          title: listingPackage.title,
           photos: selected.photos.map((photo) => photo.url),
         },
       },
@@ -645,13 +701,13 @@ function ListingsContent() {
   };
 
   return (
-    <div className="min-w-0 space-y-6">
-      <header className="relative overflow-hidden rounded-[1.75rem] bg-[#071426] px-5 py-6 text-white shadow-[0_22px_55px_-35px_rgba(7,20,38,0.9)] sm:px-7 sm:py-8">
+    <div className="min-w-0 space-y-4">
+      <header className="relative overflow-hidden rounded-[1.35rem] bg-[#071426] px-5 py-4 text-white shadow-[0_22px_55px_-35px_rgba(7,20,38,0.9)] sm:px-6 sm:py-5">
         <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-2/5 border-l border-white/10 lg:block">
           <div className="absolute left-12 top-0 h-full w-px bg-white/10" />
           <div className="absolute left-24 top-0 h-full w-px bg-white/5" />
         </div>
-        <div className="relative grid gap-7 xl:grid-cols-[1fr_22rem] xl:items-start">
+        <div className="relative grid gap-4 lg:grid-cols-[1fr_18rem] lg:items-center">
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <span className="rounded-full border border-[#d6b75a]/50 bg-[#d6b75a]/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-[#f1d77f]">
@@ -669,15 +725,12 @@ function ListingsContent() {
                   : "Mode rapide sans extension"}
               </span>
             </div>
-            <h1 className="mt-5 max-w-3xl text-3xl font-black leading-[0.98] tracking-[-0.045em] sm:text-5xl">
-              Du lot à Marketplace.
-              <span className="block text-[#79b7ff]">
-                Trois clics, puis c’est en ligne.
-              </span>
+            <h1 className="mt-3 max-w-3xl text-2xl font-black leading-tight tracking-[-0.035em] sm:text-3xl">
+              Centre de publication Marketplace
             </h1>
-            <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-300 sm:text-base">
-              Choisissez un véhicule. Suivia Auto prépare la fiche, ouvre
-              Facebook et remplit les champs. Vous vérifiez, puis vous publiez.
+            <p className="mt-2 max-w-2xl text-sm leading-5 text-slate-300">
+              Choisissez une auto, laissez Suivia remplir l’annonce, puis
+              vérifiez et publiez dans Facebook.
             </p>
           </div>
 
@@ -688,9 +741,9 @@ function ListingsContent() {
               </span>
               <Gauge size={18} className="text-[#79b7ff]" />
             </div>
-            <div className="mt-3 flex items-end justify-between gap-4">
+            <div className="mt-2 flex items-end justify-between gap-4">
               <div>
-                <p className="text-4xl font-black tabular-nums">
+                <p className="text-3xl font-black tabular-nums">
                   {formatNumber(counts.prepare)}
                 </p>
                 <p className="text-xs text-slate-400">véhicules publiables</p>
@@ -704,38 +757,6 @@ function ListingsContent() {
             </div>
           </div>
         </div>
-
-        <ol className="relative mt-7 grid gap-2 border-t border-white/10 pt-5 sm:grid-cols-3">
-          {[
-            ["01", "Choisir l’auto", "Recherchez par stock, NIV ou modèle."],
-            [
-              "02",
-              extensionConnected
-                ? "Laisser Suivia Auto remplir"
-                : "Préparer automatiquement",
-              extensionConnected
-                ? "Champs et photo sont envoyés à Facebook."
-                : "Contenu copié et photo téléchargée.",
-            ],
-            [
-              "03",
-              "Cliquer sur Publier",
-              "La confirmation finale reste dans Facebook.",
-            ],
-          ].map(([number, title, detail]) => (
-            <li key={number} className="flex gap-3 rounded-xl px-2 py-2">
-              <span className="mt-0.5 font-mono text-xs font-bold text-[#f1d77f]">
-                {number}
-              </span>
-              <div>
-                <p className="text-sm font-bold">{title}</p>
-                <p className="mt-0.5 text-xs leading-5 text-slate-400">
-                  {detail}
-                </p>
-              </div>
-            </li>
-          ))}
-        </ol>
       </header>
 
       <div className="rounded-2xl border border-[#b9d5f5] bg-[#edf6ff] px-4 py-3 text-sm text-[#0b315c]">
@@ -1171,6 +1192,17 @@ function ListingsContent() {
                       copyText("description", listingPackage.description)
                     }
                   />
+                  <button
+                    type="button"
+                    className="btn-secondary w-full justify-center sm:w-auto"
+                    onClick={() => void improveDescription()}
+                    disabled={generatingDescription}
+                  >
+                    <Sparkles size={16} className="mr-2" />
+                    {generatingDescription
+                      ? "Rédaction en cours…"
+                      : "Améliorer pour mon profil"}
+                  </button>
                   <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950">
                     <h3 className="font-bold">Champs préparés pour Facebook</h3>
                     <div className="mt-3 grid gap-x-6 gap-y-2 sm:grid-cols-2">

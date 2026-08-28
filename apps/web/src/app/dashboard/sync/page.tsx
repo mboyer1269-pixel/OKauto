@@ -330,33 +330,36 @@ function SyncHealthContent() {
         </div>
 
         <div className="card">
-          <h2 className="font-semibold mb-4">Importations récentes</h2>
-          {data.recentJobs.length === 0 ? (
+          <h2 className="font-semibold mb-4">Synchronisations récentes</h2>
+          {data.recentRuns.length === 0 ? (
             <p className="text-sm text-slate-500">
-              Aucune importation pour le moment.
+              Aucune synchronisation pour le moment.
             </p>
           ) : (
             <div className="space-y-2">
-              {data.recentJobs.map((j) => (
+              {data.recentRuns.map((run) => (
                 <div
-                  key={j.id}
+                  key={run.id}
                   className="flex justify-between text-sm border-b pb-2"
                 >
                   <div>
-                    <span className="font-medium">{j.source}</span>
-                    <span className="text-slate-500 ml-2">
-                      par {j.user.name}
-                    </span>
+                    <span className="font-medium">{run.syncSource.name}</span>
                     <p className="text-xs text-slate-500">
-                      {j.successCount} réussie(s) · {j.errorCount} erreur(s)
+                      {run.successCount}/{run.receivedCount} véhicule(s) ·{" "}
+                      {run.errorCount} erreur(s) · {run.soldCount} retiré(s)
                     </p>
+                    {run.error && (
+                      <p className="mt-1 max-w-sm text-xs text-amber-700">
+                        {run.error}
+                      </p>
+                    )}
                   </div>
                   <div className="text-right">
-                    <span className={getStatusBadgeClass(j.status)}>
-                      {formatStatus(j.status)}
+                    <span className={getStatusBadgeClass(run.status)}>
+                      {formatStatus(run.status)}
                     </span>
                     <p className="text-xs text-slate-500">
-                      {formatDateTime(j.createdAt)}
+                      {formatDateTime(run.startedAt)}
                     </p>
                   </div>
                 </div>

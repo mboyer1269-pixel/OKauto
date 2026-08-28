@@ -424,6 +424,9 @@ describe("API route handlers", () => {
     expect(listing?.externalUrl).toBe(
       "https://www.facebook.com/marketplace/item/123456789",
     );
+    expect(listing?.titleAtListing).toContain("2025 GMC Terrain");
+    expect(listing?.descriptionAtListing).toContain("Michael Boyer");
+    expect(listing?.photoUrlsAtListing).toEqual([]);
   });
 
   it("keeps publication history private while sharing the same inventory", async () => {

@@ -21,6 +21,7 @@ export interface VehiclePayload {
   trim?: string;
   mileage?: number;
   price?: number;
+  title?: string;
   description?: string;
   contactName?: string;
   dealershipName?: string;
@@ -221,14 +222,20 @@ async function attachVehiclePhotos(
     return { attached: 0, requested: 0 };
 
   const requested = Math.min(vehicle.photos?.length ?? 0, 20);
-  const responses = await Promise.all(
-    Array.from({ length: requested }, (_, index) =>
-      sendRuntimeMessage<PhotoResponse>({
-        type: "GET_VEHICLE_PHOTO",
-        vehicleId: vehicle.id,
-        index,
-      }).catch(() => ({ success: false })),
-    ),
+  const responses: PhotoResponse[] = Array.from({ length: requested });
+  let nextPhoto = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(3, requested) }, async () => {
+      while (nextPhoto < requested) {
+        const index = nextPhoto;
+        nextPhoto += 1;
+        responses[index] = await sendRuntimeMessage<PhotoResponse>({
+          type: "GET_VEHICLE_PHOTO",
+          vehicleId: vehicle.id,
+          index,
+        }).catch(() => ({ success: false }));
+      }
+    }),
   );
   const files = responses
     .map((response, index) =>
@@ -362,13 +369,15 @@ async function fillForm(
   const errors: string[] = [];
   const selectors = SELECTORS.v1;
 
-  const title = generateMarketplaceTitle({
-    year: vehicle.year,
-    make: vehicle.make,
-    model: vehicle.model,
-    trim: vehicle.trim,
-    mileage: vehicle.mileage,
-  });
+  const title =
+    vehicle.title?.trim() ||
+    generateMarketplaceTitle({
+      year: vehicle.year,
+      make: vehicle.make,
+      model: vehicle.model,
+      trim: vehicle.trim,
+      mileage: vehicle.mileage,
+    });
 
   if (
     await selectComboboxOption(
@@ -708,6 +717,10 @@ async function prepareMarketplaceForm(
   vehicle: VehiclePayload,
   startedAt: number,
 ) {
+  mountAssistBanner(
+    vehicle,
+    `Préparation de l’annonce et des ${Math.min(vehicle.photos?.length ?? 0, 20)} photo(s)…`,
+  );
   const fillResult = await fillForm(vehicle);
   showPreparationBanner(vehicle, fillResult);
   watchForPublishedListing(vehicle, startedAt);

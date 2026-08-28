@@ -8,6 +8,7 @@ interface MarketplaceVehicle {
   trim?: string | null;
   mileage?: number | null;
   price?: number | null;
+  title?: string | null;
   description?: string | null;
   contactName?: string | null;
   dealershipName?: string | null;

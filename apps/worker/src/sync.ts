@@ -15,6 +15,15 @@ export async function runSyncSource(syncSourceId: string): Promise<SyncResult> {
   });
   if (!source) throw new Error("Sync source not found");
 
+  const startedAt = new Date();
+  const syncRun = await prisma.syncRun.create({
+    data: {
+      organizationId: source.organizationId,
+      syncSourceId: source.id,
+      startedAt,
+    },
+  });
+
   try {
     const { body, contentType, expectedCount } = await fetchSyncInventory(
       source.url,
@@ -91,6 +100,8 @@ export async function runSyncSource(syncSourceId: string): Promise<SyncResult> {
             condition: v.condition,
             status,
             soldAt: status === "SOLD" ? new Date() : null,
+            lastSeenAt: startedAt,
+            missingSyncCount: 0,
           },
           update: {
             syncSourceId: source.id,
@@ -115,6 +126,8 @@ export async function runSyncSource(syncSourceId: string): Promise<SyncResult> {
             condition: v.condition,
             status,
             soldAt: status === "SOLD" ? new Date() : null,
+            lastSeenAt: startedAt,
+            missingSyncCount: 0,
           },
         });
 
@@ -163,12 +176,37 @@ export async function runSyncSource(syncSourceId: string): Promise<SyncResult> {
         make: true,
         model: true,
         assignedToId: true,
+        missingSyncCount: true,
       },
     });
 
-    if (missingVehicles.length > 0) {
+    const trackedActiveCount = await prisma.vehicle.count({
+      where: {
+        syncSourceId: source.id,
+        status: { in: ["AVAILABLE", "PENDING"] },
+      },
+    });
+    const missingSafetyLimit = Math.max(
+      10,
+      Math.ceil(trackedActiveCount * 0.25),
+    );
+    const anomalousDrop = missingVehicles.length > missingSafetyLimit;
+    const confirmedMissingVehicles = anomalousDrop
+      ? []
+      : missingVehicles.filter((vehicle) => vehicle.missingSyncCount >= 1);
+
+    if (!anomalousDrop && missingVehicles.length > 0) {
+      await prisma.vehicle.updateMany({
+        where: { id: { in: missingVehicles.map((vehicle) => vehicle.id) } },
+        data: { missingSyncCount: { increment: 1 } },
+      });
+    }
+
+    if (confirmedMissingVehicles.length > 0) {
       const soldAt = new Date();
-      const missingVehicleIds = missingVehicles.map((vehicle) => vehicle.id);
+      const missingVehicleIds = confirmedMissingVehicles.map(
+        (vehicle) => vehicle.id,
+      );
       await prisma.vehicle.updateMany({
         where: { id: { in: missingVehicleIds } },
         data: { status: "SOLD", soldAt },
@@ -181,36 +219,77 @@ export async function runSyncSource(syncSourceId: string): Promise<SyncResult> {
         },
         data: { status: "STALE", lastCheckedAt: soldAt },
       });
-      await notifySoldVehicles(source.organizationId, missingVehicles);
+      await notifySoldVehicles(source.organizationId, confirmedMissingVehicles);
     }
 
-    await prisma.syncSource.update({
-      where: { id: syncSourceId },
-      data: {
-        lastSyncAt: new Date(),
-        lastSyncStatus:
-          errorCount > 0 && successCount === 0 ? "error" : "success",
-        lastSyncError:
-          errorCount > 0 ? `${errorCount} vehicle(s) failed to sync` : null,
-      },
-    });
+    const runStatus = anomalousDrop
+      ? "DEGRADED"
+      : errorCount > 0
+        ? successCount === 0
+          ? "FAILED"
+          : "PARTIAL"
+        : "SUCCESS";
+    const runError = anomalousDrop
+      ? `Safety stop: ${missingVehicles.length} of ${trackedActiveCount} active vehicles disappeared from one feed response`
+      : errorCount > 0
+        ? `${errorCount} vehicle(s) failed to sync`
+        : null;
+    const completedAt = new Date();
+
+    await prisma.$transaction([
+      prisma.syncSource.update({
+        where: { id: syncSourceId },
+        data: {
+          lastSyncAt: completedAt,
+          lastSyncStatus: runStatus.toLowerCase(),
+          lastSyncError: runError,
+        },
+      }),
+      prisma.syncRun.update({
+        where: { id: syncRun.id },
+        data: {
+          status: runStatus,
+          expectedCount,
+          receivedCount: vehicles.length,
+          successCount,
+          errorCount,
+          priceChanges,
+          soldCount: confirmedMissingVehicles.length,
+          durationMs: completedAt.getTime() - startedAt.getTime(),
+          error: runError,
+          completedAt,
+        },
+      }),
+    ]);
 
     return {
       synced: successCount,
       errors: errorCount,
       priceChanges,
-      sold: missingVehicles.length,
+      sold: confirmedMissingVehicles.length,
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    await prisma.syncSource.update({
-      where: { id: syncSourceId },
-      data: {
-        lastSyncAt: new Date(),
-        lastSyncStatus: "error",
-        lastSyncError: message,
-      },
-    });
+    const completedAt = new Date();
+    await prisma.$transaction([
+      prisma.syncSource.update({
+        where: { id: syncSourceId },
+        data: {
+          lastSyncAt: completedAt,
+          lastSyncStatus: "error",
+          lastSyncError: message,
+        },
+      }),
+      prisma.syncRun.update({
+        where: { id: syncRun.id },
+        data: {
+          status: "FAILED",
+          error: message,
+          durationMs: completedAt.getTime() - startedAt.getTime(),
+          completedAt,
+        },
+      }),
+    ]);
     throw err;
   }
 }
@@ -401,6 +480,7 @@ interface MissingVehicle {
   make: string | null;
   model: string | null;
   assignedToId: string | null;
+  missingSyncCount: number;
 }
 
 async function notifySoldVehicles(

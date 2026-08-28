@@ -76,6 +76,9 @@ function VehicleDetail() {
       isPrimary: boolean;
     }>) ?? [];
   const listings = (vehicle.listings as Array<Record<string, unknown>>) ?? [];
+  const marketplaceDraft = (
+    vehicle.marketplaceDrafts as Array<{ description: string }> | undefined
+  )?.[0];
 
   return (
     <div>
@@ -179,7 +182,8 @@ function VehicleDetail() {
           <div className="card">
             <h2 className="font-semibold mb-3">Description</h2>
             <p className="text-sm whitespace-pre-wrap">
-              {(vehicle.description as string) ??
+              {marketplaceDraft?.description ??
+                (vehicle.description as string) ??
                 "Aucune description pour le moment."}
             </p>
           </div>

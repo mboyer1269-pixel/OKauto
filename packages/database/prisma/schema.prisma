@@ -65,14 +65,15 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  memberships      OrganizationMember[]
-  refreshTokens    RefreshToken[]
-  assignedVehicles Vehicle[]            @relation("AssignedTo")
-  listings         Listing[]
-  notifications    Notification[]
-  auditLogs        AuditLog[]
-  apiKeys          ApiKey[]
-  importJobs       ImportJob[]
+  memberships       OrganizationMember[]
+  refreshTokens     RefreshToken[]
+  assignedVehicles  Vehicle[]            @relation("AssignedTo")
+  listings          Listing[]
+  marketplaceDrafts MarketplaceDraft[]
+  notifications     Notification[]
+  auditLogs         AuditLog[]
+  apiKeys           ApiKey[]
+  importJobs        ImportJob[]
 
   @@map("users")
 }
@@ -91,14 +92,16 @@ model Organization {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  members       OrganizationMember[]
-  vehicles      Vehicle[]
-  listings      Listing[]
-  syncSources   SyncSource[]
-  importJobs    ImportJob[]
-  auditLogs     AuditLog[]
-  apiKeys       ApiKey[]
-  refreshTokens RefreshToken[]
+  members           OrganizationMember[]
+  vehicles          Vehicle[]
+  listings          Listing[]
+  marketplaceDrafts MarketplaceDraft[]
+  syncSources       SyncSource[]
+  importJobs        ImportJob[]
+  syncRuns          SyncRun[]
+  auditLogs         AuditLog[]
+  apiKeys           ApiKey[]
+  refreshTokens     RefreshToken[]
 
   @@map("organizations")
 }
@@ -119,44 +122,47 @@ model OrganizationMember {
 }
 
 model Vehicle {
-  id             String        @id @default(cuid())
-  organizationId String
-  assignedToId   String?
-  syncSourceId   String?
-  sourceUrl      String?
-  vin            String?
-  stockNumber    String?
-  year           Int?
-  make           String?
-  model          String?
-  trim           String?
-  bodyStyle      String?
-  exteriorColor  String?
-  interiorColor  String?
-  mileage        Int?
-  price          Decimal?      @db.Decimal(12, 2)
-  msrp           Decimal?      @db.Decimal(12, 2)
-  description    String?       @db.Text
-  features       String[]      @default([])
-  status         VehicleStatus @default(AVAILABLE)
-  fuelType       String?
-  transmission   String?
-  drivetrain     String?
-  engine         String?
-  doors          Int?
-  cylinders      Int?
-  condition      String?       @default("Used")
-  location       String?
-  notes          String?       @db.Text
-  soldAt         DateTime?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  id               String        @id @default(cuid())
+  organizationId   String
+  assignedToId     String?
+  syncSourceId     String?
+  sourceUrl        String?
+  vin              String?
+  stockNumber      String?
+  year             Int?
+  make             String?
+  model            String?
+  trim             String?
+  bodyStyle        String?
+  exteriorColor    String?
+  interiorColor    String?
+  mileage          Int?
+  price            Decimal?      @db.Decimal(12, 2)
+  msrp             Decimal?      @db.Decimal(12, 2)
+  description      String?       @db.Text
+  features         String[]      @default([])
+  status           VehicleStatus @default(AVAILABLE)
+  fuelType         String?
+  transmission     String?
+  drivetrain       String?
+  engine           String?
+  doors            Int?
+  cylinders        Int?
+  condition        String?       @default("Used")
+  location         String?
+  notes            String?       @db.Text
+  soldAt           DateTime?
+  lastSeenAt       DateTime?
+  missingSyncCount Int           @default(0)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
 
-  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  assignedTo   User?          @relation("AssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
-  syncSource   SyncSource?    @relation(fields: [syncSourceId], references: [id], onDelete: SetNull)
-  photos       VehiclePhoto[]
-  listings     Listing[]
+  organization      Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assignedTo        User?              @relation("AssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+  syncSource        SyncSource?        @relation(fields: [syncSourceId], references: [id], onDelete: SetNull)
+  photos            VehiclePhoto[]
+  listings          Listing[]
+  marketplaceDrafts MarketplaceDraft[]
 
   @@unique([organizationId, vin])
   @@index([organizationId, status])
@@ -181,21 +187,24 @@ model VehiclePhoto {
 }
 
 model Listing {
-  id             String        @id @default(cuid())
-  organizationId String
-  vehicleId      String
-  userId         String
-  status         ListingStatus @default(ACTIVE)
-  platform       String        @default("facebook_marketplace")
-  externalUrl    String?
-  externalId     String?
-  listedAt       DateTime      @default(now())
-  removedAt      DateTime?
-  lastCheckedAt  DateTime?
-  priceAtListing Decimal?      @db.Decimal(12, 2)
-  notes          String?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  id                   String        @id @default(cuid())
+  organizationId       String
+  vehicleId            String
+  userId               String
+  status               ListingStatus @default(ACTIVE)
+  platform             String        @default("facebook_marketplace")
+  externalUrl          String?
+  externalId           String?
+  listedAt             DateTime      @default(now())
+  removedAt            DateTime?
+  lastCheckedAt        DateTime?
+  priceAtListing       Decimal?      @db.Decimal(12, 2)
+  titleAtListing       String?
+  descriptionAtListing String?       @db.Text
+  photoUrlsAtListing   String[]      @default([])
+  notes                String?
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
 
   organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   vehicle      Vehicle        @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
@@ -206,6 +215,30 @@ model Listing {
   @@index([userId])
   @@index([vehicleId])
   @@map("listings")
+}
+
+model MarketplaceDraft {
+  id               String   @id @default(cuid())
+  organizationId   String
+  vehicleId        String
+  userId           String
+  platform         String   @default("facebook_marketplace")
+  title            String
+  description      String   @db.Text
+  photoOrder       String[] @default([])
+  generationSource String   @default("template")
+  dataSnapshot     Json?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  vehicle      Vehicle      @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId, vehicleId, platform])
+  @@index([userId, updatedAt])
+  @@index([vehicleId])
+  @@map("marketplace_drafts")
 }
 
 model ListingEvent {
@@ -278,9 +311,34 @@ model SyncSource {
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   vehicles     Vehicle[]
+  runs         SyncRun[]
 
   @@index([organizationId])
   @@map("sync_sources")
+}
+
+model SyncRun {
+  id             String    @id @default(cuid())
+  organizationId String
+  syncSourceId   String
+  status         String    @default("PROCESSING")
+  expectedCount  Int?
+  receivedCount  Int       @default(0)
+  successCount   Int       @default(0)
+  errorCount     Int       @default(0)
+  priceChanges   Int       @default(0)
+  soldCount      Int       @default(0)
+  durationMs     Int?
+  error          String?   @db.Text
+  startedAt      DateTime  @default(now())
+  completedAt    DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  syncSource   SyncSource   @relation(fields: [syncSourceId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, startedAt])
+  @@index([syncSourceId, startedAt])
+  @@map("sync_runs")
 }
 
 model ApiKey {

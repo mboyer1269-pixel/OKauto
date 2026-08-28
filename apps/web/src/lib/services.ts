@@ -8,7 +8,7 @@ export async function generateVehicleDescription(
   vehicleId: string,
   organizationId: string,
   userId?: string,
-): Promise<string> {
+): Promise<{ description: string; source: "ai" | "template" }> {
   const [vehicle, salesperson] = await Promise.all([
     prisma.vehicle.findFirst({
       where: { id: vehicleId, organizationId },
@@ -91,37 +91,40 @@ export async function generateVehicleDescription(
       if (response.ok) {
         const data = await response.json();
         const content = data.choices?.[0]?.message?.content;
-        if (content) return content;
+        if (content) return { description: content, source: "ai" };
       }
     } catch (err) {
       console.warn("OpenAI generation failed, using template:", err);
     }
   }
 
-  return generateTemplateDescription({
-    year: vehicle.year,
-    make: vehicle.make,
-    model: vehicle.model,
-    trim: vehicle.trim,
-    mileage: vehicle.mileage,
-    price: vehicle.price ? Number(vehicle.price) : null,
-    exteriorColor: vehicle.exteriorColor,
-    interiorColor: vehicle.interiorColor,
-    transmission: vehicle.transmission,
-    fuelType: vehicle.fuelType,
-    drivetrain: vehicle.drivetrain,
-    engine: vehicle.engine,
-    bodyStyle: vehicle.bodyStyle,
-    condition: vehicle.condition,
-    features: vehicle.features,
-    dealershipName: vehicle.organization.name,
-    contactName,
-    phone: vehicle.organization.phone ?? undefined,
-    vin: vehicle.vin,
-    stockNumber: vehicle.stockNumber,
-    sourceUrl: vehicle.sourceUrl,
-    location: vehicle.location,
-  });
+  return {
+    description: generateTemplateDescription({
+      year: vehicle.year,
+      make: vehicle.make,
+      model: vehicle.model,
+      trim: vehicle.trim,
+      mileage: vehicle.mileage,
+      price: vehicle.price ? Number(vehicle.price) : null,
+      exteriorColor: vehicle.exteriorColor,
+      interiorColor: vehicle.interiorColor,
+      transmission: vehicle.transmission,
+      fuelType: vehicle.fuelType,
+      drivetrain: vehicle.drivetrain,
+      engine: vehicle.engine,
+      bodyStyle: vehicle.bodyStyle,
+      condition: vehicle.condition,
+      features: vehicle.features,
+      dealershipName: vehicle.organization.name,
+      contactName,
+      phone: vehicle.organization.phone ?? undefined,
+      vin: vehicle.vin,
+      stockNumber: vehicle.stockNumber,
+      sourceUrl: vehicle.sourceUrl,
+      location: vehicle.location,
+    }),
+    source: "template",
+  };
 }
 
 export async function notifySoldVehicle(
