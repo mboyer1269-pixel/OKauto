@@ -94,7 +94,8 @@ test.describe("Suivia Auto", () => {
     const vehicleHeading = dialog.getByRole("heading", { level: 2 });
     const firstVehicleName = await vehicleHeading.innerText();
     await dialog
-      .getByText("Voir ou copier le contenu de l’annonce", { exact: true })
+      .locator("summary")
+      .filter({ hasText: "Voir ou copier le contenu de l’annonce" })
       .click();
 
     const title = dialog.getByLabel("Titre", { exact: true });
