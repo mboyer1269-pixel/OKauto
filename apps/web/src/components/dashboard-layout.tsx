@@ -38,9 +38,8 @@ const navItems: Array<{
   { href: "/dashboard/settings", label: "Paramètres", icon: Settings },
   {
     href: "/dashboard/api-keys",
-    label: "Clés API",
+    label: "Mon extension",
     icon: Key,
-    minRole: "MANAGER",
   },
   {
     href: "/dashboard/audit",

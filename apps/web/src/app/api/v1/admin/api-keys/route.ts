@@ -5,7 +5,7 @@ import { generateApiKey, hashToken } from '@/lib/auth';
 
 export const GET = withAuth(async (_request, { auth }) => {
   const keys = await prisma.apiKey.findMany({
-    where: { organizationId: auth.orgId },
+    where: { organizationId: auth.orgId, userId: auth.sub },
     select: {
       id: true,
       name: true,
@@ -21,31 +21,28 @@ export const GET = withAuth(async (_request, { auth }) => {
   return jsonResponse(keys);
 });
 
-export const POST = withAuth(
-  async (request, { auth }) => {
-    const body = await parseBody<unknown>(request);
-    const data = createApiKeySchema.parse(body);
+export const POST = withAuth(async (request, { auth }) => {
+  const body = await parseBody<unknown>(request);
+  const data = createApiKeySchema.parse(body);
 
-    const rawKey = generateApiKey();
-    const keyHash = hashToken(rawKey);
+  const rawKey = generateApiKey();
+  const keyHash = hashToken(rawKey);
 
-    const apiKey = await prisma.apiKey.create({
-      data: {
-        organizationId: auth.orgId,
-        userId: auth.sub,
-        name: data.name,
-        keyHash,
-        keyPrefix: rawKey.slice(0, 12),
-      },
-    });
+  const apiKey = await prisma.apiKey.create({
+    data: {
+      organizationId: auth.orgId,
+      userId: auth.sub,
+      name: data.name,
+      keyHash,
+      keyPrefix: rawKey.slice(0, 12),
+    },
+  });
 
-    return jsonResponse({
-      id: apiKey.id,
-      name: apiKey.name,
-      key: rawKey,
-      keyPrefix: apiKey.keyPrefix,
-      message: 'Save this key now. It will not be shown again.',
-    }, 201);
-  },
-  { minRole: 'MANAGER' }
-);
+  return jsonResponse({
+    id: apiKey.id,
+    name: apiKey.name,
+    key: rawKey,
+    keyPrefix: apiKey.keyPrefix,
+    message: 'Save this key now. It will not be shown again.',
+  }, 201);
+});

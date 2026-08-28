@@ -139,7 +139,7 @@ function ApiKeysContent() {
               </p>
             </div>
             <h1 className="brand-display mt-3 text-3xl font-black tracking-[-0.04em] sm:text-4xl">
-              Connecter un poste de vente
+              Connecter mon poste de vente
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
               Une clé par ordinateur. Elle permet à l’extension de lire votre
@@ -274,7 +274,7 @@ function ApiKeysContent() {
               id="key-list-title"
               className="text-lg font-black text-[#071426]"
             >
-              Postes autorisés
+              Mes postes autorisés
             </h2>
             <p className="mt-1 text-sm text-slate-500">
               Révoquez une clé si un ordinateur change de propriétaire.

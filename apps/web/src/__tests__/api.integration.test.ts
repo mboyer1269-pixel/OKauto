@@ -14,6 +14,11 @@ import { GET as dashboardHandler } from "@/app/api/v1/analytics/dashboard/route"
 import { GET as healthHandler } from "@/app/api/health/route";
 import { GET as extensionInventoryHandler } from "@/app/api/v1/extension/route";
 import { POST as extensionEventHandler } from "@/app/api/v1/extension/events/route";
+import {
+  GET as apiKeysHandler,
+  POST as createApiKeyHandler,
+} from "@/app/api/v1/admin/api-keys/route";
+import { DELETE as revokeApiKeyHandler } from "@/app/api/v1/admin/api-keys/[id]/route";
 import { POST as inviteMemberHandler } from "@/app/api/v1/organizations/members/route";
 import { PATCH as updateMemberHandler } from "@/app/api/v1/organizations/members/[id]/route";
 import { hashToken } from "@/lib/auth";
@@ -475,17 +480,33 @@ describe("API route handlers", () => {
     const salesperson = await prisma.user.findUniqueOrThrow({
       where: { email: invitedMemberEmail },
     });
-    const salespersonApiKey = `okauto_test_salesperson_${Date.now()}`;
-    const storedSalespersonApiKey = await prisma.apiKey.create({
-      data: {
-        organizationId: dealerOrganizationId,
-        userId: salesperson.id,
-        name: "Salesperson extension isolation test",
-        keyHash: hashToken(salespersonApiKey),
-        keyPrefix: salespersonApiKey.slice(0, 12),
-      },
-    });
-    salespersonExtensionApiKeyId = storedSalespersonApiKey.id;
+    const createApiKeyResponse = await createApiKeyHandler(
+      makeRequest("http://localhost/api/v1/admin/api-keys", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${salespersonAccessToken}`,
+        },
+        body: JSON.stringify({ name: "Chrome — poste du vendeur" }),
+      }),
+      { params: Promise.resolve({}) },
+    );
+    const salespersonApiKeyData = await createApiKeyResponse.json();
+    expect(createApiKeyResponse.status).toBe(201);
+    const salespersonApiKey = salespersonApiKeyData.key as string;
+    salespersonExtensionApiKeyId = salespersonApiKeyData.id;
+
+    const ownerKeysResponse = await apiKeysHandler(
+      makeRequest("http://localhost/api/v1/admin/api-keys", {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      }),
+      { params: Promise.resolve({}) },
+    );
+    const ownerKeys = await ownerKeysResponse.json();
+    expect(
+      ownerKeys.some(
+        (key: { id: string }) => key.id === salespersonExtensionApiKeyId,
+      ),
+    ).toBe(false);
 
     const extensionInventoryBefore = await extensionInventoryHandler(
       makeRequest("http://localhost/api/v1/extension", {
@@ -587,6 +608,18 @@ describe("API route handlers", () => {
       { params: Promise.resolve({ id: ownerListing.id }) },
     );
     expect(unauthorizedUpdate.status).toBe(404);
+
+    const unauthorizedRevoke = await revokeApiKeyHandler(
+      makeRequest(
+        `http://localhost/api/v1/admin/api-keys/${salespersonExtensionApiKeyId}`,
+        {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${accessToken}` },
+        },
+      ),
+      { params: Promise.resolve({ id: salespersonExtensionApiKeyId }) },
+    );
+    expect(unauthorizedRevoke.status).toBe(404);
 
     const activeListings = await prisma.listing.findMany({
       where: {
