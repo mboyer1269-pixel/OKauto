@@ -68,6 +68,76 @@ test.describe("Suivia Auto", () => {
     await expect(page.getByRole("heading", { name: "Photos" })).toBeVisible();
   });
 
+  test("personal Marketplace draft can be edited, saved, and advanced", async ({
+    page,
+  }) => {
+    const pageErrors: string[] = [];
+    page.on("pageerror", (error) => pageErrors.push(error.message));
+
+    await page.goto("/login");
+    await page.fill('input[type="email"]', "owner@demo.okauto.local");
+    await page.fill('input[type="password"]', "Demo1234!");
+    await page.click('button[type="submit"]');
+    await page.waitForURL("**/dashboard**", { timeout: 15000 });
+    await page.goto("/dashboard/listings");
+
+    await expect(
+      page.getByRole("heading", { name: "Centre de publication Marketplace" }),
+    ).toBeVisible();
+    await page
+      .getByRole("button", { name: "Publier", exact: true })
+      .first()
+      .click();
+
+    const dialog = page.getByRole("dialog", { name: "Préparer l’annonce" });
+    await expect(dialog).toBeVisible();
+    const firstVehicleName = await dialog.getByRole("heading").innerText();
+    await dialog
+      .getByText("Voir ou copier le contenu de l’annonce", { exact: true })
+      .click();
+
+    const title = dialog.getByLabel("Titre", { exact: true });
+    await expect(title).toBeEditable();
+    const originalTitle = await title.inputValue();
+    await title.fill(`${originalTitle.slice(0, 80)} essai`);
+
+    await expect(dialog.getByText("Publication bloquée")).toBeVisible();
+    const save = dialog.getByRole("button", {
+      name: "Enregistrer",
+      exact: true,
+    });
+    await expect(save).toBeEnabled();
+
+    const saveResponse = page.waitForResponse(
+      (response) =>
+        response.url().includes("/marketplace-draft") &&
+        response.request().method() === "PUT",
+    );
+    await save.click();
+    expect((await saveResponse).status()).toBe(200);
+    await expect(
+      page.getByText(
+        "Brouillon enregistré pour votre profil et prêt pour l’extension.",
+      ),
+    ).toBeVisible();
+    await expect(
+      dialog.getByRole("link", { name: "Publier sur Marketplace" }),
+    ).not.toHaveAttribute("aria-disabled", "true");
+
+    await title.fill(`${originalTitle.slice(0, 76)} suivant`);
+    const nextResponse = page.waitForResponse(
+      (response) =>
+        response.url().includes("/marketplace-draft") &&
+        response.request().method() === "PUT",
+    );
+    await dialog
+      .getByRole("button", { name: "Enregistrer et suivant" })
+      .click();
+    expect((await nextResponse).status()).toBe(200);
+    await expect(dialog.getByRole("heading")).not.toHaveText(firstVehicleName);
+    expect(pageErrors).toEqual([]);
+  });
+
   test("health endpoint returns ok", async ({ request }) => {
     const response = await request.get("/api/health");
     expect(response.ok()).toBeTruthy();
