@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   CheckCircle2,
+  Building2,
   Copy,
   Eye,
   EyeOff,
@@ -50,7 +51,7 @@ export default function TeamPage() {
 }
 
 function TeamContent() {
-  const { apiFetch, role } = useAuth();
+  const { apiFetch, organization, role } = useAuth();
   const [members, setMembers] = useState<Member[]>([]);
   const [showInvite, setShowInvite] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -264,8 +265,8 @@ function TeamContent() {
                   {createdMember.action === "reset"
                     ? "Toutes les anciennes sessions ont été fermées. Copiez ce nouveau mot de passe temporaire et transmettez-le de façon sécuritaire."
                     : createdMember.temporaryPassword
-                      ? "Copiez les accès et transmettez-les à la personne de façon sécuritaire."
-                      : "Ce courriel avait déjà un compte Suivia Auto; son mot de passe actuel demeure valide."}
+                      ? `Son compte est rattaché à ${organization?.name ?? "votre concession"} et tout l’inventaire est prêt. Copiez les accès et transmettez-les de façon sécuritaire.`
+                      : `Ce courriel avait déjà un compte Suivia Auto. Son mot de passe actuel demeure valide; à sa prochaine connexion, ${organization?.name ?? "votre concession"} et son inventaire s’ouvriront automatiquement.`}
                 </p>
                 <div className="mt-3 rounded-xl border border-emerald-200 bg-white/80 px-4 py-3 font-mono text-sm text-slate-800">
                   <p>{createdMember.email}</p>
@@ -296,6 +297,36 @@ function TeamContent() {
         </section>
       )}
 
+      <section className="overflow-hidden rounded-2xl border border-blue-200 bg-white shadow-sm">
+        <div className="flex flex-col gap-4 border-l-4 border-blue-700 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <div className="flex items-start gap-3">
+            <div className="rounded-xl bg-blue-50 p-2.5 text-blue-700">
+              <Building2 size={21} />
+            </div>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.14em] text-blue-700">
+                Inventaire partagé
+              </p>
+              <h2 className="mt-1 font-bold text-slate-950">
+                Une équipe, un seul inventaire Buckingham
+              </h2>
+              <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600">
+                Chaque personne ajoutée ici est automatiquement rattachée à{" "}
+                {organization?.name ?? "la concession"}. Elle voit tout
+                l’inventaire synchronisé dès sa prochaine connexion, avec son
+                propre nom sur ses descriptions et ses publications.
+              </p>
+            </div>
+          </div>
+          <div className="shrink-0 rounded-xl bg-slate-950 px-4 py-3 text-sm text-white">
+            <p className="font-semibold">Accès automatique</p>
+            <p className="mt-0.5 text-xs text-slate-300">
+              Inventaire · Publications · Photos
+            </p>
+          </div>
+        </div>
+      </section>
+
       {showInvite && (
         <form onSubmit={handleInvite} className="card max-w-2xl p-5 sm:p-6">
           <div className="flex items-start gap-3">
@@ -307,8 +338,9 @@ function TeamContent() {
                 Créer un accès pour un membre
               </h2>
               <p className="mt-1 text-sm leading-5 text-slate-600">
-                La personne pourra se connecter avec son courriel et le mot de
-                passe temporaire ci-dessous.
+                La personne sera ajoutée à{" "}
+                {organization?.name ?? "votre concession"} et verra tout
+                l’inventaire dès sa connexion avec les accès ci-dessous.
               </p>
             </div>
           </div>

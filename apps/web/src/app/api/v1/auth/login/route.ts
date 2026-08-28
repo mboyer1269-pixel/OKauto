@@ -23,7 +23,9 @@ export async function POST(request: NextRequest) {
       where: { email: data.email },
       include: {
         memberships: {
+          where: { organization: { isActive: true } },
           include: { organization: true },
+          orderBy: [{ joinedAt: "desc" }, { id: "desc" }],
           take: 1,
         },
       },
