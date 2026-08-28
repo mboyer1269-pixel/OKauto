@@ -91,7 +91,8 @@ test.describe("Suivia Auto", () => {
 
     const dialog = page.getByRole("dialog", { name: "Préparer l’annonce" });
     await expect(dialog).toBeVisible();
-    const firstVehicleName = await dialog.getByRole("heading").innerText();
+    const vehicleHeading = dialog.getByRole("heading", { level: 2 });
+    const firstVehicleName = await vehicleHeading.innerText();
     await dialog
       .getByText("Voir ou copier le contenu de l’annonce", { exact: true })
       .click();
@@ -134,7 +135,7 @@ test.describe("Suivia Auto", () => {
       .getByRole("button", { name: "Enregistrer et suivant" })
       .click();
     expect((await nextResponse).status()).toBe(200);
-    await expect(dialog.getByRole("heading")).not.toHaveText(firstVehicleName);
+    await expect(vehicleHeading).not.toHaveText(firstVehicleName);
     expect(pageErrors).toEqual([]);
   });
 
