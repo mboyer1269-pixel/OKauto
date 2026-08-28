@@ -7,6 +7,7 @@ import {
   ArrowUpRight,
   Check,
   CheckCircle2,
+  ChevronRight,
   Clipboard,
   Copy,
   Download,
@@ -19,6 +20,7 @@ import {
   RefreshCw,
   Search,
   ShieldCheck,
+  Save,
   Sparkles,
   Zap,
   X,
@@ -57,10 +59,18 @@ interface Vehicle {
   photos: Array<{ url: string; isPrimary: boolean }>;
   listings: Array<{ id: string; status: string }>;
   marketplaceDrafts?: Array<{
+    id?: string;
     title: string;
     description: string;
     photoOrder: string[];
+    updatedAt?: string;
   }>;
+}
+
+interface DraftEdit {
+  vehicleId: string;
+  title: string;
+  description: string;
 }
 
 interface Listing {
@@ -161,6 +171,9 @@ function ListingsContent() {
   const [saving, setSaving] = useState(false);
   const [downloadingPhotos, setDownloadingPhotos] = useState(false);
   const [generatingDescription, setGeneratingDescription] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [draftEdit, setDraftEdit] = useState<DraftEdit | null>(null);
+  const [savedDraft, setSavedDraft] = useState<DraftEdit | null>(null);
   const [launchingMarketplace, setLaunchingMarketplace] = useState(false);
   const [extensionConnected, setExtensionConnected] = useState(false);
   const [message, setMessage] = useState("");
@@ -433,6 +446,13 @@ function ListingsContent() {
       .filter(Boolean)
       .some((value) => String(value).toLowerCase().includes(normalizedSearch)),
   );
+  const selectedReadyIndex = selected
+    ? filteredReady.findIndex((vehicle) => vehicle.id === selected.id)
+    : -1;
+  const nextReadyVehicle =
+    selectedReadyIndex >= 0
+      ? (filteredReady[selectedReadyIndex + 1] ?? null)
+      : (filteredReady[0] ?? null);
 
   const counts: Record<Queue, number> = {
     prepare: allReadyTotal,
@@ -455,16 +475,33 @@ function ListingsContent() {
         .join(", "),
     });
     const draft = selected.marketplaceDrafts?.[0];
-    return draft
-      ? {
-          ...generated,
-          title: draft.title || generated.title,
-          description: draft.description || generated.description,
-        }
-      : generated;
-  }, [organization, selected, user?.name]);
+    const activeEdit =
+      draftEdit?.vehicleId === selected.id ? draftEdit : undefined;
+    return {
+      ...generated,
+      title: activeEdit ? activeEdit.title : draft?.title || generated.title,
+      description: activeEdit
+        ? activeEdit.description
+        : draft?.description || generated.description,
+    };
+  }, [draftEdit, organization, selected, user?.name]);
+  const draftDirty = Boolean(
+    selected &&
+    draftEdit?.vehicleId === selected.id &&
+    savedDraft?.vehicleId === selected.id &&
+    (draftEdit.title !== savedDraft.title ||
+      draftEdit.description !== savedDraft.description),
+  );
+  const draftContentReady = Boolean(
+    listingPackage &&
+    listingPackage.title.trim().length >= 5 &&
+    listingPackage.description.trim().length >= 80,
+  );
   const marketplaceReady = Boolean(
-    listingPackage?.isReady && selected?.photos.length,
+    listingPackage?.isReady &&
+    selected?.photos.length &&
+    draftContentReady &&
+    !draftDirty,
   );
 
   const copyText = async (label: string, value: string) => {
@@ -497,7 +534,25 @@ function ListingsContent() {
       if (!response.ok) {
         throw new Error(data.error ?? "Impossible de préparer ce véhicule.");
       }
-      setSelected(data as Vehicle);
+      const vehicle = data as Vehicle;
+      const generated = generateMarketplacePackage({
+        ...vehicle,
+        dealershipName: organization.name,
+        contactName: user?.name || MARKETPLACE_CONTACT_NAME,
+        phone: organization.phone ?? undefined,
+        location: [organization.address, organization.city, organization.state]
+          .filter(Boolean)
+          .join(", "),
+      });
+      const personalDraft = vehicle.marketplaceDrafts?.[0];
+      const initialDraft = {
+        vehicleId: vehicle.id,
+        title: personalDraft?.title || generated.title,
+        description: personalDraft?.description || generated.description,
+      };
+      setDraftEdit(initialDraft);
+      setSavedDraft(initialDraft);
+      setSelected(vehicle);
     } catch (prepareError) {
       setError(
         prepareError instanceof Error
@@ -572,6 +627,13 @@ function ListingsContent() {
       setSelected((current) =>
         current ? { ...current, marketplaceDrafts: [data.draft] } : current,
       );
+      const generatedDraft = {
+        vehicleId: selected.id,
+        title: data.draft.title,
+        description: data.draft.description,
+      };
+      setDraftEdit(generatedDraft);
+      setSavedDraft(generatedDraft);
       setMessage(
         "Description personnalisée créée pour votre profil. Elle sera utilisée par l’extension.",
       );
@@ -583,6 +645,66 @@ function ListingsContent() {
       );
     } finally {
       setGeneratingDescription(false);
+    }
+  };
+
+  const saveMarketplaceDraft = async (advanceToNext = false) => {
+    if (!selected || !draftEdit || draftEdit.vehicleId !== selected.id) return;
+    const title = draftEdit.title.trim();
+    const description = draftEdit.description.trim();
+    if (title.length < 5) {
+      setError("Le titre doit contenir au moins 5 caractères.");
+      return;
+    }
+    if (description.length < 80) {
+      setError("La description doit contenir au moins 80 caractères.");
+      return;
+    }
+
+    setSavingDraft(true);
+    setError("");
+    try {
+      const response = await apiFetch(
+        `/api/v1/vehicles/${selected.id}/marketplace-draft`,
+        {
+          method: "PUT",
+          body: JSON.stringify({
+            title,
+            description,
+            photoOrder: selected.photos.map((photo) => photo.url).slice(0, 20),
+          }),
+        },
+      );
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.draft) {
+        throw new Error(
+          data.error ?? "Le brouillon n’a pas pu être enregistré.",
+        );
+      }
+
+      const saved = { vehicleId: selected.id, title, description };
+      setDraftEdit(saved);
+      setSavedDraft(saved);
+      setSelected((current) =>
+        current ? { ...current, marketplaceDrafts: [data.draft] } : current,
+      );
+
+      if (advanceToNext && nextReadyVehicle) {
+        setMessage("Brouillon enregistré. Véhicule suivant chargé.");
+        await prepareVehicle(nextReadyVehicle.id);
+      } else {
+        setMessage(
+          "Brouillon enregistré pour votre profil et prêt pour l’extension.",
+        );
+      }
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : "Le brouillon n’a pas pu être enregistré.",
+      );
+    } finally {
+      setSavingDraft(false);
     }
   };
 
@@ -1022,6 +1144,8 @@ function ListingsContent() {
                 onClick={() => {
                   setSelected(null);
                   setExternalUrl("");
+                  setDraftEdit(null);
+                  setSavedDraft(null);
                 }}
                 aria-label="Fermer la fiche"
               >
@@ -1049,6 +1173,17 @@ function ListingsContent() {
                     ))}
                     {selected.photos.length === 0 && (
                       <li>Au moins une photo est requise.</li>
+                    )}
+                    {draftDirty && (
+                      <li>
+                        Enregistrez vos modifications avant d’ouvrir Facebook.
+                      </li>
+                    )}
+                    {!draftContentReady && (
+                      <li>
+                        Le titre doit avoir au moins 5 caractères et la
+                        description au moins 80 caractères.
+                      </li>
                     )}
                   </ul>
                 </div>
@@ -1162,9 +1297,17 @@ function ListingsContent() {
                   </span>
                 </summary>
                 <div className="space-y-5 border-t border-slate-200 p-4 sm:p-5">
-                  <CopyField
+                  <EditableDraftField
                     label="Titre"
                     value={listingPackage.title}
+                    maxLength={100}
+                    onChange={(title) =>
+                      setDraftEdit((current) =>
+                        current && current.vehicleId === selected.id
+                          ? { ...current, title }
+                          : current,
+                      )
+                    }
                     copied={copied === "title"}
                     onCopy={() => copyText("title", listingPackage.title)}
                   />
@@ -1183,26 +1326,80 @@ function ListingsContent() {
                       )
                     }
                   />
-                  <CopyField
+                  <EditableDraftField
                     label="Description"
                     value={listingPackage.description}
                     multiline
+                    maxLength={5000}
+                    onChange={(description) =>
+                      setDraftEdit((current) =>
+                        current && current.vehicleId === selected.id
+                          ? { ...current, description }
+                          : current,
+                      )
+                    }
                     copied={copied === "description"}
                     onCopy={() =>
                       copyText("description", listingPackage.description)
                     }
                   />
-                  <button
-                    type="button"
-                    className="btn-secondary w-full justify-center sm:w-auto"
-                    onClick={() => void improveDescription()}
-                    disabled={generatingDescription}
-                  >
-                    <Sparkles size={16} className="mr-2" />
-                    {generatingDescription
-                      ? "Rédaction en cours…"
-                      : "Améliorer pour mon profil"}
-                  </button>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 sm:flex sm:items-center sm:justify-between sm:gap-4">
+                    <div className="mb-3 sm:mb-0">
+                      <p
+                        className={cn(
+                          "text-sm font-bold",
+                          draftDirty ? "text-amber-800" : "text-emerald-700",
+                        )}
+                      >
+                        {draftDirty
+                          ? "Modifications non enregistrées"
+                          : "Enregistré pour votre profil"}
+                      </p>
+                      <p className="mt-0.5 text-xs leading-5 text-slate-500">
+                        L’extension utilisera cette version pour votre compte
+                        seulement.
+                      </p>
+                    </div>
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <button
+                        type="button"
+                        className="btn-secondary justify-center"
+                        onClick={() => void improveDescription()}
+                        disabled={generatingDescription || savingDraft}
+                      >
+                        <Sparkles size={16} className="mr-2" />
+                        {generatingDescription
+                          ? "Rédaction en cours…"
+                          : "Améliorer"}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-secondary justify-center"
+                        onClick={() => void saveMarketplaceDraft()}
+                        disabled={savingDraft || !draftDirty}
+                      >
+                        <Save size={16} className="mr-2" />
+                        {savingDraft ? "Enregistrement…" : "Enregistrer"}
+                      </button>
+                      {nextReadyVehicle && (
+                        <button
+                          type="button"
+                          className="btn-primary justify-center"
+                          onClick={() => void saveMarketplaceDraft(true)}
+                          disabled={savingDraft}
+                        >
+                          {savingDraft ? (
+                            "Enregistrement…"
+                          ) : (
+                            <>
+                              Enregistrer et suivant
+                              <ChevronRight size={16} className="ml-2" />
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  </div>
                   <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950">
                     <h3 className="font-bold">Champs préparés pour Facebook</h3>
                     <div className="mt-3 grid gap-x-6 gap-y-2 sm:grid-cols-2">
@@ -1520,6 +1717,66 @@ function CopyField({
         />
       ) : (
         <input className="input bg-white" readOnly value={value} />
+      )}
+    </div>
+  );
+}
+
+function EditableDraftField({
+  label,
+  value,
+  multiline = false,
+  maxLength,
+  copied,
+  onChange,
+  onCopy,
+}: {
+  label: string;
+  value: string;
+  multiline?: boolean;
+  maxLength: number;
+  copied: boolean;
+  onChange: (value: string) => void;
+  onCopy: () => void;
+}) {
+  const inputId = `marketplace-${label.toLowerCase()}`;
+
+  return (
+    <div>
+      <div className="mb-1.5 flex items-center justify-between gap-3">
+        <label className="text-sm font-bold text-slate-900" htmlFor={inputId}>
+          {label}
+        </label>
+        <div className="flex items-center gap-2">
+          <span className="text-xs tabular-nums text-slate-500">
+            {value.length}/{maxLength}
+          </span>
+          <button
+            type="button"
+            className="btn-secondary px-3 py-1.5"
+            onClick={onCopy}
+          >
+            {copied ? <Check size={14} /> : <Copy size={14} />}
+            <span className="ml-1.5">{copied ? "Copié" : "Copier"}</span>
+          </button>
+        </div>
+      </div>
+      {multiline ? (
+        <textarea
+          id={inputId}
+          className="input min-h-72 resize-y bg-white leading-6"
+          value={value}
+          maxLength={maxLength}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      ) : (
+        <input
+          id={inputId}
+          className="input bg-white"
+          value={value}
+          maxLength={maxLength}
+          onChange={(event) => onChange(event.target.value)}
+        />
       )}
     </div>
   );

@@ -10,6 +10,7 @@ import {
   isFacebookMarketplaceItemUrl,
   loginSchema,
   registerSchema,
+  updateMarketplaceDraftSchema,
 } from "../index";
 import { isValidVinFormat, normalizeVin } from "../vin";
 
@@ -164,6 +165,29 @@ describe("listing schema", () => {
         "https://evilfacebook.com/marketplace/item/123456",
       ),
     ).toBe(false);
+  });
+});
+
+describe("Marketplace draft schema", () => {
+  it("accepts a complete salesperson draft", () => {
+    const draft = updateMarketplaceDraftSchema.parse({
+      title: "2025 GMC Terrain — prêt pour la route",
+      description:
+        "Voici mon GMC Terrain 2025 disponible dès maintenant. Écrivez-moi sur Messenger pour obtenir tous les détails et réserver votre essai routier personnalisé.",
+      photoOrder: ["https://example.com/terrain.jpg"],
+    });
+
+    expect(draft.title).toContain("GMC Terrain");
+    expect(draft.photoOrder).toHaveLength(1);
+  });
+
+  it("rejects descriptions too short for a useful Marketplace ad", () => {
+    expect(() =>
+      updateMarketplaceDraftSchema.parse({
+        title: "2025 GMC Terrain",
+        description: "Disponible dès maintenant.",
+      }),
+    ).toThrow();
   });
 });
 

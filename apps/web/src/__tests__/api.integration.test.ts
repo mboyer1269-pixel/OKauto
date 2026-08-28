@@ -5,6 +5,7 @@ import { POST as loginHandler } from "@/app/api/v1/auth/login/route";
 import { GET as currentUserHandler } from "@/app/api/v1/auth/me/route";
 import { GET as vehiclesHandler } from "@/app/api/v1/vehicles/route";
 import { GET as vehicleDetailsHandler } from "@/app/api/v1/vehicles/[id]/route";
+import { PUT as updateMarketplaceDraftHandler } from "@/app/api/v1/vehicles/[id]/marketplace-draft/route";
 import {
   GET as listingsHandler,
   POST as createListingHandler,
@@ -13,6 +14,7 @@ import { PATCH as updateListingHandler } from "@/app/api/v1/listings/[id]/route"
 import { GET as dashboardHandler } from "@/app/api/v1/analytics/dashboard/route";
 import { GET as healthHandler } from "@/app/api/health/route";
 import { GET as extensionInventoryHandler } from "@/app/api/v1/extension/route";
+import { GET as extensionVehicleHandler } from "@/app/api/v1/extension/vehicles/[id]/route";
 import { POST as extensionEventHandler } from "@/app/api/v1/extension/events/route";
 import {
   GET as apiKeysHandler,
@@ -185,6 +187,39 @@ describe("API route handlers", () => {
     expect(data.user.name).toBe("Michael Boyer");
     expect(data.role).toBe("OWNER");
     expect(data.organization.id).toBeTruthy();
+  });
+
+  it("saves a Marketplace draft only for the authenticated salesperson", async () => {
+    const title = "2025 GMC Terrain — prêt pour la route";
+    const description =
+      "Voici mon GMC Terrain 2025 disponible dès maintenant. Écrivez-moi sur Messenger ou demandez Michael Boyer directement à la concession pour tous les détails.";
+    const response = await updateMarketplaceDraftHandler(
+      makeRequest(
+        `http://localhost/api/v1/vehicles/${extensionVehicleId}/marketplace-draft`,
+        {
+          method: "PUT",
+          headers: { Authorization: `Bearer ${accessToken}` },
+          body: JSON.stringify({ title, description, photoOrder: [] }),
+        },
+      ),
+      { params: Promise.resolve({ id: extensionVehicleId }) },
+    );
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.draft.title).toBe(title);
+    expect(data.draft.description).toBe(description);
+    expect(data.draft.generationSource).toBe("manual");
+
+    const ownerDetails = await vehicleDetailsHandler(
+      makeRequest(`http://localhost/api/v1/vehicles/${extensionVehicleId}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      }),
+      { params: Promise.resolve({ id: extensionVehicleId }) },
+    );
+    const ownerVehicle = await ownerDetails.json();
+    expect(ownerVehicle.marketplaceDrafts).toHaveLength(1);
+    expect(ownerVehicle.marketplaceDrafts[0].title).toBe(title);
   });
 
   it("lets the owner add a sales team member with a temporary password", async () => {
@@ -483,6 +518,51 @@ describe("API route handlers", () => {
     const salesperson = await prisma.user.findUniqueOrThrow({
       where: { email: invitedMemberEmail },
     });
+    const salespersonDraftTitle = "GMC Terrain 2025 — sélection de Marie";
+    const salespersonDraftDescription =
+      "Je vous présente ce GMC Terrain 2025 disponible chez nous. Écrivez-moi directement sur Messenger pour obtenir les détails et planifier votre essai routier personnalisé.";
+    const salespersonDraftResponse = await updateMarketplaceDraftHandler(
+      makeRequest(
+        `http://localhost/api/v1/vehicles/${extensionVehicleId}/marketplace-draft`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${salespersonAccessToken}`,
+          },
+          body: JSON.stringify({
+            title: salespersonDraftTitle,
+            description: salespersonDraftDescription,
+          }),
+        },
+      ),
+      { params: Promise.resolve({ id: extensionVehicleId }) },
+    );
+    expect(salespersonDraftResponse.status).toBe(200);
+
+    const salespersonDraftDetails = await vehicleDetailsHandler(
+      makeRequest(`http://localhost/api/v1/vehicles/${extensionVehicleId}`, {
+        headers: {
+          Authorization: `Bearer ${salespersonAccessToken}`,
+        },
+      }),
+      { params: Promise.resolve({ id: extensionVehicleId }) },
+    );
+    const salespersonDraftVehicle = await salespersonDraftDetails.json();
+    expect(salespersonDraftVehicle.marketplaceDrafts[0].title).toBe(
+      salespersonDraftTitle,
+    );
+
+    const ownerDraftDetails = await vehicleDetailsHandler(
+      makeRequest(`http://localhost/api/v1/vehicles/${extensionVehicleId}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      }),
+      { params: Promise.resolve({ id: extensionVehicleId }) },
+    );
+    const ownerDraftVehicle = await ownerDraftDetails.json();
+    expect(ownerDraftVehicle.marketplaceDrafts[0].title).toBe(
+      "2025 GMC Terrain — prêt pour la route",
+    );
+
     const createApiKeyResponse = await createApiKeyHandler(
       makeRequest("http://localhost/api/v1/admin/api-keys", {
         method: "POST",
@@ -497,6 +577,20 @@ describe("API route handlers", () => {
     expect(createApiKeyResponse.status).toBe(201);
     const salespersonApiKey = salespersonApiKeyData.key as string;
     salespersonExtensionApiKeyId = salespersonApiKeyData.id;
+
+    const extensionDraftResponse = await extensionVehicleHandler(
+      makeRequest(
+        `http://localhost/api/v1/extension/vehicles/${extensionVehicleId}`,
+        { headers: { "X-API-Key": salespersonApiKey } },
+      ) as never,
+      { params: Promise.resolve({ id: extensionVehicleId }) },
+    );
+    const extensionDraftData = await extensionDraftResponse.json();
+    expect(extensionDraftResponse.status).toBe(200);
+    expect(extensionDraftData.vehicle.title).toBe(salespersonDraftTitle);
+    expect(extensionDraftData.vehicle.description).toBe(
+      salespersonDraftDescription,
+    );
 
     const ownerKeysResponse = await apiKeysHandler(
       makeRequest("http://localhost/api/v1/admin/api-keys", {
@@ -516,8 +610,7 @@ describe("API route handlers", () => {
         headers: { "X-API-Key": salespersonApiKey },
       }) as never,
     );
-    const extensionInventoryBeforeData =
-      await extensionInventoryBefore.json();
+    const extensionInventoryBeforeData = await extensionInventoryBefore.json();
     const extensionVehicleBefore = extensionInventoryBeforeData.vehicles.find(
       (vehicle: { id: string }) => vehicle.id === extensionVehicleId,
     );
@@ -545,8 +638,7 @@ describe("API route handlers", () => {
         body: JSON.stringify({
           vehicleId: extensionVehicleId,
           platform: "facebook_marketplace",
-          externalUrl:
-            "https://www.facebook.com/marketplace/item/987654321",
+          externalUrl: "https://www.facebook.com/marketplace/item/987654321",
         }),
       }),
       { params: Promise.resolve({}) },
@@ -580,14 +672,11 @@ describe("API route handlers", () => {
     ).toBe(false);
 
     const salespersonVehicleDetails = await vehicleDetailsHandler(
-      makeRequest(
-        `http://localhost/api/v1/vehicles/${extensionVehicleId}`,
-        {
-          headers: {
-            Authorization: `Bearer ${salespersonAccessToken}`,
-          },
+      makeRequest(`http://localhost/api/v1/vehicles/${extensionVehicleId}`, {
+        headers: {
+          Authorization: `Bearer ${salespersonAccessToken}`,
         },
-      ),
+      }),
       { params: Promise.resolve({ id: extensionVehicleId }) },
     );
     const salespersonVehicleData = await salespersonVehicleDetails.json();
@@ -598,16 +687,13 @@ describe("API route handlers", () => {
     ).toEqual([salespersonListing.id]);
 
     const unauthorizedUpdate = await updateListingHandler(
-      makeRequest(
-        `http://localhost/api/v1/listings/${ownerListing.id}`,
-        {
-          method: "PATCH",
-          headers: {
-            Authorization: `Bearer ${salespersonAccessToken}`,
-          },
-          body: JSON.stringify({ status: "REMOVED" }),
+      makeRequest(`http://localhost/api/v1/listings/${ownerListing.id}`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${salespersonAccessToken}`,
         },
-      ),
+        body: JSON.stringify({ status: "REMOVED" }),
+      }),
       { params: Promise.resolve({ id: ownerListing.id }) },
     );
     expect(unauthorizedUpdate.status).toBe(404);

@@ -141,6 +141,12 @@ export const updateListingSchema = z.object({
   removedAt: z.string().datetime().optional().nullable(),
 });
 
+export const updateMarketplaceDraftSchema = z.object({
+  title: z.string().trim().min(5).max(100),
+  description: z.string().trim().min(80).max(5000),
+  photoOrder: z.array(z.string().url()).max(20).optional(),
+});
+
 // Extension event schema
 export const extensionEventSchema = z.object({
   eventType: z.enum([
@@ -195,6 +201,9 @@ export type LoginInput = z.infer<typeof loginSchema>;
 export type CreateVehicleInput = z.infer<typeof createVehicleSchema>;
 export type UpdateVehicleInput = z.infer<typeof updateVehicleSchema>;
 export type CreateListingInput = z.infer<typeof createListingSchema>;
+export type UpdateMarketplaceDraftInput = z.infer<
+  typeof updateMarketplaceDraftSchema
+>;
 export type ExtensionEventInput = z.infer<typeof extensionEventSchema>;
 
 // Sync source schemas
