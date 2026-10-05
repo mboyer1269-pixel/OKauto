@@ -84,6 +84,7 @@ test.describe("Suivia Auto", () => {
     await expect(
       page.getByRole("heading", { name: "Centre de publication Marketplace" }),
     ).toBeVisible();
+    await page.getByRole("tab", { name: /À préparer/ }).click();
     await page
       .getByRole("button", { name: "Publier", exact: true })
       .first()
