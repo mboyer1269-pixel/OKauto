@@ -1,3 +1,5 @@
+type Env = NodeJS.ProcessEnv | Record<string, string | undefined>;
+
 function parseTrustProxyFlag(value: string | undefined): boolean | null {
   const normalized = value?.trim().toLowerCase();
   if (normalized === "true" || normalized === "1") return true;
@@ -5,10 +7,10 @@ function parseTrustProxyFlag(value: string | undefined): boolean | null {
   return null;
 }
 
-export function isTrustedProxyEnabled(): boolean {
-  const explicit = parseTrustProxyFlag(process.env["TRUST_PROXY"]);
+export function isTrustedProxyEnabled(env: Env = process.env): boolean {
+  const explicit = parseTrustProxyFlag(env["TRUST_PROXY"]);
   if (explicit !== null) return explicit;
-  return process.env.NODE_ENV === "production";
+  return env.NODE_ENV === "production";
 }
 
 function isPlausibleIp(value: string): boolean {
@@ -18,8 +20,8 @@ function isPlausibleIp(value: string): boolean {
   return /^[0-9a-fA-F:.]+$/.test(value);
 }
 
-export function getClientIp(request: Request): string {
-  if (isTrustedProxyEnabled()) {
+export function getClientIp(request: Request, env: Env = process.env): string {
+  if (isTrustedProxyEnabled(env)) {
     const forwarded = request.headers.get("x-forwarded-for");
     if (forwarded) {
       const candidate = forwarded.split(",")[0]?.trim();
