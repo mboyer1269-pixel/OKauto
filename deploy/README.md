@@ -122,7 +122,7 @@ Le déploiement SSH n’autorise que `deploy <sha>`. Après un merge qui change 
 ## Rollback (applicatif seulement)
 
 - Automatique : si le health check SHA échoue, `deploy.sh` re-tire le SHA dans `.deployed` depuis GHCR et relance web/worker. **Le schéma SQL n’est pas annulé.**
-- Manuel : Actions → **Deploy** → `Run workflow` → champ `sha` = ancien SHA (7–40 hex, résolu en 40 après checkout).
+- Manuel : Actions → **Deploy** → `Run workflow` → champ `sha` = ancien SHA (7–40 hex, **ancêtre de `origin/main`** — le workflow refuse un SHA de branche).
 - Dernier recours : restaurer le dump pré-deploy — procédure manuelle dans `RUNBOOK.md`.
 
 Toute migration livrée avec un SHA doit rester compatible avec le SHA précédent (expand/contract). Voir `packages/database/prisma/MIGRATIONS.md`. CI : `scripts/check-destructive-migrations.sh`.

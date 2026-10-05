@@ -47,7 +47,9 @@ jobs:
         run: pnpm typecheck
 
       - name: Expand/contract — reject unapproved destructive SQL
-        run: bash scripts/check-destructive-migrations.sh
+        run: |
+          bash scripts/check-destructive-migrations.sh
+          bash scripts/check-destructive-migrations.test.sh
 
   test:
     runs-on: ubuntu-latest
@@ -265,10 +267,14 @@ jobs:
           docker rm -f okauto-web-ci okauto-worker-ci
 
   e2e:
+    # Playwright boots `next dev` from source (playwright.config.ts webServer).
+    # It does not use the images built by `images`, so this job stays
+    # independent: a docker-smoke failure must not skip browser tests.
+    # Keep `images` as a required branch-protection check instead.
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: [quality, test]
-    if: github.event_name == 'push' || github.base_ref == 'main'
+    if: github.event_name == 'push' || github.base_ref == 'main''
     services:
       postgres:
         image: postgres:16-alpine

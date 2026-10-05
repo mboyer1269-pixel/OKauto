@@ -46,6 +46,14 @@ compose() {
   docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" "$@"
 }
 
+# Data plane must be up before dump, rehearsal, migrate, and
+# `up --no-deps web worker` (first cutover or after a full `down`).
+# Never `docker compose down -v`: that deletes postgres_data / redis_data.
+ensure_data_plane() {
+  echo "ensuring postgres and redis are up (never down -v)"
+  compose up -d --wait postgres redis
+}
+
 previous_sha=""
 if [[ -f "$STATE_FILE" ]]; then
   previous_sha="$(tr -d '[:space:]' <"$STATE_FILE")"
@@ -97,6 +105,7 @@ rollback() {
   echo "last resort: restore the pre-deploy dump from ${BACKUP_DIR} — see deploy/RUNBOOK.md" >&2
   export APP_VERSION="$previous_sha"
   protect_previous_from_prune "$previous_sha"
+  ensure_data_plane
   compose up -d --no-deps --wait web worker || compose up -d --no-deps web worker
   wait_for_health "$previous_sha" || true
 }
@@ -152,6 +161,8 @@ trap 'echo "deploy failed for ${SHA}" >&2; rollback || true' ERR
 
 echo "deploy ${SHA} (previous=${previous_sha:-none})"
 
+ensure_data_plane
+
 "${ROOT}/scripts/backup.sh" --label "pre-deploy-${SHA:0:12}"
 
 if [[ "$previous_sha" =~ ^[0-9a-f]{40}$ ]]; then
@@ -164,7 +175,9 @@ docker pull "${WORKER_IMAGE}:${SHA}"
 rehearse_migrate
 
 compose pull web worker migrate
+ensure_data_plane
 compose run --rm migrate
+ensure_data_plane
 compose up -d --no-deps --wait web worker || compose up -d --no-deps web worker
 
 wait_for_health "$SHA"

@@ -54,6 +54,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ steps.ref.outputs.ref }}
+          fetch-depth: 0
 
       - name: Canonicalize SHA
         id: sha
@@ -61,6 +62,20 @@ jobs:
           SHA="$(git rev-parse HEAD)"
           echo "sha=${SHA}" >> "$GITHUB_OUTPUT"
           echo "Deploying SHA ${SHA}"
+
+      - name: Require dispatch SHA is an ancestor of origin/main
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          set -euo pipefail
+          SHA="$(git rev-parse HEAD)"
+          git fetch --no-tags origin "+refs/heads/main:refs/remotes/origin/main"
+          if ! git merge-base --is-ancestor "$SHA" origin/main; then
+            echo "refused: ${SHA} is not an ancestor of origin/main (no publish/deploy of a branch tip)" >&2
+            git log -1 --oneline "$SHA" >&2 || true
+            git log -1 --oneline origin/main >&2 || true
+            exit 1
+          fi
+          echo "ok: ${SHA} is an ancestor of origin/main"
 
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 

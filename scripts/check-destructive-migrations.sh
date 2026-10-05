@@ -3,16 +3,19 @@
 # same folder contains an ALLOW_DESTRUCTIVE file (explicit override).
 #
 # Policy: expand/contract. New columns/tables are additive. Drops, renames,
-# ALTER TYPE, and SET NOT NULL without a staged default require the override
-# and a documented restore path — automatic image rollback does not undo schema.
+# ALTER TYPE, SET NOT NULL without a staged default, DROP INDEX, and TRUNCATE
+# require the override and a documented restore path — automatic image
+# rollback does not undo schema.
+#
+# Usage: check-destructive-migrations.sh [migrations-dir]
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-MIGRATIONS="$ROOT/packages/database/prisma/migrations"
-pattern='(^|[[:space:]])(DROP[[:space:]]+(TABLE|COLUMN|TYPE)|RENAME[[:space:]]+(COLUMN|TO)|ALTER[[:space:]]+TYPE|ALTER[[:space:]]+COLUMN[[:space:]].*[[:space:]]TYPE|SET[[:space:]]+NOT[[:space:]]+NULL)'
+MIGRATIONS="${1:-${MIGRATIONS_DIR:-$ROOT/packages/database/prisma/migrations}}"
+pattern='(^|[[:space:]])(DROP[[:space:]]+(TABLE|COLUMN|TYPE|INDEX)|TRUNCATE|RENAME[[:space:]]+(COLUMN|TO)|ALTER[[:space:]]+TYPE|ALTER[[:space:]]+COLUMN[[:space:]].*[[:space:]]TYPE|SET[[:space:]]+NOT[[:space:]]+NULL)'
 
 if [[ ! -d "$MIGRATIONS" ]]; then
-  echo "no migrations directory" >&2
+  echo "no migrations directory: $MIGRATIONS" >&2
   exit 1
 fi
 
