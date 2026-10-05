@@ -48,9 +48,9 @@ compose() {
 
 # Data plane must be up before dump, rehearsal, migrate, and
 # `up --no-deps web worker` (first cutover or after a full `down`).
-# Never `docker compose down -v`: that deletes postgres_data / redis_data.
+# Never `docker compose down` (drops the external `okauto` network) or `down -v`.
 ensure_data_plane() {
-  echo "ensuring postgres and redis are up (never down -v)"
+  echo "ensuring postgres and redis are up (never down / down -v)"
   compose up -d --wait postgres redis
 }
 
@@ -107,6 +107,7 @@ rollback() {
   protect_previous_from_prune "$previous_sha"
   ensure_data_plane
   compose up -d --no-deps --wait web worker || compose up -d --no-deps web worker
+  "${ROOT}/scripts/persist-app-version.sh" "$ENV_FILE" "$previous_sha" || true
   wait_for_health "$previous_sha" || true
 }
 
@@ -191,4 +192,5 @@ docker tag "${WEB_IMAGE}:${SHA}" "${WEB_IMAGE}:current"
 docker tag "${WORKER_IMAGE}:${SHA}" "${WORKER_IMAGE}:current"
 
 trap - ERR
+"${ROOT}/scripts/persist-app-version.sh" "$ENV_FILE" "$SHA"
 echo "deployed ${SHA}"

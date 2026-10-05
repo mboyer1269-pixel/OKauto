@@ -125,7 +125,9 @@ services:
       - traefik.http.routers.suivia.middlewares=suivia-www-redirect
       - traefik.http.services.suivia.loadbalancer.server.port=3000
       - traefik.http.services.suivia.loadbalancer.healthcheck.path=/api/health
-      - traefik.http.middlewares.suivia-www-redirect.redirectregex.regex=^https://www\\.suivia\\.ca/(.*)
+      # Quoted: a plain YAML scalar keeps `\\` as two backslashes, so Traefik
+      # never matches www. The rendered regex must be ^https://www\.suivia\.ca/(.*)
+      - "traefik.http.middlewares.suivia-www-redirect.redirectregex.regex=^https://www\\.suivia\\.ca/(.*)"
       - traefik.http.middlewares.suivia-www-redirect.redirectregex.replacement=https://suivia.ca/$${1}
       - traefik.http.middlewares.suivia-www-redirect.redirectregex.permanent=true
       - traefik.http.routers.suivia-http.rule=Host(`suivia.ca`) || Host(`www.suivia.ca`)

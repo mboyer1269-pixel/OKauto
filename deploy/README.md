@@ -71,7 +71,7 @@ Ne supposez pas que l’utilisateur `deploy` existe déjà.
    ```bash
    sudo bash /chemin/deploy/scripts/install-host.sh /chemin/deploy
    ```
-   Ce script crée l’utilisateur `deploy` (hors groupe `docker`, shell `/bin/bash` — OpenSSH exécute la ForcedCommand via le shell ; `nologin` cassait `ssh deploy@… "deploy <sha>"`). Copie compose/scripts, installe sudoers limité à `deploy.sh`, crée le réseau Docker `okauto`.
+   Ce script crée l’utilisateur `deploy` (hors groupe `docker`, shell `/bin/bash` — OpenSSH exécute la ForcedCommand via le shell ; `nologin` cassait `ssh deploy@… "deploy <sha>"`). `/opt/okauto` est **chmod 751** (pas 750) pour que `deploy` traverse jusqu’à `scripts/deploy-gate.sh`. Copie compose/scripts, installe sudoers limité à `deploy.sh`, crée le réseau Docker `okauto`.
 4. Remplir `/opt/okauto/.env` à partir de `.env.prod.example` (`chmod 600`).
    `DATABASE_URL` doit pointer vers l’hôte compose `postgres:5432`, **pas** `127.0.0.1:5433`.
 5. **Ne pas** `docker network connect okauto <traefik>`. Traefik tourne en `network_mode: host` et Docker refuse de l’attacher à un bridge. Traefik atteint déjà les IP du réseau `okauto` ; le label `traefik.docker.network=okauto` suffit. `web` n’expose **aucun** port hôte (identique à la prod actuelle).
