@@ -274,7 +274,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: [quality, test]
-    if: github.event_name == 'push' || github.base_ref == 'main''
+    if: github.event_name == 'push' || github.base_ref == 'main'
     services:
       postgres:
         image: postgres:16-alpine
