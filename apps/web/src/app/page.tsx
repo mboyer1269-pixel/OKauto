@@ -8,6 +8,7 @@ import {
   Users,
 } from "lucide-react";
 import { BrandMark } from "@/components/brand-mark";
+import { isPublicSignupEnabled } from "@/lib/signup";
 
 const workflow = [
   {
@@ -28,6 +29,8 @@ const workflow = [
 ];
 
 export default function HomePage() {
+  const publicSignupEnabled = isPublicSignupEnabled();
+
   return (
     <div className="min-h-screen bg-[#f6faff] text-slate-950">
       <header className="border-b border-slate-200/80 bg-white/90 backdrop-blur">
@@ -37,12 +40,14 @@ export default function HomePage() {
             <Link href="/login" className="btn-secondary">
               Se connecter
             </Link>
-            <Link
-              href="/register"
-              className="btn-primary hidden sm:inline-flex"
-            >
-              Créer un espace
-            </Link>
+            {publicSignupEnabled && (
+              <Link
+                href="/register"
+                className="btn-primary hidden sm:inline-flex"
+              >
+                Créer un espace
+              </Link>
+            )}
           </div>
         </div>
       </header>
@@ -66,17 +71,26 @@ export default function HomePage() {
                 votre équipe.
               </p>
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                <Link
-                  href="/register"
-                  className="btn-primary px-6 py-3 text-base"
-                >
-                  Créer mon espace <ArrowRight className="ml-2" size={19} />
-                </Link>
+                {publicSignupEnabled ? (
+                  <Link
+                    href="/register"
+                    className="btn-primary px-6 py-3 text-base"
+                  >
+                    Créer mon espace <ArrowRight className="ml-2" size={19} />
+                  </Link>
+                ) : null}
                 <Link
                   href="/login"
-                  className="btn-secondary px-6 py-3 text-base"
+                  className={
+                    publicSignupEnabled
+                      ? "btn-secondary px-6 py-3 text-base"
+                      : "btn-primary px-6 py-3 text-base"
+                  }
                 >
                   Accéder à mon inventaire
+                  {!publicSignupEnabled ? (
+                    <ArrowRight className="ml-2" size={19} />
+                  ) : null}
                 </Link>
               </div>
               <div className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm font-semibold text-slate-600">
@@ -211,10 +225,11 @@ export default function HomePage() {
               </h2>
             </div>
             <Link
-              href="/register"
+              href={publicSignupEnabled ? "/register" : "/login"}
               className="btn bg-white px-6 py-3 text-[#07182d] hover:bg-sky-50"
             >
-              Créer un espace <ArrowRight className="ml-2" size={18} />
+              {publicSignupEnabled ? "Créer un espace" : "Se connecter"}{" "}
+              <ArrowRight className="ml-2" size={18} />
             </Link>
           </div>
         </section>

@@ -7,8 +7,11 @@ test.describe("Suivia Auto", () => {
       page.getByRole("heading", { name: /Chaque véhicule/i }),
     ).toBeVisible();
     await expect(
-      page.getByRole("link", { name: /Créer mon espace/i }),
+      page.getByRole("link", { name: /Accéder à mon inventaire/i }),
     ).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: /Créer mon espace/i }),
+    ).toHaveCount(0);
   });
 
   test("login page shows demo credentials", async ({ page }) => {

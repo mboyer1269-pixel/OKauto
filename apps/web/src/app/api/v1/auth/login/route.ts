@@ -13,11 +13,23 @@ import {
   handleApiError,
   parseBody,
 } from "@/lib/api";
+import {
+  clearAuthFailures,
+  enforceAuthRateLimit,
+  recordAuthFailure,
+} from "@/lib/rate-limit";
+
+// Dummy bcrypt hash used when no user exists so compare() still takes a similar time.
+const DUMMY_PASSWORD_HASH =
+  "$2a$12$GeR0Sdv/LqGKs/Sgw40sPe/EV66O3omHonLcXOwfQ1/W3fVIUDRpu";
 
 export async function POST(request: NextRequest) {
   try {
     const body = await parseBody<unknown>(request);
     const data = loginSchema.parse(body);
+
+    const limited = await enforceAuthRateLimit(request, "login", data.email);
+    if (limited) return limited;
 
     const user = await prisma.user.findUnique({
       where: { email: data.email },
@@ -31,12 +43,13 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    if (!user || !user.isActive) {
-      return errorResponse("Courriel ou mot de passe invalide", 401);
-    }
+    const passwordOk = await verifyPassword(
+      data.password,
+      user?.passwordHash ?? DUMMY_PASSWORD_HASH,
+    );
 
-    const valid = await verifyPassword(data.password, user.passwordHash);
-    if (!valid) {
+    if (!user || !user.isActive || !passwordOk) {
+      await recordAuthFailure(request, "login", data.email);
       return errorResponse("Courriel ou mot de passe invalide", 401);
     }
 
@@ -62,6 +75,7 @@ export async function POST(request: NextRequest) {
       action: "LOGIN",
       request,
     });
+    await clearAuthFailures("login", data.email);
 
     const response = jsonResponse({
       user: { id: user.id, email: user.email, name: user.name },
