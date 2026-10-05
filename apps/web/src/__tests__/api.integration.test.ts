@@ -629,7 +629,7 @@ describe("API route handlers", () => {
     );
     expect(unauthorizedExtensionUpdate.status).toBe(404);
 
-    const createResponse = await createListingHandler(
+    const duplicateTeamResponse = await createListingHandler(
       makeRequest("http://localhost/api/v1/listings", {
         method: "POST",
         headers: {
@@ -637,6 +637,55 @@ describe("API route handlers", () => {
         },
         body: JSON.stringify({
           vehicleId: extensionVehicleId,
+          platform: "facebook_marketplace",
+          externalUrl: "https://www.facebook.com/marketplace/item/987654321",
+        }),
+      }),
+      { params: Promise.resolve({}) },
+    );
+    const duplicateTeamBody = await duplicateTeamResponse.json();
+    expect(duplicateTeamResponse.status).toBe(409);
+    expect(duplicateTeamBody.error).toMatch(/Anti-doublon d'équipe/);
+    expect(duplicateTeamBody.error).toMatch(/Michael Boyer/);
+
+    const duplicateExtension = await extensionEventHandler(
+      makeRequest("http://localhost/api/v1/extension/events", {
+        method: "POST",
+        headers: { "X-API-Key": salespersonApiKey },
+        body: JSON.stringify({
+          eventType: "listing_created",
+          vehicleId: extensionVehicleId,
+          metadata: {
+            externalUrl: "https://www.facebook.com/marketplace/item/111222333",
+          },
+        }),
+      }) as never,
+    );
+    expect(duplicateExtension.status).toBe(409);
+
+    const salespersonVehicle = await prisma.vehicle.create({
+      data: {
+        organizationId: dealerOrganizationId,
+        stockNumber: `TEST-SALES-${Date.now()}`,
+        year: 2024,
+        make: "Chevrolet",
+        model: "Trax",
+        mileage: 12000,
+        price: 28995,
+        condition: "Used",
+        sourceUrl: "https://www.buckinghamgm.com/occasion/Chevrolet-Trax-2024.html",
+        status: "AVAILABLE",
+      },
+    });
+
+    const createResponse = await createListingHandler(
+      makeRequest("http://localhost/api/v1/listings", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${salespersonAccessToken}`,
+        },
+        body: JSON.stringify({
+          vehicleId: salespersonVehicle.id,
           platform: "facebook_marketplace",
           externalUrl: "https://www.facebook.com/marketplace/item/987654321",
         }),
@@ -654,7 +703,7 @@ describe("API route handlers", () => {
     );
     const extensionInventoryAfterData = await extensionInventoryAfter.json();
     const extensionVehicleAfter = extensionInventoryAfterData.vehicles.find(
-      (vehicle: { id: string }) => vehicle.id === extensionVehicleId,
+      (vehicle: { id: string }) => vehicle.id === salespersonVehicle.id,
     );
     expect(extensionVehicleAfter?.hasActiveListing).toBe(true);
 
@@ -672,12 +721,12 @@ describe("API route handlers", () => {
     ).toBe(false);
 
     const salespersonVehicleDetails = await vehicleDetailsHandler(
-      makeRequest(`http://localhost/api/v1/vehicles/${extensionVehicleId}`, {
+      makeRequest(`http://localhost/api/v1/vehicles/${salespersonVehicle.id}`, {
         headers: {
           Authorization: `Bearer ${salespersonAccessToken}`,
         },
       }),
-      { params: Promise.resolve({ id: extensionVehicleId }) },
+      { params: Promise.resolve({ id: salespersonVehicle.id }) },
     );
     const salespersonVehicleData = await salespersonVehicleDetails.json();
     expect(
@@ -718,7 +767,7 @@ describe("API route handlers", () => {
       },
     });
     expect(new Set(activeListings.map((listing) => listing.userId)).size).toBe(
-      2,
+      1,
     );
   });
 });

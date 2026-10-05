@@ -2,6 +2,7 @@ import { Worker, Queue } from "bullmq";
 import IORedis from "ioredis";
 import { prisma } from "@okauto/database";
 import { runSyncSource } from "./sync.js";
+import { processRemovalReminders } from "./reminders.js";
 
 const REDIS_URL = process.env.REDIS_URL ?? "redis://localhost:6379";
 
@@ -57,8 +58,8 @@ const syncWorker = new Worker(
           data: {
             userId: m.userId,
             type: "SYNC_ERROR",
-            title: `Sync Failed: ${source.name}`,
-            message: err instanceof Error ? err.message : "Unknown sync error",
+            title: `Synchronisation en échec : ${source.name}`,
+            message: `${err instanceof Error ? err.message : "Erreur inconnue"}. Les retraits et les prix ne sont pas à jour tant que la synchronisation n’est pas rétablie.`,
             metadata: { syncSourceId, url: source.url },
           },
         });
@@ -123,6 +124,10 @@ async function scheduleSyncJobs() {
 
 setInterval(scheduleSyncJobs, 5 * 60 * 1000);
 scheduleSyncJobs().catch(console.error);
+setInterval(() => {
+  processRemovalReminders().catch(console.error);
+}, 60 * 60 * 1000);
+processRemovalReminders().catch(console.error);
 
 process.on("SIGTERM", async () => {
   await importWorker.close();

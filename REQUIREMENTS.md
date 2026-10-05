@@ -260,12 +260,14 @@ Base URL: `/api/v1`
 
 ---
 
-## 9. Demo Credentials (Seed Data)
+## 9. Comptes démo (local / CI seulement)
 
-| Role | Email | Password |
-|------|-------|----------|
-| Owner | owner@demo.okauto.local | Demo1234! |
-| Manager | manager@demo.okauto.local | Demo1234! |
-| Salesperson | sales@demo.okauto.local | Demo1234! |
+Jamais en production. `NODE_ENV=production` bloque le seed sauf `ALLOW_DEMO_SEED=true` sur une base jetable.
 
-Organization: **Demo Motors** (15 sample vehicles)
+| Rôle | Courriel |
+|------|----------|
+| Owner | owner@demo.okauto.local |
+| Manager | manager@demo.okauto.local |
+| Salesperson | sales@demo.okauto.local |
+
+Organisation locale : **Buckingham Chevrolet Buick GMC** (véhicules d’exemple). Le mot de passe n’est imprimé que par `pnpm db:seed`.

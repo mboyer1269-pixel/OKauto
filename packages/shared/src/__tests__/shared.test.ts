@@ -62,7 +62,11 @@ describe("description", () => {
     expect(desc).not.toContain("Écrivez-nous");
     expect(desc).toContain("Référence : stock U1234");
     expect(desc).not.toContain("Quantité disponible");
-    expect(desc).toContain("Aucun frais obligatoire additionnel");
+    expect(desc).toContain("Prix tout inclus :");
+    expect(desc).toContain(
+      "Seules la TPS, la TVQ et, le cas échéant, le droit spécifique sur les pneus neufs s'ajoutent.",
+    );
+    expect(desc).not.toMatch(/^Aucun frais obligatoire additionnel$/m);
   });
 
   it("does not invent missing vehicle details", () => {

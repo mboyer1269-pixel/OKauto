@@ -10,8 +10,9 @@ pnpm start:local
 
 Laissez le terminal ouvert, puis ouvrez <http://localhost:3000>.
 
-- Courriel : `owner@demo.okauto.local`
-- Mot de passe : `Demo1234!`
+## Comptes locaux
+
+Le guide local utilise `owner@demo.okauto.local`. Le mot de passe n’est **pas** destiné à la production : le seed est bloqué lorsque `NODE_ENV=production`.
 
 Le démarrage lance PostgreSQL, Redis, le site, la synchronisation BuckinghamGM et construit l’assistant Chrome.
 
@@ -28,7 +29,16 @@ Le démarrage lance PostgreSQL, Redis, le site, la synchronisation BuckinghamGM 
 
 ## Limite Meta à respecter
 
-Meta indique une limite de cinq nouvelles annonces par mois dans la catégorie Véhicules et ne permet plus aux Pages d’entreprise canadiennes de publier leur inventaire organique comme auparavant. Utilisez Marketplace pour une petite sélection prioritaire; pour diffuser l’ensemble du lot, prévoyez ensuite un catalogue publicitaire Meta officiel.
+Meta a retiré la publication d’inventaire véhicules via les Pages d’entreprise au Canada. Pour Marketplace organique, Suivia affiche un **quota mensuel configurable** (la limite documentée de 5 nouvelles annonces Véhicules n’est **pas confirmée** pour chaque compte canadien). Réglez-la dans **Paramètres**. Une annonce supprimée peut quand même compter : **ne supprimez pas pour republier**. Utilisez le bouton officiel **Renouveler**.
+
+Pour tout le lot (~200 véhicules), la voie officielle est le **catalogue Meta** (Automotive Inventory Ads) : activez le flux CSV dans Paramètres, puis collez le lien dans le Commerce Manager. Suivia ne crée ni ne paie aucune publicité.
+
+## Files du matin
+
+1. **À retirer** — véhicules vendus encore en ligne (relance automatique après 24 h).
+2. **Synchronisation** — véhicules absents du flux à confirmer (aucune vente automatique si le garde-fou détecte une chute anormale).
+3. **Aujourd’hui** — suggestions priorisées, anti-doublon d’équipe, compteur de quota.
+4. **Publiées** — écart de prix inventaire/annonce et renouvellement guidé.
 
 Suivia Auto prépare et suit les annonces. La validation et la publication demeurent humaines.
 

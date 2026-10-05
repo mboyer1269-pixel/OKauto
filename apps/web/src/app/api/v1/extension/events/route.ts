@@ -13,6 +13,10 @@ import {
   handleApiError,
   parseBody,
 } from "@/lib/api";
+import {
+  ListingGuardError,
+  withListingCreateLock,
+} from "@/lib/listing-guards";
 
 export async function POST(request: NextRequest) {
   try {
@@ -47,23 +51,6 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const existing = await prisma.listing.findFirst({
-        where: {
-          organizationId: auth.orgId,
-          vehicleId: data.vehicleId,
-          userId: auth.user.id,
-          platform: "facebook_marketplace",
-          status: "ACTIVE",
-        },
-      });
-      if (existing) {
-        return jsonResponse({
-          listingId: existing.id,
-          success: true,
-          alreadyExists: true,
-        });
-      }
-
       const draft = vehicle.marketplaceDrafts[0];
       const vehicleData = {
         year: vehicle.year,
@@ -90,28 +77,57 @@ export async function POST(request: NextRequest) {
         location: vehicle.location,
       };
 
-      const listing = await prisma.listing.create({
-        data: {
-          organizationId: auth.orgId,
-          vehicleId: data.vehicleId,
-          userId: auth.user.id,
-          externalUrl,
-          priceAtListing: vehicle.price,
-          titleAtListing: draft?.title || generateMarketplaceTitle(vehicleData),
-          descriptionAtListing:
-            draft?.description || generateTemplateDescription(vehicleData),
-          photoUrlsAtListing: draft?.photoOrder.length
-            ? draft.photoOrder
-            : vehicle.photos.map((photo) => photo.url),
-          events: {
-            create: {
-              eventType: data.eventType,
-              metadata: data.metadata as never,
-            },
+      try {
+        const listing = await withListingCreateLock(
+          {
+            organizationId: auth.orgId,
+            userId: auth.user.id,
+            vehicleId: data.vehicleId,
+            platform: "facebook_marketplace",
           },
-        },
-      });
-      return jsonResponse({ listingId: listing.id, success: true });
+          async (tx, { ownActiveId }) => {
+            if (ownActiveId) {
+              return { id: ownActiveId, alreadyExists: true as const };
+            }
+            const created = await tx.listing.create({
+              data: {
+                organizationId: auth.orgId,
+                vehicleId: data.vehicleId,
+                userId: auth.user.id,
+                externalUrl,
+                priceAtListing: vehicle.price,
+                titleAtListing:
+                  draft?.title || generateMarketplaceTitle(vehicleData),
+                descriptionAtListing:
+                  draft?.description || generateTemplateDescription(vehicleData),
+                photoUrlsAtListing: draft?.photoOrder.length
+                  ? draft.photoOrder
+                  : vehicle.photos.map((photo) => photo.url),
+                events: {
+                  create: {
+                    eventType: data.eventType,
+                    metadata: data.metadata as never,
+                  },
+                },
+              },
+            });
+            return { id: created.id, alreadyExists: false as const };
+          },
+        );
+        if (listing.alreadyExists) {
+          return jsonResponse({
+            listingId: listing.id,
+            success: true,
+            alreadyExists: true,
+          });
+        }
+        return jsonResponse({ listingId: listing.id, success: true });
+      } catch (err) {
+        if (err instanceof ListingGuardError) {
+          return jsonResponse({ error: err.message, ...err.extra }, err.status);
+        }
+        throw err;
+      }
     }
 
     if (data.eventType === "listing_removed" && data.listingId) {

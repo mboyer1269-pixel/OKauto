@@ -7,6 +7,7 @@ export interface SyncResult {
   errors: number;
   priceChanges: number;
   sold: number;
+  queuedForReview: number;
 }
 
 export async function runSyncSource(syncSourceId: string): Promise<SyncResult> {
@@ -102,6 +103,8 @@ export async function runSyncSource(syncSourceId: string): Promise<SyncResult> {
             soldAt: status === "SOLD" ? new Date() : null,
             lastSeenAt: startedAt,
             missingSyncCount: 0,
+            feedAbsenceStatus: "IN_FEED",
+            feedAbsenceNotedAt: null,
           },
           update: {
             syncSourceId: source.id,
@@ -128,6 +131,15 @@ export async function runSyncSource(syncSourceId: string): Promise<SyncResult> {
             soldAt: status === "SOLD" ? new Date() : null,
             lastSeenAt: startedAt,
             missingSyncCount: 0,
+            feedAbsenceStatus: "IN_FEED",
+            feedAbsenceNotedAt: null,
+            priceDroppedAt:
+              existing &&
+              oldPrice != null &&
+              newPrice != null &&
+              newPrice < oldPrice
+                ? startedAt
+                : undefined,
           },
         });
 
@@ -177,6 +189,7 @@ export async function runSyncSource(syncSourceId: string): Promise<SyncResult> {
         model: true,
         assignedToId: true,
         missingSyncCount: true,
+        feedAbsenceStatus: true,
       },
     });
 
@@ -184,20 +197,40 @@ export async function runSyncSource(syncSourceId: string): Promise<SyncResult> {
       where: {
         syncSourceId: source.id,
         status: { in: ["AVAILABLE", "PENDING"] },
+        feedAbsenceStatus: "IN_FEED",
       },
     });
     const missingSafetyLimit = Math.max(
       10,
       Math.ceil(trackedActiveCount * 0.25),
     );
-    const anomalousDrop = missingVehicles.length > missingSafetyLimit;
+    const freshMissingVehicles = missingVehicles.filter(
+      (vehicle) => vehicle.feedAbsenceStatus === "IN_FEED",
+    );
+    const anomalousDrop = freshMissingVehicles.length > missingSafetyLimit;
     const confirmedMissingVehicles = anomalousDrop
       ? []
-      : missingVehicles.filter((vehicle) => vehicle.missingSyncCount >= 1);
+      : freshMissingVehicles.filter((vehicle) => vehicle.missingSyncCount >= 1);
+    let queuedForReview = 0;
 
-    if (!anomalousDrop && missingVehicles.length > 0) {
+    if (anomalousDrop && freshMissingVehicles.length > 0) {
+      queuedForReview = freshMissingVehicles.length;
       await prisma.vehicle.updateMany({
-        where: { id: { in: missingVehicles.map((vehicle) => vehicle.id) } },
+        where: { id: { in: freshMissingVehicles.map((vehicle) => vehicle.id) } },
+        data: {
+          feedAbsenceStatus: "PENDING_REVIEW",
+          feedAbsenceNotedAt: startedAt,
+        },
+      });
+      await notifyFeedAbsenceReview(
+        source.organizationId,
+        source.name,
+        freshMissingVehicles.length,
+        trackedActiveCount,
+      );
+    } else if (freshMissingVehicles.length > 0) {
+      await prisma.vehicle.updateMany({
+        where: { id: { in: freshMissingVehicles.map((vehicle) => vehicle.id) } },
         data: { missingSyncCount: { increment: 1 } },
       });
     }
@@ -207,6 +240,14 @@ export async function runSyncSource(syncSourceId: string): Promise<SyncResult> {
       const missingVehicleIds = confirmedMissingVehicles.map(
         (vehicle) => vehicle.id,
       );
+      const activeListings = await prisma.listing.findMany({
+        where: {
+          organizationId: source.organizationId,
+          vehicleId: { in: missingVehicleIds },
+          status: "ACTIVE",
+        },
+        select: { id: true, userId: true, vehicleId: true },
+      });
       await prisma.vehicle.updateMany({
         where: { id: { in: missingVehicleIds } },
         data: { status: "SOLD", soldAt },
@@ -217,22 +258,26 @@ export async function runSyncSource(syncSourceId: string): Promise<SyncResult> {
           vehicleId: { in: missingVehicleIds },
           status: "ACTIVE",
         },
-        data: { status: "STALE", lastCheckedAt: soldAt },
+        data: { status: "STALE", lastCheckedAt: soldAt, staleSince: soldAt },
       });
-      await notifySoldVehicles(source.organizationId, confirmedMissingVehicles);
+      await notifySoldVehicles(
+        source.organizationId,
+        confirmedMissingVehicles,
+        activeListings,
+      );
     }
 
     const runStatus = anomalousDrop
-      ? "DEGRADED"
+      ? "NEEDS_REVIEW"
       : errorCount > 0
         ? successCount === 0
           ? "FAILED"
           : "PARTIAL"
         : "SUCCESS";
     const runError = anomalousDrop
-      ? `Safety stop: ${missingVehicles.length} of ${trackedActiveCount} active vehicles disappeared from one feed response`
+      ? `${freshMissingVehicles.length} véhicules actifs sont absents du flux (sur ${trackedActiveCount} encore suivis). Le garde-fou n’a marqué aucun vendu. Confirmez-les dans Synchronisation.`
       : errorCount > 0
-        ? `${errorCount} vehicle(s) failed to sync`
+        ? `${errorCount} véhicule(s) n’ont pas pu être synchronisés`
         : null;
     const completedAt = new Date();
 
@@ -267,6 +312,7 @@ export async function runSyncSource(syncSourceId: string): Promise<SyncResult> {
       errors: errorCount,
       priceChanges,
       sold: confirmedMissingVehicles.length,
+      queuedForReview,
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
@@ -481,26 +527,58 @@ interface MissingVehicle {
   model: string | null;
   assignedToId: string | null;
   missingSyncCount: number;
+  feedAbsenceStatus?: string;
+}
+
+async function notifyFeedAbsenceReview(
+  organizationId: string,
+  sourceName: string,
+  missingCount: number,
+  trackedActiveCount: number,
+) {
+  const managers = await prisma.organizationMember.findMany({
+    where: { organizationId, role: { in: ["OWNER", "ADMIN", "MANAGER"] } },
+    select: { userId: true },
+  });
+  for (const manager of managers) {
+    await prisma.notification.create({
+      data: {
+        userId: manager.userId,
+        type: "SYNC_ERROR",
+        title: "Véhicules absents du flux à confirmer",
+        message: `La synchro « ${sourceName} » a trouvé ${missingCount} véhicules absents du site (lot suivi : ${trackedActiveCount}). Aucun n’a été marqué vendu. Ouvrez Synchronisation pour confirmer vendu ou garder.`,
+        metadata: { missingCount, trackedActiveCount, sourceName },
+      },
+    });
+  }
 }
 
 async function notifySoldVehicles(
   organizationId: string,
   vehicles: MissingVehicle[],
+  activeListings: Array<{ userId: string; vehicleId: string }>,
 ) {
-  let managerIds: string[] | null = null;
+  const organization = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: { name: true },
+  });
+  const managers = await prisma.organizationMember.findMany({
+    where: { organizationId, role: { in: ["OWNER", "ADMIN", "MANAGER"] } },
+    select: { userId: true },
+  });
+  const managerIds = managers.map((manager) => manager.userId);
 
   for (const vehicle of vehicles) {
-    if (vehicle.assignedToId == null && managerIds == null) {
-      const managers = await prisma.organizationMember.findMany({
-        where: { organizationId, role: { in: ["OWNER", "ADMIN", "MANAGER"] } },
-        select: { userId: true },
-      });
-      managerIds = managers.map((manager) => manager.userId);
+    const publisherIds = activeListings
+      .filter((listing) => listing.vehicleId === vehicle.id)
+      .map((listing) => listing.userId);
+    const recipients = new Set<string>([
+      ...publisherIds,
+      ...(vehicle.assignedToId ? [vehicle.assignedToId] : []),
+    ]);
+    if (recipients.size === 0) {
+      for (const userId of managerIds) recipients.add(userId);
     }
-
-    const recipients = vehicle.assignedToId
-      ? [vehicle.assignedToId]
-      : (managerIds ?? []);
     const title = [vehicle.year, vehicle.make, vehicle.model]
       .filter(Boolean)
       .join(" ");
@@ -509,8 +587,8 @@ async function notifySoldVehicles(
         data: {
           userId,
           type: "SOLD_ALERT",
-          title: "Vehicle Removed From Dealer Inventory",
-          message: `${title || "Vehicle"} (VIN ${vehicle.vin ?? "unknown"}) is no longer present in the dealer feed and was marked sold.`,
+          title: "Véhicule vendu : retirez votre annonce",
+          message: `${title || "Véhicule"} (stock ${vehicle.vin ?? "s. o."}) n’est plus dans l’inventaire de ${organization?.name ?? "la concession"}. Retirez l’annonce sur Facebook, puis confirmez le retrait dans Suivia.`,
           metadata: { vehicleId: vehicle.id, vin: vehicle.vin },
         },
       });
@@ -561,17 +639,41 @@ async function notifyPriceChange(
     where: { organizationId, role: { in: ["OWNER", "ADMIN", "MANAGER"] } },
     select: { userId: true },
   });
+  const publishers = await prisma.listing.findMany({
+    where: { organizationId, vehicleId, status: "ACTIVE" },
+    select: { id: true, userId: true },
+  });
+  const recipients = new Set<string>([
+    ...members.map((member) => member.userId),
+    ...publishers.map((listing) => listing.userId),
+  ]);
 
   const title =
     `${vehicle.year ?? ""} ${vehicle.make ?? ""} ${vehicle.model ?? ""}`.trim();
-  for (const m of members) {
+  const direction = newPrice > oldPrice ? "up" : "down";
+  const stock = vehicle.stockNumber ?? vehicle.vin ?? "s. o.";
+  for (const userId of recipients) {
+    const listing = publishers.find((item) => item.userId === userId);
     await prisma.notification.create({
       data: {
-        userId: m.userId,
+        userId,
         type: "PRICE_CHANGE",
-        title: "Price Change Detected",
-        message: `${title} (VIN ${vehicle.vin}) price changed from $${oldPrice.toLocaleString("en-CA")} to $${newPrice.toLocaleString("en-CA")}.`,
-        metadata: { vehicleId, oldPrice, newPrice, vin: vehicle.vin },
+        title:
+          direction === "up"
+            ? "Prix augmenté : annonce à corriger immédiatement"
+            : "Prix modifié : mettez votre annonce à jour",
+        message:
+          direction === "up"
+            ? `${title} (stock ${stock}) : ${oldPrice.toLocaleString("fr-CA")} $ → ${newPrice.toLocaleString("fr-CA")} $. Le client peut exiger le prix affiché sur Marketplace.`
+            : `${title} (stock ${stock}) : ${oldPrice.toLocaleString("fr-CA")} $ → ${newPrice.toLocaleString("fr-CA")} $. Votre annonce Marketplace affiche encore l’ancien prix.`,
+        metadata: {
+          listingId: listing?.id,
+          vehicleId,
+          oldPrice,
+          newPrice,
+          direction,
+          vin: vehicle.vin,
+        },
       },
     });
   }

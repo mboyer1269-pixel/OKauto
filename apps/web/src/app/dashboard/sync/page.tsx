@@ -9,6 +9,7 @@ import {
   type SyncHealthData,
   type SyncSource,
 } from "@/lib/sync-health";
+import { FeedAbsenceQueue } from "@/components/feed-absence-queue";
 import {
   Activity,
   AlertTriangle,
@@ -161,6 +162,7 @@ function SyncHealthContent() {
 
   const statusIcon = {
     healthy: <CheckCircle className="text-green-600" size={24} />,
+    review: <AlertTriangle className="text-amber-600" size={24} />,
     degraded: <AlertTriangle className="text-amber-600" size={24} />,
     no_sources: <RefreshCw className="text-slate-400" size={24} />,
   }[data.health.status] ?? <Activity size={24} />;
@@ -178,6 +180,8 @@ function SyncHealthContent() {
           </button>
         )}
       </div>
+
+      <FeedAbsenceQueue canManage={canManage} onChanged={() => void load()} />
 
       {showForm && canManage && (
         <form onSubmit={handleCreate} className="card mb-6 space-y-4">

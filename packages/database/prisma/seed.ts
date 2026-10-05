@@ -7,6 +7,7 @@ import {
 } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
+import { shouldCreateDemoAccounts } from '../src/demo-seed';
 
 const prisma = new PrismaClient();
 
@@ -41,6 +42,13 @@ function placeholderPhoto(make: string, model: string, year: number): string {
 
 async function main() {
   console.log('🌱 Seeding database...');
+
+  if (!shouldCreateDemoAccounts()) {
+    console.log(
+      'Seed skipped: demo accounts are never created when NODE_ENV=production. Set ALLOW_DEMO_SEED=true only on a disposable local database.',
+    );
+    return;
+  }
 
   const existingOwner = await prisma.user.findUnique({
     where: { email: 'owner@demo.okauto.local' },
@@ -107,6 +115,8 @@ async function main() {
       city: 'Gatineau',
       state: 'QC',
       zip: 'J8M 1R4',
+      allInPriceConfirmedAt: new Date(),
+      listingLanguage: 'fr_en',
     },
   });
 

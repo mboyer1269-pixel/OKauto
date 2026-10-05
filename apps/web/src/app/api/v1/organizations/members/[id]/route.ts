@@ -1,5 +1,5 @@
 import { prisma } from "@okauto/database";
-import { updateMemberSchema } from "@okauto/shared";
+import { hasMinRole, updateMemberSchema } from "@okauto/shared";
 import { withAuth, jsonResponse, errorResponse, parseBody } from "@/lib/api";
 import { createAuditLog, hashPassword } from "@/lib/auth";
 
@@ -19,6 +19,13 @@ export const PATCH = withAuth(
       return errorResponse("Only the owner can reset the owner account", 403);
     }
 
+    if (data.password && !hasMinRole(auth.role, "ADMIN")) {
+      return errorResponse("Seul un administrateur peut réinitialiser un mot de passe", 403);
+    }
+    if (data.role && !hasMinRole(auth.role, "ADMIN") && data.role !== member.role) {
+      return errorResponse("Seul un administrateur peut changer le rôle", 403);
+    }
+
     const passwordHash = data.password
       ? await hashPassword(data.password)
       : undefined;
@@ -35,7 +42,10 @@ export const PATCH = withAuth(
 
     const updated = await prisma.organizationMember.update({
       where: { id: params!.id },
-      data: { role: data.role },
+      data: {
+        role: data.role,
+        marketplaceMonthlyVehicleLimit: data.marketplaceMonthlyVehicleLimit,
+      },
       include: {
         user: {
           select: { id: true, email: true, name: true, isActive: true },
@@ -58,7 +68,7 @@ export const PATCH = withAuth(
 
     return jsonResponse({ ...updated, passwordUpdated: Boolean(passwordHash) });
   },
-  { minRole: "ADMIN" },
+  { minRole: "MANAGER" },
 );
 
 export const DELETE = withAuth(

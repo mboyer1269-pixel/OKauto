@@ -1,19 +1,24 @@
 import { prisma } from "@okauto/database";
-import { generateMarketplaceTitle } from "@okauto/shared";
+import { generateMarketplaceTitle, resolveListingLocale } from "@okauto/shared";
 import { withAuth, jsonResponse, errorResponse } from "@/lib/api";
 import { generateVehicleDescription } from "@/lib/services";
 
-export const POST = withAuth(async (_request, { auth, params }) => {
+export const POST = withAuth(async (request, { auth, params }) => {
   const vehicle = await prisma.vehicle.findFirst({
     where: { id: params!.id, organizationId: auth.orgId },
-    include: { photos: { orderBy: { sortOrder: "asc" } } },
+    include: { photos: { orderBy: { sortOrder: "asc" } }, organization: true },
   });
   if (!vehicle) return errorResponse("Vehicle not found", 404);
 
+  const url = new URL(request.url);
+  const locale = resolveListingLocale(
+    url.searchParams.get("locale") ?? vehicle.organization.listingLocale,
+  );
   const generated = await generateVehicleDescription(
     vehicle.id,
     auth.orgId,
     auth.sub,
+    locale,
   );
   const { description } = generated;
 
@@ -38,6 +43,8 @@ export const POST = withAuth(async (_request, { auth, params }) => {
       vehicleId: vehicle.id,
       title,
       description,
+      locale: generated.locale,
+      descriptionEn: generated.descriptionEn,
       photoOrder: vehicle.photos.map((photo) => photo.url),
       generationSource: generated.source,
       dataSnapshot: {
@@ -54,6 +61,8 @@ export const POST = withAuth(async (_request, { auth, params }) => {
     update: {
       title,
       description,
+      locale: generated.locale,
+      descriptionEn: generated.descriptionEn,
       photoOrder: vehicle.photos.map((photo) => photo.url),
       generationSource: generated.source,
       dataSnapshot: {

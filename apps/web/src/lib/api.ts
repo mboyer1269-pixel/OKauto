@@ -3,6 +3,7 @@ import { ZodError } from "zod";
 import { randomUUID } from "node:crypto";
 import { hasMinRole, type RoleType } from "@okauto/shared";
 import { getAuthFromRequest, type TokenPayload } from "./auth";
+import { ListingGuardError } from "./listing-guards";
 
 const GENERIC_INTERNAL_ERROR =
   "Une erreur interne s'est produite. Réessayez plus tard.";
@@ -53,6 +54,12 @@ function isUniqueConstraintError(err: Error): boolean {
 }
 
 export function handleApiError(err: unknown) {
+  if (err instanceof ListingGuardError) {
+    return NextResponse.json(
+      { error: err.message, ...err.extra },
+      { status: err.status },
+    );
+  }
   if (err instanceof ZodError) {
     return errorResponse(
       "Les données envoyées sont invalides",
