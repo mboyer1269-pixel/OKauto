@@ -1,6 +1,7 @@
 import { prisma } from "@okauto/database";
 import type { SyncVehicle } from "@okauto/shared";
 import { extractD2cDetailPhotos, parseSyncFeed } from "@okauto/shared";
+import { fetchTextLimited } from "./fetch-limit.js";
 
 export interface SyncResult {
   synced: number;
@@ -356,15 +357,13 @@ async function fetchSyncInventory(
   url: string,
   adapter: string,
 ): Promise<InventoryResponse> {
-  const response = await fetch(url, {
+  const response = await fetchTextLimited(url, {
     headers: BROWSER_HEADERS,
     redirect: "follow",
   });
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-  const body = await response.text();
+  const body = response.body;
   if (adapter !== "d2c") {
-    return { body, contentType: response.headers.get("content-type") };
+    return { body, contentType: response.contentType };
   }
 
   const filterTag = body.match(
@@ -409,17 +408,23 @@ async function fetchSyncInventory(
       compactFilter.replace(/q\d+/, `q${page}`),
     );
 
-    const pageResponse = await fetch(pageUrl, {
-      headers: BROWSER_HEADERS,
-      redirect: "follow",
-    });
-    if (!pageResponse.ok) {
-      throw new Error(
-        `D2C inventory page ${page + 1} failed with HTTP ${pageResponse.status}`,
-      );
+    let pageResponse: Awaited<ReturnType<typeof fetchTextLimited>>;
+    try {
+      pageResponse = await fetchTextLimited(pageUrl.toString(), {
+        headers: BROWSER_HEADERS,
+        redirect: "follow",
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message.startsWith("HTTP ")) {
+        throw new Error(
+          `D2C inventory page ${page + 1} failed with ${message}`,
+        );
+      }
+      throw err;
     }
 
-    const pageBody = await pageResponse.text();
+    const pageBody = pageResponse.body;
     const pageVins = extractD2cVins(pageBody);
     const newVins = [...pageVins].filter((vin) => !seenVins.has(vin));
     if (newVins.length === 0) {
@@ -477,14 +482,13 @@ async function enrichD2cGalleryPhotos(
       while (nextIndex < candidates.length) {
         const candidate = candidates[nextIndex++];
         try {
-          const response = await fetch(candidate.sourceUrl!, {
+          const response = await fetchTextLimited(candidate.sourceUrl!, {
             headers: BROWSER_HEADERS,
             redirect: "follow",
           });
-          if (!response.ok) continue;
 
           const gallery = extractD2cDetailPhotos(
-            await response.text(),
+            response.body,
             candidate.sourceUrl!,
           );
           if (gallery.length > (candidate.photos?.length ?? 0)) {

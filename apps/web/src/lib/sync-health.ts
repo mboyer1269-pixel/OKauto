@@ -32,6 +32,8 @@ export interface SyncHealthData {
     failedRunsLast10: number;
     lastSyncAt: string | null;
     pendingFeedReview?: number;
+    reasons?: string[];
+    staleSourceCount?: number;
   };
 }
 

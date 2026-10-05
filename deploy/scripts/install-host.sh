@@ -38,8 +38,14 @@ chmod 750 "$ROOT/backups"
 chmod 700 /home/deploy/.ssh
 
 cp -a "${REPO_DEPLOY_DIR}/compose.prod.yml" "${ROOT}/compose.prod.yml"
+cp -a "${REPO_DEPLOY_DIR}/README.md" "${ROOT}/README.md"
+cp -a "${REPO_DEPLOY_DIR}/RUNBOOK.md" "${ROOT}/RUNBOOK.md"
+chmod 644 "${ROOT}/README.md" "${ROOT}/RUNBOOK.md"
 cp -a "${REPO_DEPLOY_DIR}/scripts/." "${ROOT}/scripts/"
 chmod 755 "${ROOT}/scripts/"*.sh
+if [[ -f "${ROOT}/scripts/r2.py" ]]; then
+  chmod 755 "${ROOT}/scripts/r2.py"
+fi
 
 if [[ ! -f "${ROOT}/.env" ]]; then
   cp "${REPO_DEPLOY_DIR}/.env.prod.example" "${ROOT}/.env"
@@ -74,5 +80,8 @@ Next steps (manual):
   5. Confirm `ssh deploy@VPS bash` is refused (ForcedCommand) and
      `ssh deploy@VPS "deploy <sha>"` is accepted.
   6. Point /etc/cron.d/okauto-backup at OKAUTO_ROOT=/opt/okauto and
-     /opt/okauto/scripts/backup.sh (compose.prod.yml). See deploy/RUNBOOK.md.
+     /opt/okauto/scripts/backup.sh (compose.prod.yml). Offsite R2 upload is
+     skipped until BACKUP_R2_* + BACKUP_AGE_RECIPIENT are set. Install age:
+       apt-get install -y age
+     See /opt/okauto/README.md and /opt/okauto/RUNBOOK.md.
 EOF

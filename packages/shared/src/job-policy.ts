@@ -1,0 +1,57 @@
+export const SYNC_JOB_NAME = "sync";
+export const SYNC_TICK_JOB_NAME = "tick";
+export const REMINDER_JOB_NAME = "reminders";
+export const DEGRADED_JOB_NAME = "degraded";
+
+export const SYNC_JOB_ATTEMPTS = 3;
+export const SYNC_JOB_BACKOFF_MS = 5_000;
+export const SYNC_TICK_EVERY_MS = 5 * 60 * 1000;
+export const REMINDER_EVERY_MS = 60 * 60 * 1000;
+export const DEGRADED_EVERY_MS = 15 * 60 * 1000;
+
+export const DEFAULT_SYNC_FETCH_TIMEOUT_MS = 30_000;
+export const DEFAULT_SYNC_FETCH_MAX_BYTES = 8 * 1024 * 1024;
+
+export function syncJobId(syncSourceId: string): string {
+  return `sync-${syncSourceId}`;
+}
+
+export function syncJobOptions(syncSourceId: string) {
+  return {
+    jobId: syncJobId(syncSourceId),
+    attempts: SYNC_JOB_ATTEMPTS,
+    backoff: { type: "exponential" as const, delay: SYNC_JOB_BACKOFF_MS },
+    removeOnComplete: { count: 50 },
+    removeOnFail: { count: 100 },
+  };
+}
+
+export function isLastAttempt(
+  attemptsMade: number,
+  attempts?: number | null,
+): boolean {
+  return attemptsMade + 1 >= (attempts ?? 1);
+}
+
+export function isDuplicateJobError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return /already (exists|used)|duplicat/i.test(message);
+}
+
+export function syncFetchLimits(env: NodeJS.ProcessEnv = process.env): {
+  timeoutMs: number;
+  maxBytes: number;
+} {
+  const timeoutMs = Number(env.SYNC_FETCH_TIMEOUT_MS);
+  const maxBytes = Number(env.SYNC_FETCH_MAX_BYTES);
+  return {
+    timeoutMs:
+      Number.isFinite(timeoutMs) && timeoutMs > 0
+        ? timeoutMs
+        : DEFAULT_SYNC_FETCH_TIMEOUT_MS,
+    maxBytes:
+      Number.isFinite(maxBytes) && maxBytes > 0
+        ? maxBytes
+        : DEFAULT_SYNC_FETCH_MAX_BYTES,
+  };
+}
