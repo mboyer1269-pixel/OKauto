@@ -51,6 +51,9 @@ jobs:
           bash scripts/check-destructive-migrations.sh
           bash scripts/check-destructive-migrations.test.sh
 
+      - name: Persist APP_VERSION helper
+        run: bash deploy/scripts/persist-app-version.test.sh
+
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 12
@@ -177,7 +180,26 @@ jobs:
           # Runtime on the VPS uses /opt/okauto/.env next to compose.prod.yml.
           # CI only interpolates the spec, so an empty file is enough.
           : > deploy/.env
-          docker compose -f deploy/compose.prod.yml config >/dev/null
+          docker compose -f deploy/compose.prod.yml config --format json > /tmp/compose.prod.json
+          python3 - <<'PY'
+          import json, sys
+          data = json.load(open("/tmp/compose.prod.json"))
+          labels = data["services"]["web"]["labels"]
+          key = "traefik.http.middlewares.suivia-www-redirect.redirectregex.regex"
+          if isinstance(labels, dict):
+              regex = labels.get(key)
+          else:
+              prefix = key + "="
+              regex = next((item[len(prefix):] for item in labels if item.startswith(prefix)), None)
+          if regex is None:
+              raise SystemExit("www redirectregex label missing from compose config")
+          expected = r"^https://www\.suivia\.ca/(.*)"
+          if regex != expected:
+              raise SystemExit(f"www redirect regex must be {expected!r} (single backslash before each dot), got {regex!r}")
+          if r"www\\.suivia" in regex:
+              raise SystemExit(f"double-escaped dots in www regex: {regex!r}")
+          print("www redirect regex ok:", regex)
+          PY
 
       - name: Build web image
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6

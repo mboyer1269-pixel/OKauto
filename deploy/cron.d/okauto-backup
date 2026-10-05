@@ -3,4 +3,4 @@
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 OKAUTO_ROOT=/opt/okauto
-15 3 * * * root OKAUTO_ROOT=/opt/okauto /opt/okauto/scripts/backup.sh
+15 3 * * * root OKAUTO_ROOT=/opt/okauto /opt/okauto/scripts/backup.sh >> /opt/okauto/backups/backup.log 2>&1

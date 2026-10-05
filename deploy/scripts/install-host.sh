@@ -30,7 +30,11 @@ if id -nG deploy | grep -qw docker; then
 fi
 
 mkdir -p "$ROOT/scripts" "$ROOT/backups" /home/deploy/.ssh
-chmod 750 "$ROOT"
+# 751 (not 750): OpenSSH ForcedCommand runs as `deploy` and must traverse
+# /opt/okauto to reach scripts/deploy-gate.sh. Others get --x only (no list).
+chmod 751 "$ROOT"
+chmod 755 "$ROOT/scripts"
+chmod 750 "$ROOT/backups"
 chmod 700 /home/deploy/.ssh
 
 cp -a "${REPO_DEPLOY_DIR}/compose.prod.yml" "${ROOT}/compose.prod.yml"
@@ -62,7 +66,9 @@ Next steps (manual):
        chmod 600 /root/.docker/config.json
      deploy.sh runs as root via sudo, so this login is enough. Do not put the
      PAT in /opt/okauto/.env and do not chmod the docker config world-readable.
-  4. Install the GitHub deploy public key in /home/deploy/.ssh/authorized_keys with:
+  4. /opt/okauto is chmod 751 so user `deploy` can traverse to
+     /opt/okauto/scripts/deploy-gate.sh (750 blocked ForcedCommand).
+     Install the GitHub deploy public key in /home/deploy/.ssh/authorized_keys with:
        command="/opt/okauto/scripts/deploy-gate.sh",no-pty,no-port-forwarding,no-agent-forwarding,no-X11-forwarding ssh-ed25519 AAAA... suivia-github-deploy
      chmod 600 /home/deploy/.ssh/authorized_keys && chown -R deploy:deploy /home/deploy
   5. Confirm `ssh deploy@VPS bash` is refused (ForcedCommand) and
