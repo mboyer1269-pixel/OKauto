@@ -14,16 +14,36 @@ import {
   handleApiError,
   parseBody,
 } from "@/lib/api";
+import {
+  clearAuthFailures,
+  enforceAuthRateLimit,
+  recordAuthFailure,
+} from "@/lib/rate-limit";
+import {
+  isPublicSignupEnabled,
+  PUBLIC_SIGNUP_CLOSED_MESSAGE,
+} from "@/lib/signup";
 
 export async function POST(request: NextRequest) {
   try {
+    if (!isPublicSignupEnabled()) {
+      const limited = await enforceAuthRateLimit(request, "register");
+      if (limited) return limited;
+      await recordAuthFailure(request, "register");
+      return errorResponse(PUBLIC_SIGNUP_CLOSED_MESSAGE, 403);
+    }
+
     const body = await parseBody<unknown>(request);
     const data = registerSchema.parse(body);
+
+    const limited = await enforceAuthRateLimit(request, "register", data.email);
+    if (limited) return limited;
 
     const existing = await prisma.user.findUnique({
       where: { email: data.email },
     });
     if (existing) {
+      await recordAuthFailure(request, "register", data.email);
       return errorResponse("Ce courriel est déjà enregistré", 409);
     }
 
@@ -68,6 +88,7 @@ export async function POST(request: NextRequest) {
       entityId: result.user.id,
       request,
     });
+    await clearAuthFailures("register", data.email);
 
     const response = jsonResponse({
       user: {

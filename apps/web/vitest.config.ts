@@ -14,6 +14,7 @@ export default defineConfig(({ mode }) => {
       exclude: ["**/node_modules/**", "**/e2e/**"],
       fileParallelism: false,
       poolOptions: { forks: { singleFork: true } },
+      setupFiles: ["./src/__tests__/setup.ts"],
       server: {
         deps: {
           external: [/@prisma\/client/, "@okauto/database", "bcryptjs"],

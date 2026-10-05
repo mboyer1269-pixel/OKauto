@@ -1,8 +1,11 @@
-# Suivia Auto — Render Blueprint
-# https://render.com/docs/blueprint-spec
+# Suivia Auto — Render Blueprint (OBSOLETE)
 #
-# Deploy: connect this repo in Render Dashboard → New → Blueprint
-# Or: render blueprint sync
+# Production is a Hostinger VPS with Docker Compose + Traefik (suivia.ca).
+# This Render blueprint is not used for deploys. Kept only as historical
+# reference. Set ALLOW_PUBLIC_SIGNUP=false and TRUST_PROXY=true in the VPS
+# compose environment instead.
+#
+# https://render.com/docs/blueprint-spec
 
 databases:
   - name: suivia-db
@@ -44,6 +47,8 @@ services:
         value: 7d
       - key: NODE_ENV
         value: production
+      - key: TRUST_PROXY
+        value: "true"
       - key: RUN_EMBEDDED_WORKER
         value: "true"
       - key: NEXT_PUBLIC_APP_URL
