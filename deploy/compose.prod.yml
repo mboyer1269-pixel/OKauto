@@ -1,0 +1,167 @@
+# Production compose for Hostinger VPS (/opt/okauto).
+# Traefik v3 is shared with Oria on this host (certresolver `letsencrypt`, HTTP-01).
+# Images are immutable and tagged by git SHA on GHCR.
+#
+# Required env: APP_VERSION (40-char SHA), DATABASE_URL, REDIS_URL, JWT_SECRET,
+# POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB, NEXT_PUBLIC_APP_URL.
+# See deploy/.env.prod.example — never commit real values.
+
+name: okauto
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    mem_limit: 1g
+    stop_grace_period: 60s
+    security_opt:
+      - no-new-privileges:true
+    logging: &json-logs
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    networks:
+      - okauto
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --maxmemory-policy
+      - noeviction
+      - --maxmemory
+      - 256mb
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    mem_limit: 256m
+    stop_grace_period: 60s
+    security_opt:
+      - no-new-privileges:true
+    logging: *json-logs
+    networks:
+      - okauto
+
+  migrate:
+    image: ghcr.io/mboyer1269-pixel/okauto-web:${APP_VERSION}
+    restart: "no"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      GIT_SHA: ${APP_VERSION}
+    command: ["sh", "-c", "cd /app/packages/database && npx prisma migrate deploy"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    logging: *json-logs
+    networks:
+      - okauto
+
+  web:
+    image: ghcr.io/mboyer1269-pixel/okauto-web:${APP_VERSION}
+    restart: unless-stopped
+    init: true
+    env_file:
+      - .env
+    environment:
+      GIT_SHA: ${APP_VERSION}
+      RUN_MIGRATIONS_ON_BOOT: "false"
+      NODE_ENV: production
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    mem_limit: 1g
+    stop_grace_period: 60s
+    security_opt:
+      - no-new-privileges:true
+    logging: *json-logs
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=okauto
+      - traefik.http.routers.suivia.rule=Host(`suivia.ca`)
+      - traefik.http.routers.suivia.entrypoints=websecure
+      - traefik.http.routers.suivia.tls=true
+      - traefik.http.routers.suivia.tls.certresolver=letsencrypt
+      - traefik.http.routers.suivia.service=suivia
+      - traefik.http.services.suivia.loadbalancer.server.port=3000
+      - traefik.http.services.suivia.loadbalancer.healthcheck.path=/api/health
+      - traefik.http.routers.suivia-www.rule=Host(`www.suivia.ca`)
+      - traefik.http.routers.suivia-www.entrypoints=websecure
+      - traefik.http.routers.suivia-www.tls=true
+      - traefik.http.routers.suivia-www.tls.certresolver=letsencrypt
+      - traefik.http.routers.suivia-www.middlewares=suivia-www-redirect
+      - traefik.http.middlewares.suivia-www-redirect.redirectregex.regex=^https://www\\.suivia\\.ca/(.*)
+      - traefik.http.middlewares.suivia-www-redirect.redirectregex.replacement=https://suivia.ca/$${1}
+      - traefik.http.middlewares.suivia-www-redirect.redirectregex.permanent=true
+      - traefik.http.routers.suivia-http.rule=Host(`suivia.ca`) || Host(`www.suivia.ca`)
+      - traefik.http.routers.suivia-http.entrypoints=web
+      - traefik.http.routers.suivia-http.middlewares=suivia-https-redirect
+      - traefik.http.middlewares.suivia-https-redirect.redirectscheme.scheme=https
+      - traefik.http.middlewares.suivia-https-redirect.redirectscheme.permanent=true
+    networks:
+      - okauto
+
+  worker:
+    image: ghcr.io/mboyer1269-pixel/okauto-worker:${APP_VERSION}
+    restart: unless-stopped
+    init: true
+    env_file:
+      - .env
+    environment:
+      GIT_SHA: ${APP_VERSION}
+      NODE_ENV: production
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    mem_limit: 512m
+    stop_grace_period: 60s
+    security_opt:
+      - no-new-privileges:true
+    logging: *json-logs
+    healthcheck:
+      test: ["CMD-SHELL", "find /tmp/worker-heartbeat -mmin -2 | grep -q ."]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    networks:
+      - okauto
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  okauto:
+    name: okauto
+    external: true

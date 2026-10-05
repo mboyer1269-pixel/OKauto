@@ -102,6 +102,7 @@ okauto/
 ├── packages/
 │   ├── database/     # Prisma schema, migrations, seed
 │   └── shared/       # Types, validators, VIN decode, descriptions
+├── deploy/         # Production compose, SSH deploy, runbook (Hostinger VPS)
 ├── docker-compose.yml
 ├── REQUIREMENTS.md   # Full product spec
 └── .github/workflows/ci.yml
@@ -121,8 +122,10 @@ Key endpoints:
 ## Testing
 
 ```bash
-pnpm test              # Unit tests
-pnpm typecheck         # TypeScript
+pnpm test:unit         # Fast tests (no database required for most packages)
+pnpm test:int          # Integration tests (Postgres + Redis)
+pnpm typecheck         # TypeScript, all packages
+pnpm lint              # ESLint (web, worker, shared, extension)
 pnpm --filter @okauto/web test:e2e  # Playwright E2E
 ```
 
@@ -132,30 +135,13 @@ pnpm --filter @okauto/web test:e2e  # Playwright E2E
 docker compose up --build
 ```
 
-The web container automatically runs `prisma migrate deploy` on startup.
+A one-shot `migrate` service runs `prisma migrate deploy`, then `web` and `worker` start. The worker uses `Dockerfile.worker` (not the web image).
 
-## Deploy to Render
+## Production (Hostinger VPS)
 
-OKauto includes a [Render Blueprint](https://render.com/docs/blueprint-spec) (`render.yaml`) that provisions:
+Production is **not** Render. Images are built in GitHub Actions, pushed to GHCR tagged by git SHA, and deployed over SSH to `/opt/okauto` behind the existing shared Traefik v3. Deployments to `main` require a GitHub Environment `production` approval.
 
-- **PostgreSQL** database
-- **Redis** (Key Value) for BullMQ
-- **Web service** (Docker) — Next.js dashboard + API
-- **Worker service** (Docker) — background sync & notifications
-
-### Steps
-
-1. Push this repo to GitHub
-2. In [Render Dashboard](https://dashboard.render.com) → **New** → **Blueprint**
-3. Connect the repo — Render reads `render.yaml` and creates all services
-4. Set required env vars in the web service:
-   - `NEXT_PUBLIC_APP_URL` — your Render web URL (e.g. `https://okauto-web.onrender.com`)
-   - `AWS_S3_BUCKET`, `AWS_S3_PUBLIC_URL`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` (optional, for photo upload)
-5. After first deploy, seed the database:
-   ```bash
-   # From Render Shell on the web service, or locally with production DATABASE_URL
-   pnpm db:seed
-   ```
+See [`deploy/README.md`](deploy/README.md) and [`deploy/RUNBOOK.md`](deploy/RUNBOOK.md). `render.yaml` is obsolete.
 
 ### S3 Photo Upload
 

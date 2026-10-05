@@ -3,6 +3,7 @@ import IORedis from "ioredis";
 import { prisma } from "@okauto/database";
 import { runSyncSource } from "./sync.js";
 import { processRemovalReminders } from "./reminders.js";
+import { startWorkerHeartbeat } from "./heartbeat.js";
 
 const REDIS_URL = process.env.REDIS_URL ?? "redis://localhost:6379";
 
@@ -96,6 +97,8 @@ syncWorker.on("failed", (job, err) =>
   console.error(`Sync job ${job?.id} failed:`, err),
 );
 
+const heartbeatTimer = startWorkerHeartbeat(connection);
+
 console.log("Suivia Auto worker started");
 console.log("  - Import queue: listening");
 console.log("  - Sync queue: listening");
@@ -130,6 +133,7 @@ setInterval(() => {
 processRemovalReminders().catch(console.error);
 
 process.on("SIGTERM", async () => {
+  clearInterval(heartbeatTimer);
   await importWorker.close();
   await syncWorker.close();
   await notificationWorker.close();

@@ -7,7 +7,10 @@
     "dev": "vite build --watch",
     "build": "vite build",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:unit": "vitest run",
+    "test:int": "vitest run --passWithNoTests src/**/*.int.test.ts",
+    "lint": "eslint ."
   },
   "dependencies": {
     "@okauto/shared": "workspace:*"
@@ -15,7 +18,10 @@
   "devDependencies": {
     "@types/chrome": "^0.0.287",
     "@types/node": "^22.10.2",
+    "eslint": "^9.17.0",
+    "@eslint/js": "^9.17.0",
     "typescript": "^5.7.2",
+    "typescript-eslint": "^8.19.1",
     "vite": "^6.0.6",
     "vitest": "^2.1.8"
   }

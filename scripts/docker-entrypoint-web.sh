@@ -1,14 +1,10 @@
 #!/bin/sh
 set -e
 
-echo "Running database migrations..."
-cd /app/packages/database
-npx prisma migrate deploy
-
-if [ "${RUN_EMBEDDED_WORKER:-false}" = "true" ]; then
-  echo "Starting the embedded Suivia Auto worker..."
-  cd /app
-  node apps/worker/dist/index.js &
+if [ "${RUN_MIGRATIONS_ON_BOOT:-false}" = "true" ]; then
+  echo "Running database migrations (RUN_MIGRATIONS_ON_BOOT=true)..."
+  cd /app/packages/database
+  npx prisma migrate deploy
 fi
 
 echo "Starting Suivia Auto web server..."

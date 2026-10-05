@@ -60,4 +60,4 @@ L’assistant préremplit les champs qu’il reconnaît et tente d’ajouter la 
 curl http://localhost:3000/api/health
 ```
 
-La réponse doit commencer par `{"status":"ok"`.
+La réponse doit contenir `"status":"ok"` et un champ `version` (SHA déployé, ou `dev` en local).

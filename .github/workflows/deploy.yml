@@ -1,0 +1,119 @@
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Git SHA (40 hex chars) to deploy or roll back to
+        required: true
+        type: string
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+  actions: write
+
+jobs:
+  publish:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      sha: ${{ steps.sha.outputs.sha }}
+    steps:
+      - name: Resolve SHA
+        id: sha
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            SHA="${{ inputs.sha }}"
+          elif [ "${{ github.event_name }}" = "workflow_run" ]; then
+            SHA="${{ github.event.workflow_run.head_sha }}"
+          else
+            SHA="${{ github.sha }}"
+          fi
+          echo "sha=${SHA}" >> "$GITHUB_OUTPUT"
+          echo "Deploying SHA ${SHA}"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.sha.outputs.sha }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push web image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          tags: |
+            ghcr.io/mboyer1269-pixel/okauto-web:${{ steps.sha.outputs.sha }}
+            ghcr.io/mboyer1269-pixel/okauto-web:main
+          cache-from: type=gha,scope=okauto-web
+          cache-to: type=gha,mode=max,scope=okauto-web
+          build-args: |
+            GIT_SHA=${{ steps.sha.outputs.sha }}
+
+      - name: Push worker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.worker
+          push: true
+          tags: |
+            ghcr.io/mboyer1269-pixel/okauto-worker:${{ steps.sha.outputs.sha }}
+            ghcr.io/mboyer1269-pixel/okauto-worker:main
+          cache-from: type=gha,scope=okauto-worker
+          cache-to: type=gha,mode=max,scope=okauto-worker
+          build-args: |
+            GIT_SHA=${{ steps.sha.outputs.sha }}
+
+  deploy:
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    steps:
+      - name: SSH deploy
+        env:
+          SHA: ${{ needs.publish.outputs.sha }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ vars.VPS_USER || 'deploy' }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+          VPS_DEPLOY_KEY: ${{ secrets.VPS_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$VPS_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          printf '%s\n' "$VPS_DEPLOY_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            -o BatchMode=yes "${VPS_USER}@${VPS_HOST}" "deploy ${SHA}"
+
+      - name: Smoke check public health
+        env:
+          SHA: ${{ needs.publish.outputs.sha }}
+          HEALTH_URL: ${{ vars.PRODUCTION_HEALTH_URL || 'https://suivia.ca/api/health' }}
+        run: |
+          body="$(curl -fsS --max-time 20 "$HEALTH_URL")"
+          echo "$body"
+          python3 -c 'import json,os,sys
+          data=json.loads(sys.argv[1])
+          sha=os.environ["SHA"]
+          raise SystemExit(0 if data.get("status")=="ok" and data.get("version")==sha else 1)' "$body"

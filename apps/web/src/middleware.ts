@@ -4,7 +4,6 @@ const CHROME_EXTENSION_ORIGIN = /^chrome-extension:\/\/[a-p]{32}$/;
 const ALLOWED_WEB_ORIGINS = new Set([
   "https://suivia.ca",
   "https://www.suivia.ca",
-  "https://suivia-web.onrender.com",
   "http://localhost:3000",
 ]);
 
