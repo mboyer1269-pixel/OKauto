@@ -227,12 +227,22 @@ jobs:
             -e GIT_SHA=${{ github.sha }} \
             okauto-worker:ci
 
+          ready=0
           for i in $(seq 1 30); do
-            if curl -fsS http://127.0.0.1:3000/api/health | tee /tmp/health.json; then
+            if curl -fsS --max-time 3 http://127.0.0.1:3000/api/health > /tmp/health.json; then
+              cat /tmp/health.json
+              ready=1
               break
             fi
+            echo "waiting for web health (${i}/30)"
             sleep 2
           done
+          if [ "$ready" != 1 ]; then
+            echo "web never became healthy" >&2
+            docker logs okauto-web-ci >&2 || true
+            docker logs okauto-worker-ci >&2 || true
+            exit 1
+          fi
           python3 - <<'PY'
           import json, os, sys
           data = json.load(open("/tmp/health.json"))
