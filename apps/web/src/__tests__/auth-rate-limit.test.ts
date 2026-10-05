@@ -3,8 +3,12 @@ import { POST as loginHandler } from "@/app/api/v1/auth/login/route";
 import { POST as registerHandler } from "@/app/api/v1/auth/register/route";
 import {
   AUTH_RATE_LIMIT,
+  MEMORY_RATE_LIMIT_MAX_ENTRIES,
   MemoryRateLimitStore,
+  REDIS_RETRY_MS,
   checkAuthRateLimit,
+  isRedisCooldownActiveForTests,
+  markRedisCooldownForTests,
   recordAuthFailure,
   setAuthRateLimitStoreForTests,
 } from "@/lib/rate-limit";
@@ -145,5 +149,36 @@ describe("auth rate limiter", () => {
       if (previousSignup === undefined) delete process.env.ALLOW_PUBLIC_SIGNUP;
       else process.env.ALLOW_PUBLIC_SIGNUP = previousSignup;
     }
+  });
+});
+
+describe("in-memory rate-limit fallback", () => {
+  it("caps stored keys and evicts the oldest entries", async () => {
+    const store = new MemoryRateLimitStore(3);
+    for (let i = 0; i < 8; i += 1) {
+      await store.increment(`ip:${i}`, 60_000);
+    }
+    expect(store.size).toBe(3);
+    expect((await store.get("ip:0")).count).toBe(0);
+    expect((await store.get("ip:7")).count).toBe(1);
+    expect(MEMORY_RATE_LIMIT_MAX_ENTRIES).toBe(10_000);
+  });
+
+  it("purges expired entries instead of growing forever", async () => {
+    const store = new MemoryRateLimitStore(10);
+    await store.increment("stale", 1);
+    await new Promise((resolve) => setTimeout(resolve, 15));
+    await store.increment("fresh", 60_000);
+    expect((await store.get("stale")).count).toBe(0);
+    expect((await store.get("fresh")).count).toBe(1);
+    expect(store.size).toBe(1);
+  });
+
+  it("retries Redis after a cooldown instead of staying on memory forever", () => {
+    expect(REDIS_RETRY_MS).toBe(30_000);
+    markRedisCooldownForTests(60_000);
+    expect(isRedisCooldownActiveForTests()).toBe(true);
+    markRedisCooldownForTests(-1);
+    expect(isRedisCooldownActiveForTests()).toBe(false);
   });
 });

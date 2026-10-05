@@ -31,14 +31,47 @@ return n
 
 type MemoryEntry = { count: number; expiresAt: number };
 
+export const MEMORY_RATE_LIMIT_MAX_ENTRIES = 10_000;
+export const REDIS_RETRY_MS = 30_000;
+
 export class MemoryRateLimitStore implements RateLimitStore {
   private readonly entries = new Map<string, MemoryEntry>();
+  private ops = 0;
+
+  constructor(private readonly maxEntries = MEMORY_RATE_LIMIT_MAX_ENTRIES) {}
+
+  get size(): number {
+    return this.entries.size;
+  }
+
+  private purgeExpired(now: number) {
+    for (const [key, entry] of this.entries) {
+      if (entry.expiresAt <= now) this.entries.delete(key);
+    }
+  }
+
+  private enforceCap() {
+    while (this.entries.size > this.maxEntries) {
+      const oldest = this.entries.keys().next().value;
+      if (oldest === undefined) break;
+      this.entries.delete(oldest);
+    }
+  }
+
+  private maybeReclaim(now: number) {
+    this.ops += 1;
+    if (this.entries.size >= this.maxEntries || this.ops % 64 === 0) {
+      this.purgeExpired(now);
+    }
+  }
 
   async increment(key: string, windowMs: number): Promise<number> {
     const now = Date.now();
+    this.maybeReclaim(now);
     const current = this.entries.get(key);
     if (!current || current.expiresAt <= now) {
       this.entries.set(key, { count: 1, expiresAt: now + windowMs });
+      this.enforceCap();
       return 1;
     }
     current.count += 1;
@@ -47,6 +80,7 @@ export class MemoryRateLimitStore implements RateLimitStore {
 
   async get(key: string): Promise<RateLimitCounter> {
     const now = Date.now();
+    this.maybeReclaim(now);
     const current = this.entries.get(key);
     if (!current || current.expiresAt <= now) {
       if (current) this.entries.delete(key);
@@ -102,8 +136,7 @@ class FallbackRateLimitStore implements RateLimitStore {
     try {
       return await this.primary.increment(key, windowMs);
     } catch (error) {
-      warnRedisUnavailable(error);
-      markMemoryOnly();
+      enterRedisCooldown(error);
       return this.fallback.increment(key, windowMs);
     }
   }
@@ -112,8 +145,7 @@ class FallbackRateLimitStore implements RateLimitStore {
     try {
       return await this.primary.get(key);
     } catch (error) {
-      warnRedisUnavailable(error);
-      markMemoryOnly();
+      enterRedisCooldown(error);
       return this.fallback.get(key);
     }
   }
@@ -122,8 +154,7 @@ class FallbackRateLimitStore implements RateLimitStore {
     try {
       await this.primary.reset(key);
     } catch (error) {
-      warnRedisUnavailable(error);
-      markMemoryOnly();
+      enterRedisCooldown(error);
       await this.fallback.reset(key);
     }
   }
@@ -132,7 +163,7 @@ class FallbackRateLimitStore implements RateLimitStore {
 let injectedStore: RateLimitStore | null = null;
 let memoryStore: MemoryRateLimitStore | null = null;
 let redisClient: IORedis | null = null;
-let memoryOnly = false;
+let redisRetryAfter = 0;
 let redisWarningLogged = false;
 
 function windowSeconds(): number {
@@ -149,8 +180,25 @@ function warnRedisUnavailable(error: unknown) {
   );
 }
 
-function markMemoryOnly() {
-  memoryOnly = true;
+function enterRedisCooldown(error: unknown) {
+  warnRedisUnavailable(error);
+  redisRetryAfter = Date.now() + REDIS_RETRY_MS;
+}
+
+function isRedisOnCooldown(): boolean {
+  return Date.now() < redisRetryAfter;
+}
+
+function resetRedisClient() {
+  const client = redisClient;
+  redisClient = null;
+  if (!client) return;
+  client.removeAllListeners();
+  try {
+    client.disconnect(false);
+  } catch {
+    // The client may already be closed after a connection error.
+  }
 }
 
 function getMemoryStore(): MemoryRateLimitStore {
@@ -178,20 +226,28 @@ function getRedisClient(): IORedis {
 
 async function getStore(): Promise<RateLimitStore> {
   if (injectedStore) return injectedStore;
-  if (memoryOnly) return getMemoryStore();
+  if (isRedisOnCooldown()) return getMemoryStore();
 
   try {
-    const client = getRedisClient();
-    if (client.status === "wait") {
-      await client.connect();
+    let client = getRedisClient();
+    if (client.status !== "ready") {
+      if (client.status !== "wait") {
+        resetRedisClient();
+        client = getRedisClient();
+      }
+      if (client.status !== "ready") {
+        await client.connect();
+      }
     }
+    redisRetryAfter = 0;
+    redisWarningLogged = false;
     return new FallbackRateLimitStore(
       new RedisRateLimitStore(client),
       getMemoryStore(),
     );
   } catch (error) {
-    warnRedisUnavailable(error);
-    markMemoryOnly();
+    enterRedisCooldown(error);
+    resetRedisClient();
     return getMemoryStore();
   }
 }
@@ -210,6 +266,14 @@ function accountKey(action: AuthRateLimitAction, email: string): string {
 
 export function setAuthRateLimitStoreForTests(store: RateLimitStore | null) {
   injectedStore = store;
+}
+
+export function markRedisCooldownForTests(durationMs = REDIS_RETRY_MS) {
+  redisRetryAfter = Date.now() + durationMs;
+}
+
+export function isRedisCooldownActiveForTests() {
+  return isRedisOnCooldown();
 }
 
 export async function checkAuthRateLimit(params: {
