@@ -80,6 +80,11 @@ export const createVehicleSchema = z.object({
   mileage: z.number().int().min(0).optional().nullable(),
   price: z.number().min(0).optional().nullable(),
   msrp: z.number().min(0).optional().nullable(),
+  freightFee: z.number().min(0).max(50000).optional().nullable(),
+  pdiFee: z.number().min(0).max(50000).optional().nullable(),
+  adminFee: z.number().min(0).max(50000).optional().nullable(),
+  acExciseFee: z.number().min(0).max(5000).optional().nullable(),
+  descriptionEn: z.string().max(10000).optional().nullable(),
   description: z.string().max(10000).optional().nullable(),
   features: z.array(z.string()).optional(),
   status: z.enum(["AVAILABLE", "PENDING", "SOLD", "ARCHIVED"]).optional(),
@@ -139,11 +144,29 @@ export const updateListingSchema = z.object({
   status: z.enum(["DRAFT", "ACTIVE", "SOLD", "REMOVED", "STALE"]).optional(),
   externalUrl: z.string().url().optional().nullable(),
   removedAt: z.string().datetime().optional().nullable(),
+  renew: z.boolean().optional(),
+});
+
+export const confirmListingPriceSchema = z.object({
+  price: z.number().finite().nonnegative(),
+});
+
+export const updateVehiclePrioritySchema = z.object({
+  managerPriority: z.boolean(),
+  note: z.string().max(240).optional().nullable(),
+});
+
+const highlightPairSchema = z.object({
+  fr: z.string().max(600).optional(),
+  en: z.string().max(600).optional(),
 });
 
 export const updateMarketplaceDraftSchema = z.object({
   title: z.string().trim().min(5).max(100),
-  description: z.string().trim().min(80).max(5000),
+  description: z.string().trim().min(80).max(8000),
+  locale: z.enum(["fr", "en", "bilingual"]).optional(),
+  titleEn: z.string().trim().min(5).max(100).optional().nullable(),
+  descriptionEn: z.string().trim().min(80).max(5000).optional().nullable(),
   photoOrder: z.array(z.string().url()).max(20).optional(),
 });
 
@@ -171,6 +194,13 @@ export const inviteMemberSchema = z.object({
 export const updateMemberSchema = z.object({
   role: z.enum(["OWNER", "ADMIN", "MANAGER", "SALESPERSON"]).optional(),
   password: z.string().min(8).max(128).optional(),
+  marketplaceMonthlyVehicleLimit: z
+    .number()
+    .int()
+    .min(1)
+    .max(50)
+    .nullable()
+    .optional(),
 });
 
 // Organization schema
@@ -182,6 +212,31 @@ export const updateOrganizationSchema = z.object({
   city: z.string().max(100).optional().nullable(),
   state: z.string().max(50).optional().nullable(),
   zip: z.string().max(20).optional().nullable(),
+  monthlyListingLimit: z.number().int().min(1).max(50).optional(),
+  marketplaceMonthlyVehicleLimit: z
+    .number()
+    .int()
+    .min(1)
+    .max(50)
+    .nullable()
+    .optional(),
+  listingRenewalDays: z.number().int().min(3).max(90).optional(),
+  listingLocale: z.enum(["fr", "en", "bilingual"]).optional(),
+  listingLanguage: z.enum(["fr", "fr_en"]).optional(),
+  listingHighlights: z
+    .object({
+      NEW: highlightPairSchema.optional(),
+      USED: highlightPairSchema.optional(),
+      DEMO: highlightPairSchema.optional(),
+    })
+    .nullable()
+    .optional(),
+  confirmAllInPrice: z.boolean().optional(),
+  freightFee: z.number().min(0).max(50000).optional().nullable(),
+  pdiFee: z.number().min(0).max(50000).optional().nullable(),
+  adminFee: z.number().min(0).max(50000).optional().nullable(),
+  acExciseFee: z.number().min(0).max(5000).optional().nullable(),
+  metaCatalogStateForDemo: z.enum(["Used", "New"]).optional(),
 });
 
 // API key schema
@@ -194,6 +249,11 @@ export const bulkUpdateVehiclesSchema = z.object({
   vehicleIds: z.array(z.string()).min(1).max(100),
   status: z.enum(["AVAILABLE", "PENDING", "SOLD", "ARCHIVED"]).optional(),
   assignedToId: z.string().optional().nullable(),
+});
+
+export const confirmFeedAbsenceSchema = z.object({
+  vehicleIds: z.array(z.string()).min(1).max(200),
+  action: z.enum(["sold", "keep"]),
 });
 
 export type RegisterInput = z.infer<typeof registerSchema>;
@@ -232,9 +292,59 @@ export const addPhotoSchema = z.object({
   isPrimary: z.boolean().optional(),
 });
 
+const optionalEmail = z.preprocess(
+  (value) => (value === "" ? null : value),
+  z.string().trim().email().nullable().optional(),
+);
+
+export const createLeadSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  phone: z.string().trim().max(30).optional().nullable(),
+  email: optionalEmail,
+  message: z.string().trim().max(4000).optional().nullable(),
+  source: z
+    .enum(["MARKETPLACE", "PHONE", "WALK_IN", "OTHER"])
+    .default("MARKETPLACE"),
+  vehicleId: z.string().optional().nullable(),
+  listingId: z.string().optional().nullable(),
+  assignedToId: z.string().optional().nullable(),
+  nextFollowUpAt: z.string().datetime().optional().nullable(),
+});
+
+export const updateLeadSchema = z.object({
+  name: z.string().trim().min(1).max(120).optional(),
+  phone: z.string().trim().max(30).optional().nullable(),
+  email: optionalEmail,
+  message: z.string().trim().max(4000).optional().nullable(),
+  source: z.enum(["MARKETPLACE", "PHONE", "WALK_IN", "OTHER"]).optional(),
+  status: z
+    .enum(["NEW", "CONTACTED", "APPOINTMENT", "SOLD", "LOST"])
+    .optional(),
+  vehicleId: z.string().optional().nullable(),
+  listingId: z.string().optional().nullable(),
+  assignedToId: z.string().optional().nullable(),
+  nextFollowUpAt: z.string().datetime().optional().nullable(),
+});
+
+export const leadQuerySchema = z.object({
+  status: z
+    .enum(["NEW", "CONTACTED", "APPOINTMENT", "SOLD", "LOST"])
+    .optional(),
+  search: z.string().optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+});
+
 export type CreateSyncSourceInput = z.infer<typeof createSyncSourceSchema>;
 export type UpdateSyncSourceInput = z.infer<typeof updateSyncSourceSchema>;
+export type CreateLeadInput = z.infer<typeof createLeadSchema>;
+export type UpdateLeadInput = z.infer<typeof updateLeadSchema>;
 
 export * from "./description";
+export * from "./pricing";
+export * from "./publish-queue";
+export * from "./priority";
+export * from "./listing-health";
+export * from "./catalog";
 export * from "./vin";
 export * from "./sync";

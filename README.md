@@ -65,15 +65,17 @@ Open [http://localhost:3000](http://localhost:3000)
 docker compose up -d postgres redis && pnpm install && cp -n .env.example .env && pnpm db:generate && pnpm db:push && pnpm db:seed && pnpm --filter @okauto/web dev
 ```
 
-### Demo Credentials
+### Comptes démo (local / CI seulement)
 
-| Role | Email | Password |
-|------|-------|----------|
-| Owner | owner@demo.okauto.local | Demo1234! |
-| Manager | manager@demo.okauto.local | Demo1234! |
-| Salesperson | sales@demo.okauto.local | Demo1234! |
+Ces comptes **ne doivent jamais être créés en production** (`NODE_ENV=production` bloque le seed, sauf `ALLOW_DEMO_SEED=true` sur une base jetable).
 
-The seed script prints an extension API key on completion.
+| Rôle | Courriel (environnement local) |
+|------|--------------------------------|
+| Owner | owner@demo.okauto.local |
+| Manager | manager@demo.okauto.local |
+| Salesperson | sales@demo.okauto.local |
+
+Le mot de passe local est affiché uniquement par `pnpm db:seed` dans le terminal. Ne le copiez pas dans la documentation de production.
 
 ## Chrome Extension
 

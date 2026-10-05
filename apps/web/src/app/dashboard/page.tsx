@@ -8,13 +8,15 @@ import {
   Car,
   CheckCircle2,
   Clock3,
+  Download,
   ListChecks,
+  MessageSquare,
   RefreshCw,
   WifiOff,
 } from "lucide-react";
 import { ProtectedRoute } from "@/components/protected-route";
 import { useAuth } from "@/components/auth-provider";
-import { formatDateTime, formatNumber } from "@/lib/utils";
+import { formatCurrency, formatDateTime, formatNumber } from "@/lib/utils";
 
 interface DashboardStats {
   totalVehicles: number;
@@ -24,6 +26,7 @@ interface DashboardStats {
   staleListings: number;
   readyToList: number;
   listingsThisWeek: number;
+  pendingFeedReview?: number;
   syncSources: Array<{
     id: string;
     name: string;
@@ -31,6 +34,28 @@ interface DashboardStats {
     lastSyncStatus: string | null;
     lastSyncError: string | null;
   }>;
+}
+
+interface TodayPick {
+  id: string;
+  year: number | null;
+  make: string | null;
+  model: string | null;
+  stockNumber: string | null;
+  advertisedPrice: number | null;
+  daysInStock: number;
+  reasons: string[];
+  photoUrl: string | null;
+}
+
+interface PublishQueue {
+  monthlyLimit: number;
+  usedThisMonth: number;
+  remainingThisMonth: number;
+  staleCount: number;
+  dueForRenewalCount: number;
+  openLeadCount: number;
+  todayPicks: TodayPick[];
 }
 
 export default function DashboardPage() {
@@ -41,22 +66,31 @@ export default function DashboardPage() {
   );
 }
 
+function vehicleLabel(pick: TodayPick) {
+  return [pick.year, pick.make, pick.model].filter(Boolean).join(" ");
+}
+
 function DashboardContent() {
   const { apiFetch, user, organization } = useAuth();
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [queue, setQueue] = useState<PublishQueue | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   const load = () => {
     setLoading(true);
     setError("");
-    apiFetch("/api/v1/analytics/dashboard")
-      .then(async (response) => {
-        if (!response.ok)
+    Promise.all([
+      apiFetch("/api/v1/analytics/dashboard"),
+      apiFetch("/api/v1/analytics/publish-queue"),
+    ])
+      .then(async ([dashboardResponse, queueResponse]) => {
+        if (!dashboardResponse.ok)
           throw new Error("La vue du matin ne peut pas être chargée.");
-        return response.json();
+        const dashboard = await dashboardResponse.json();
+        setStats(dashboard);
+        if (queueResponse.ok) setQueue(await queueResponse.json());
       })
-      .then(setStats)
       .catch((loadError) =>
         setError(
           loadError instanceof Error
@@ -69,7 +103,6 @@ function DashboardContent() {
 
   useEffect(() => {
     load();
-    // apiFetch is stable for the current authentication session.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiFetch]);
 
@@ -105,6 +138,9 @@ function DashboardContent() {
   const syncHealthy = sync?.lastSyncStatus === "success";
   const firstName = user?.name?.split(" ")[0] ?? "";
   const organizationName = organization?.name?.trim() || "votre concession";
+  const remaining = queue?.remainingThisMonth ?? 0;
+  const monthlyLimit = queue?.monthlyLimit ?? 5;
+  const pendingFeed = stats.pendingFeedReview ?? 0;
 
   return (
     <div className="space-y-7">
@@ -118,8 +154,11 @@ function DashboardContent() {
               Bonjour{firstName ? `, ${firstName}` : ""}.
             </h1>
             <p className="mt-2 max-w-xl text-sm leading-6 text-slate-300">
-              Votre inventaire {organizationName} est prêt. Commencez par les
-              retraits urgents, puis préparez la prochaine annonce prioritaire.
+              Limite indiquée : {queue?.usedThisMonth ?? 0} / {monthlyLimit}{" "}
+              nouvelles annonces ce mois-ci ({remaining} restante
+              {remaining > 1 ? "s" : ""}). Ce n’est pas une constante Meta
+              confirmée pour le Canada : réglez-la dans Paramètres. Commencez
+              par les retraits, puis les absents du flux, puis Aujourd’hui.
             </p>
           </div>
           <Link
@@ -157,9 +196,6 @@ function DashboardContent() {
               Priorités opérationnelles
             </h2>
           </div>
-          <span className="hidden text-sm text-slate-500 sm:block">
-            Mise à jour en temps réel
-          </span>
         </div>
 
         <div className="grid gap-4 lg:grid-cols-3">
@@ -179,23 +215,97 @@ function DashboardContent() {
           <PriorityCard
             step="02"
             icon={ListChecks}
-            title="Annonces à préparer"
-            value={stats.readyToList}
-            detail="Sélectionnez les stocks à promouvoir selon votre quota Meta."
+            title="À publier aujourd’hui"
+            value={queue?.todayPicks.length ?? stats.readyToList}
+            detail={`${remaining} créneau${remaining > 1 ? "x" : ""} Meta restant${remaining > 1 ? "s" : ""} ce mois-ci.`}
             href="/dashboard/listings"
             tone="blue"
           />
           <PriorityCard
             step="03"
             icon={CheckCircle2}
-            title="Annonces suivies"
-            value={stats.activeListings}
-            detail={`${formatNumber(stats.listingsThisWeek)} ajoutée(s) dans les 7 derniers jours.`}
+            title="Annonces à renouveler"
+            value={queue?.dueForRenewalCount ?? 0}
+            detail="Annonces Marketplace trop vieilles : republiez-les à la main."
             href="/dashboard/listings"
             tone="slate"
           />
         </div>
       </section>
+
+      {pendingFeed > 0 && (
+        <Link
+          href="/dashboard/sync"
+          className="card flex items-start gap-4 border-amber-200 bg-amber-50 p-5 hover:border-amber-300"
+        >
+          <AlertTriangle className="mt-0.5 text-amber-700" />
+          <div>
+            <h2 className="font-bold text-amber-950">
+              {formatNumber(pendingFeed)} véhicule
+              {pendingFeed > 1 ? "s" : ""} absent
+              {pendingFeed > 1 ? "s" : ""} du flux à confirmer
+            </h2>
+            <p className="mt-1 text-sm text-amber-800">
+              Le garde-fou n’a marqué aucun vendu. Confirmez vendu ou garder
+              dans Synchronisation.
+            </p>
+          </div>
+        </Link>
+      )}
+
+      {queue && queue.todayPicks.length > 0 && (
+        <section className="card p-5 sm:p-6">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">
+                Selon l’âge en stock
+              </p>
+              <h2 className="mt-1 text-lg font-bold text-slate-950">
+                File du jour
+              </h2>
+            </div>
+            <p className="text-sm text-slate-500">
+              {queue.usedThisMonth}/{monthlyLimit} ce mois-ci
+            </p>
+          </div>
+          <div className="grid gap-3">
+            {queue.todayPicks.map((pick) => (
+              <div
+                key={pick.id}
+                className="flex flex-col gap-3 rounded-xl border border-slate-200 p-3 sm:flex-row sm:items-center"
+              >
+                <div className="h-16 w-full overflow-hidden rounded-lg bg-slate-100 sm:w-24">
+                  {pick.photoUrl && (
+                    <img
+                      src={pick.photoUrl}
+                      alt=""
+                      className="h-full w-full object-cover"
+                    />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-bold text-slate-950">
+                    {vehicleLabel(pick)}
+                  </p>
+                  <p className="text-sm text-slate-500">
+                    Stock {pick.stockNumber ?? "—"} · {pick.daysInStock} j en
+                    stock · {formatCurrency(pick.advertisedPrice)}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {pick.reasons[0]}
+                  </p>
+                </div>
+                <Link
+                  href={`/dashboard/listings?prepare=${pick.id}`}
+                  className="btn-primary"
+                >
+                  Publier
+                </Link>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
         <div className="card p-5 sm:p-6">
@@ -235,22 +345,56 @@ function DashboardContent() {
           </div>
         </div>
 
-        <div className="card flex items-center gap-4 p-5 sm:p-6">
-          <div className="rounded-xl bg-slate-100 p-3 text-slate-700">
-            <Car size={24} />
+        <div className="grid gap-4">
+          <div className="card flex items-center gap-4 p-5 sm:p-6">
+            <div className="rounded-xl bg-slate-100 p-3 text-slate-700">
+              <Car size={24} />
+            </div>
+            <div>
+              <p className="text-sm text-slate-500">Inventaire total</p>
+              <p className="text-2xl font-bold tabular-nums text-slate-950">
+                {formatNumber(stats.totalVehicles)}
+              </p>
+              <Link
+                href="/dashboard/inventory"
+                className="mt-1 inline-block text-sm font-semibold text-brand-700 hover:underline"
+              >
+                Parcourir les véhicules
+              </Link>
+            </div>
           </div>
-          <div>
-            <p className="text-sm text-slate-500">Inventaire total</p>
-            <p className="text-2xl font-bold tabular-nums text-slate-950">
-              {formatNumber(stats.totalVehicles)}
-            </p>
-            <Link
-              href="/dashboard/inventory"
-              className="mt-1 inline-block text-sm font-semibold text-brand-700 hover:underline"
-            >
-              Parcourir les véhicules
-            </Link>
+          <div className="card flex items-center gap-4 p-5">
+            <MessageSquare className="text-slate-600" />
+            <div>
+              <p className="text-sm text-slate-500">Leads ouverts</p>
+              <p className="text-xl font-bold">
+                {formatNumber(queue?.openLeadCount ?? 0)}
+              </p>
+              <Link
+                href="/dashboard/leads"
+                className="text-sm font-semibold text-brand-700 hover:underline"
+              >
+                Ouvrir le carnet
+              </Link>
+            </div>
           </div>
+          <button
+            type="button"
+            onClick={async () => {
+              const response = await apiFetch("/api/v1/catalog/meta");
+              if (!response.ok) return;
+              const blob = await response.blob();
+              const url = URL.createObjectURL(blob);
+              const link = document.createElement("a");
+              link.href = url;
+              link.download = "catalogue-vehicules-meta.csv";
+              link.click();
+              URL.revokeObjectURL(url);
+            }}
+            className="card flex items-center gap-3 p-5 text-left text-sm font-semibold text-brand-700"
+          >
+            <Download size={18} /> Exporter le catalogue Meta
+          </button>
         </div>
       </section>
     </div>

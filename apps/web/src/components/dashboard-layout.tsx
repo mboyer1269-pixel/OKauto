@@ -15,6 +15,8 @@ import {
   Menu,
   X,
   Activity,
+  BarChart3,
+  MessageSquare,
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "./auth-provider";
@@ -32,6 +34,13 @@ const navItems: Array<{
   { href: "/dashboard", label: "Vue du matin", icon: LayoutDashboard },
   { href: "/dashboard/inventory", label: "Inventaire", icon: Car },
   { href: "/dashboard/listings", label: "Publications", icon: List },
+  {
+    href: "/dashboard/direction",
+    label: "Direction",
+    icon: BarChart3,
+    minRole: "MANAGER",
+  },
+  { href: "/dashboard/leads", label: "Leads", icon: MessageSquare },
   { href: "/dashboard/sync", label: "Synchronisation", icon: Activity },
   { href: "/dashboard/team", label: "Équipe", icon: Users },
   { href: "/dashboard/notifications", label: "Notifications", icon: Bell },

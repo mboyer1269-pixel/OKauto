@@ -36,6 +36,9 @@ export const PUT = withAuth(async (request, { auth, params }) => {
       platform: "facebook_marketplace",
       title: data.title,
       description: data.description,
+      locale: data.locale ?? "fr",
+      titleEn: data.titleEn ?? undefined,
+      descriptionEn: data.descriptionEn ?? undefined,
       photoOrder,
       generationSource: "manual",
       dataSnapshot: {
@@ -52,6 +55,10 @@ export const PUT = withAuth(async (request, { auth, params }) => {
     update: {
       title: data.title,
       description: data.description,
+      locale: data.locale ?? undefined,
+      titleEn: data.titleEn === undefined ? undefined : data.titleEn,
+      descriptionEn:
+        data.descriptionEn === undefined ? undefined : data.descriptionEn,
       photoOrder,
       generationSource: "manual",
       dataSnapshot: {

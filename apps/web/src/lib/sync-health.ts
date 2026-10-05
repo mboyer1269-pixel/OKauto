@@ -24,12 +24,14 @@ export interface SyncHealthData {
     startedAt: string;
     syncSource: { name: string };
   }>;
+  pendingFeedReview?: number;
   health: {
     status: string;
     sourceCount: number;
     activeSources: number;
     failedRunsLast10: number;
     lastSyncAt: string | null;
+    pendingFeedReview?: number;
   };
 }
 

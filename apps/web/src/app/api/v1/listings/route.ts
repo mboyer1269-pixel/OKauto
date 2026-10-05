@@ -3,14 +3,18 @@ import {
   createListingSchema,
   generateMarketplaceTitle,
   generateTemplateDescription,
+  hasMinRole,
   isFacebookMarketplaceItemUrl,
 } from "@okauto/shared";
-import { withAuth, jsonResponse, parseBody } from "@/lib/api";
+import { withAuth, jsonResponse, errorResponse, parseBody } from "@/lib/api";
 import { createAuditLog } from "@/lib/auth";
+import { listingHealthPayload } from "@/lib/sales-ops";
 
 export const GET = withAuth(async (request, { auth }) => {
   const url = new URL(request.url);
   const status = url.searchParams.get("status");
+  const scope = url.searchParams.get("scope");
+  const healthFilter = url.searchParams.get("health");
   const parsedPage = parseInt(url.searchParams.get("page") ?? "1", 10);
   const parsedLimit = parseInt(url.searchParams.get("limit") ?? "20", 10);
   const page = Number.isFinite(parsedPage) ? Math.max(1, parsedPage) : 1;
@@ -18,13 +22,17 @@ export const GET = withAuth(async (request, { auth }) => {
     ? Math.min(250, Math.max(1, parsedLimit))
     : 20;
 
+  if (scope === "team" && !hasMinRole(auth.role, "MANAGER")) {
+    return errorResponse("Accès insuffisant", 403);
+  }
+
   const where: Record<string, unknown> = {
     organizationId: auth.orgId,
-    userId: auth.sub,
   };
+  if (scope !== "team") where.userId = auth.sub;
   if (status) where.status = status;
 
-  const [listings, total, countsByStatus] = await Promise.all([
+  const [listings, total, countsByStatus, activeForHealth] = await Promise.all([
     prisma.listing.findMany({
       where,
       include: {
@@ -41,17 +49,46 @@ export const GET = withAuth(async (request, { auth }) => {
     prisma.listing.count({ where }),
     prisma.listing.groupBy({
       by: ["status"],
-      where: { organizationId: auth.orgId, userId: auth.sub },
+      where: {
+        organizationId: auth.orgId,
+        ...(scope === "team" ? {} : { userId: auth.sub }),
+      },
       _count: { _all: true },
+    }),
+    prisma.listing.findMany({
+      where: {
+        organizationId: auth.orgId,
+        status: "ACTIVE",
+        ...(scope === "team" ? {} : { userId: auth.sub }),
+      },
+      include: { vehicle: { select: { price: true } } },
     }),
   ]);
 
   const counts = Object.fromEntries(
     countsByStatus.map((entry) => [entry.status, entry._count._all]),
-  );
+  ) as Record<string, number>;
+  counts.PRICE_MISMATCH = activeForHealth.filter(
+    (listing) => listingHealthPayload(listing).priceMismatch,
+  ).length;
+  counts.RENEW_DUE = activeForHealth.filter(
+    (listing) => listingHealthPayload(listing).renewDue,
+  ).length;
+
+  const withHealth = listings
+    .map((listing) => ({
+      ...listing,
+      health: listingHealthPayload(listing),
+      hoursStale: listingHealthPayload(listing).hoursStale,
+    }))
+    .filter((listing) => {
+      if (healthFilter === "price") return Boolean(listing.health.priceMismatch);
+      if (healthFilter === "renew") return listing.health.renewDue;
+      return true;
+    });
 
   return jsonResponse({
-    listings,
+    listings: withHealth,
     counts,
     pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
   });
@@ -157,6 +194,8 @@ export const POST = withAuth(async (request, { auth }) => {
       externalUrl: data.externalUrl,
       externalId: data.externalId,
       priceAtListing: data.priceAtListing ?? vehicle.price,
+      marketplacePrice: data.priceAtListing ?? vehicle.price,
+      lastPriceConfirmedAt: new Date(),
       titleAtListing: draft?.title || generateMarketplaceTitle(vehicleData),
       descriptionAtListing:
         draft?.description || generateTemplateDescription(vehicleData),

@@ -45,6 +45,27 @@ enum NotificationType {
   SYSTEM
 }
 
+enum LeadStatus {
+  NEW
+  CONTACTED
+  APPOINTMENT
+  SOLD
+  LOST
+}
+
+enum LeadSource {
+  MARKETPLACE
+  PHONE
+  WALK_IN
+  OTHER
+}
+
+enum FeedAbsenceStatus {
+  IN_FEED
+  PENDING_REVIEW
+  KEPT
+}
+
 enum AuditAction {
   CREATE
   UPDATE
@@ -74,28 +95,46 @@ model User {
   auditLogs         AuditLog[]
   apiKeys           ApiKey[]
   importJobs        ImportJob[]
+  createdLeads      MarketplaceLead[]  @relation("LeadCreatedBy")
+  assignedLeads     MarketplaceLead[]  @relation("LeadAssignedTo")
 
   @@map("users")
 }
 
 model Organization {
-  id        String   @id @default(cuid())
-  name      String
-  slug      String   @unique
-  website   String?
-  phone     String?
-  address   String?
-  city      String?
-  state     String?
-  zip       String?
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                   String   @id @default(cuid())
+  name                 String
+  slug                 String   @unique
+  website              String?
+  phone                String?
+  address              String?
+  city                 String?
+  state                String?
+  zip                  String?
+  isActive             Boolean  @default(true)
+  monthlyListingLimit  Int      @default(5)
+  listingRenewalDays   Int      @default(7)
+  listingLocale        String   @default("fr")
+  freightFee           Decimal  @default(0) @db.Decimal(12, 2)
+  pdiFee               Decimal  @default(0) @db.Decimal(12, 2)
+  adminFee             Decimal  @default(0) @db.Decimal(12, 2)
+  acExciseFee          Decimal  @default(0) @db.Decimal(12, 2)
+  marketplaceMonthlyVehicleLimit Int?     @default(5)
+  allInPriceConfirmedAt          DateTime?
+  allInPriceConfirmedById        String?
+  listingLanguage                String    @default("fr")
+  listingHighlights              Json?
+  metaCatalogFeedEnabled         Boolean   @default(false)
+  metaCatalogFeedToken           String?   @unique
+  metaCatalogStateForDemo        String    @default("Used")
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
   members           OrganizationMember[]
   vehicles          Vehicle[]
   listings          Listing[]
   marketplaceDrafts MarketplaceDraft[]
+  marketplaceLeads  MarketplaceLead[]
   syncSources       SyncSource[]
   importJobs        ImportJob[]
   syncRuns          SyncRun[]
@@ -111,6 +150,7 @@ model OrganizationMember {
   organizationId String
   userId         String
   role           Role     @default(SALESPERSON)
+  marketplaceMonthlyVehicleLimit Int?
   joinedAt       DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -139,7 +179,12 @@ model Vehicle {
   mileage          Int?
   price            Decimal?      @db.Decimal(12, 2)
   msrp             Decimal?      @db.Decimal(12, 2)
+  freightFee       Decimal?      @db.Decimal(12, 2)
+  pdiFee           Decimal?      @db.Decimal(12, 2)
+  adminFee         Decimal?      @db.Decimal(12, 2)
+  acExciseFee      Decimal?      @db.Decimal(12, 2)
   description      String?       @db.Text
+  descriptionEn    String?       @db.Text
   features         String[]      @default([])
   status           VehicleStatus @default(AVAILABLE)
   fuelType         String?
@@ -152,10 +197,16 @@ model Vehicle {
   location         String?
   notes            String?       @db.Text
   soldAt           DateTime?
-  lastSeenAt       DateTime?
-  missingSyncCount Int           @default(0)
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
+  lastSeenAt         DateTime?
+  missingSyncCount   Int               @default(0)
+  feedAbsenceStatus  FeedAbsenceStatus @default(IN_FEED)
+  feedAbsenceNotedAt DateTime?
+  managerPriority       Boolean   @default(false)
+  managerPriorityNote   String?
+  managerPriorityById   String?
+  priceDroppedAt        DateTime?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
 
   organization      Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   assignedTo        User?              @relation("AssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
@@ -163,10 +214,12 @@ model Vehicle {
   photos            VehiclePhoto[]
   listings          Listing[]
   marketplaceDrafts MarketplaceDraft[]
+  marketplaceLeads  MarketplaceLead[]
 
   @@unique([organizationId, vin])
   @@index([organizationId, status])
   @@index([organizationId, stockNumber])
+  @@index([organizationId, feedAbsenceStatus])
   @@index([syncSourceId])
   @@map("vehicles")
 }
@@ -203,13 +256,20 @@ model Listing {
   descriptionAtListing String?       @db.Text
   photoUrlsAtListing   String[]      @default([])
   notes                String?
+  lastRenewedAt        DateTime?
+  renewalCount         Int           @default(0)
+  marketplacePrice     Decimal?      @db.Decimal(12, 2)
+  lastPriceConfirmedAt DateTime?
+  staleSince           DateTime?
+  removalReminderSentAt DateTime?
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
 
-  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  vehicle      Vehicle        @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
-  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  events       ListingEvent[]
+  organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  vehicle          Vehicle           @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  events           ListingEvent[]
+  marketplaceLeads MarketplaceLead[]
 
   @@index([organizationId, status])
   @@index([userId])
@@ -225,6 +285,9 @@ model MarketplaceDraft {
   platform         String   @default("facebook_marketplace")
   title            String
   description      String   @db.Text
+  locale           String   @default("fr")
+  titleEn          String?
+  descriptionEn    String?  @db.Text
   photoOrder       String[] @default([])
   generationSource String   @default("template")
   dataSnapshot     Json?
@@ -239,6 +302,35 @@ model MarketplaceDraft {
   @@index([userId, updatedAt])
   @@index([vehicleId])
   @@map("marketplace_drafts")
+}
+
+model MarketplaceLead {
+  id             String     @id @default(cuid())
+  organizationId String
+  vehicleId      String?
+  listingId      String?
+  createdById    String
+  assignedToId   String?
+  name           String
+  phone          String?
+  email          String?
+  message        String?    @db.Text
+  source         LeadSource @default(MARKETPLACE)
+  status         LeadStatus @default(NEW)
+  nextFollowUpAt DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  vehicle      Vehicle?     @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  listing      Listing?     @relation(fields: [listingId], references: [id], onDelete: SetNull)
+  createdBy    User         @relation("LeadCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+  assignedTo   User?        @relation("LeadAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status, createdAt])
+  @@index([assignedToId])
+  @@index([vehicleId])
+  @@map("marketplace_leads")
 }
 
 model ListingEvent {

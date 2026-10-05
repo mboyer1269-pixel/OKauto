@@ -1,14 +1,24 @@
 import { prisma } from "@okauto/database";
 import {
   classifyInventoryKind,
-  generateTemplateDescription,
+  composeListingDescription,
+  generateTemplateDescriptionEn,
+  mergePricingFees,
+  resolveListingLocale,
+  type ListingLocale,
 } from "@okauto/shared";
 
 export async function generateVehicleDescription(
   vehicleId: string,
   organizationId: string,
   userId?: string,
-): Promise<{ description: string; source: "ai" | "template" }> {
+  locale?: ListingLocale,
+): Promise<{
+  description: string;
+  descriptionEn: string;
+  locale: ListingLocale;
+  source: "ai" | "template";
+}> {
   const [vehicle, salesperson] = await Promise.all([
     prisma.vehicle.findFirst({
       where: { id: vehicleId, organizationId },
@@ -29,12 +39,75 @@ export async function generateVehicleDescription(
     process.env.MARKETPLACE_CONTACT_NAME?.trim() ||
     process.env.NEXT_PUBLIC_MARKETPLACE_CONTACT_NAME?.trim() ||
     "Michael Boyer";
+  const resolvedLocale = resolveListingLocale(
+    locale ??
+      vehicle.organization.listingLanguage ??
+      vehicle.organization.listingLocale,
+  );
+  const highlightsByKind = (vehicle.organization.listingHighlights ?? {}) as {
+    NEW?: { fr?: string; en?: string };
+    USED?: { fr?: string; en?: string };
+    DEMO?: { fr?: string; en?: string };
+  };
+  const fees = mergePricingFees(
+    {
+      freightFee: Number(vehicle.organization.freightFee ?? 0),
+      pdiFee: Number(vehicle.organization.pdiFee ?? 0),
+      adminFee: Number(vehicle.organization.adminFee ?? 0),
+      acExciseFee: Number(vehicle.organization.acExciseFee ?? 0),
+    },
+    {
+      freightFee: vehicle.freightFee == null ? null : Number(vehicle.freightFee),
+      pdiFee: vehicle.pdiFee == null ? null : Number(vehicle.pdiFee),
+      adminFee: vehicle.adminFee == null ? null : Number(vehicle.adminFee),
+      acExciseFee:
+        vehicle.acExciseFee == null ? null : Number(vehicle.acExciseFee),
+    },
+  );
   const inventoryType = classifyInventoryKind({
     condition: vehicle.condition,
     mileage: vehicle.mileage,
     stockNumber: vehicle.stockNumber,
     sourceUrl: vehicle.sourceUrl,
   });
+  const vehicleData = {
+    year: vehicle.year,
+    make: vehicle.make,
+    model: vehicle.model,
+    trim: vehicle.trim,
+    mileage: vehicle.mileage,
+    price: vehicle.price ? Number(vehicle.price) : null,
+    organizationFees: fees,
+    exteriorColor: vehicle.exteriorColor,
+    interiorColor: vehicle.interiorColor,
+    transmission: vehicle.transmission,
+    fuelType: vehicle.fuelType,
+    drivetrain: vehicle.drivetrain,
+    engine: vehicle.engine,
+    bodyStyle: vehicle.bodyStyle,
+    condition: vehicle.condition,
+    features: vehicle.features,
+    dealershipName: vehicle.organization.name,
+    contactName,
+    phone: vehicle.organization.phone ?? undefined,
+    vin: vehicle.vin,
+    stockNumber: vehicle.stockNumber,
+    sourceUrl: vehicle.sourceUrl,
+    location: vehicle.location,
+    language:
+      resolvedLocale === "bilingual"
+        ? ("fr_en" as const)
+        : resolvedLocale === "en"
+          ? undefined
+          : ("fr" as const),
+    allInPriceConfirmed: Boolean(vehicle.organization.allInPriceConfirmedAt),
+    highlights:
+      inventoryType === "new"
+        ? highlightsByKind.NEW
+        : inventoryType === "demo"
+          ? highlightsByKind.DEMO
+          : highlightsByKind.USED,
+  };
 
   const openaiKey = process.env.OPENAI_API_KEY;
   if (openaiKey) {
@@ -53,7 +126,9 @@ export async function generateVehicleDescription(
               {
                 role: "system",
                 content:
-                  "Tu es un excellent conseiller automobile québécois. Rédige à la première personne une annonce Facebook Marketplace humaine, précise et facile à parcourir, entre 140 et 240 mots. Commence par une accroche spécifique au véhicule, puis explique sa configuration et ses équipements les plus pertinents avec de courtes phrases et quelques puces. N’utilise aucun cliché vide et ne répète pas deux fois la même information. N’invente jamais une garantie, une certification, un rabais, un taux, une capacité, une performance ni un équipement. Affiche clairement le prix en dollars canadiens et le kilométrage en km. Termine en demandant au client d’écrire directement au conseiller sur Messenger ou d’appeler la concession et de demander ce conseiller. Précise que seules la TPS, la TVQ et le droit sur les pneus neufs peuvent s’ajouter. Retourne seulement le texte final de l’annonce.",
+                  resolvedLocale === "en"
+                    ? "You are an excellent Quebec automotive advisor writing in Canadian English. Write a first-person Facebook Marketplace listing, 140-240 words, specific and scannable. Never invent equipment, warranties, rates or discounts. Show the advertised all-in CAD price (before GST, QST and the Quebec new-tire fee). End by asking the shopper to message the advisor on Messenger. Return only the listing text."
+                    : "Tu es un excellent conseiller automobile québécois. Rédige à la première personne une annonce Facebook Marketplace humaine, précise et facile à parcourir, entre 140 et 240 mots. Commence par une accroche spécifique au véhicule, puis explique sa configuration et ses équipements les plus pertinents avec de courtes phrases et quelques puces. N’utilise aucun cliché vide et ne répète pas deux fois la même information. N’invente jamais une garantie, une certification, un rabais, un taux, une capacité, une performance ni un équipement. Affiche clairement le prix annoncé tout inclus en dollars canadiens (avant TPS, TVQ et droit sur les pneus neufs) et le kilométrage en km. Termine en demandant au client d’écrire directement au conseiller sur Messenger ou d’appeler la concession et de demander ce conseiller. Précise que seules la TPS, la TVQ et le droit sur les pneus neufs peuvent s’ajouter. Retourne seulement le texte final de l’annonce.",
               },
               {
                 role: "user",
@@ -91,7 +166,18 @@ export async function generateVehicleDescription(
       if (response.ok) {
         const data = await response.json();
         const content = data.choices?.[0]?.message?.content;
-        if (content) return { description: content, source: "ai" };
+        if (content) {
+          const descriptionEn = generateTemplateDescriptionEn(vehicleData);
+          return {
+            description:
+              resolvedLocale === "bilingual"
+                ? `${content}\n\n————————\nEnglish\n————————\n\n${descriptionEn}`
+                : content,
+            descriptionEn,
+            locale: resolvedLocale,
+            source: "ai",
+          };
+        }
       }
     } catch (err) {
       console.warn("OpenAI generation failed, using template:", err);
@@ -99,30 +185,9 @@ export async function generateVehicleDescription(
   }
 
   return {
-    description: generateTemplateDescription({
-      year: vehicle.year,
-      make: vehicle.make,
-      model: vehicle.model,
-      trim: vehicle.trim,
-      mileage: vehicle.mileage,
-      price: vehicle.price ? Number(vehicle.price) : null,
-      exteriorColor: vehicle.exteriorColor,
-      interiorColor: vehicle.interiorColor,
-      transmission: vehicle.transmission,
-      fuelType: vehicle.fuelType,
-      drivetrain: vehicle.drivetrain,
-      engine: vehicle.engine,
-      bodyStyle: vehicle.bodyStyle,
-      condition: vehicle.condition,
-      features: vehicle.features,
-      dealershipName: vehicle.organization.name,
-      contactName,
-      phone: vehicle.organization.phone ?? undefined,
-      vin: vehicle.vin,
-      stockNumber: vehicle.stockNumber,
-      sourceUrl: vehicle.sourceUrl,
-      location: vehicle.location,
-    }),
+    description: composeListingDescription(vehicleData, resolvedLocale),
+    descriptionEn: generateTemplateDescriptionEn(vehicleData),
+    locale: resolvedLocale,
     source: "template",
   };
 }
@@ -157,8 +222,8 @@ export async function notifySoldVehicle(
       data: {
         userId,
         type: "SOLD_ALERT",
-        title: "Vehicle Sold — Remove Listing",
-        message: `The ${title} (Stock ${vehicle.stockNumber ?? "N/A"}) has been marked as sold. Please remove it from Facebook Marketplace.`,
+        title: "Véhicule vendu : retirez votre annonce",
+        message: `Le ${title} (stock ${vehicle.stockNumber ?? "s. o."}) n’est plus dans l’inventaire. Retirez l’annonce sur Facebook, puis confirmez le retrait dans Suivia.`,
         metadata: { vehicleId: vehicle.id, stockNumber: vehicle.stockNumber },
       },
     });
@@ -166,8 +231,52 @@ export async function notifySoldVehicle(
 
   await prisma.listing.updateMany({
     where: { vehicleId, status: "ACTIVE" },
-    data: { status: "STALE" },
+    data: { status: "STALE", staleSince: new Date() },
   });
+}
+
+export async function confirmFeedAbsenceVehicles(
+  organizationId: string,
+  vehicleIds: string[],
+  action: "sold" | "keep",
+) {
+  const vehicles = await prisma.vehicle.findMany({
+    where: {
+      organizationId,
+      id: { in: vehicleIds },
+      status: { in: ["AVAILABLE", "PENDING"] },
+      feedAbsenceStatus: "PENDING_REVIEW",
+    },
+    select: { id: true },
+  });
+  const ids = vehicles.map((vehicle) => vehicle.id);
+  if (ids.length === 0) return { updated: 0 };
+
+  if (action === "keep") {
+    await prisma.vehicle.updateMany({
+      where: { id: { in: ids } },
+      data: {
+        feedAbsenceStatus: "KEPT",
+        feedAbsenceNotedAt: new Date(),
+      },
+    });
+    return { updated: ids.length };
+  }
+
+  const soldAt = new Date();
+  await prisma.vehicle.updateMany({
+    where: { id: { in: ids } },
+    data: {
+      status: "SOLD",
+      soldAt,
+      feedAbsenceStatus: "IN_FEED",
+      missingSyncCount: 0,
+    },
+  });
+  for (const id of ids) {
+    await notifySoldVehicle(id, organizationId);
+  }
+  return { updated: ids.length };
 }
 
 export async function getDashboardStats(
@@ -183,6 +292,7 @@ export async function getDashboardStats(
     readyToList,
     members,
     syncSources,
+    pendingFeedReview,
   ] = await Promise.all([
     prisma.vehicle.count({ where: { organizationId } }),
     prisma.vehicle.count({ where: { organizationId, status: "AVAILABLE" } }),
@@ -214,6 +324,13 @@ export async function getDashboardStats(
         lastSyncError: true,
       },
       orderBy: { updatedAt: "desc" },
+    }),
+    prisma.vehicle.count({
+      where: {
+        organizationId,
+        status: { in: ["AVAILABLE", "PENDING"] },
+        feedAbsenceStatus: "PENDING_REVIEW",
+      },
     }),
   ]);
 
@@ -271,6 +388,7 @@ export async function getDashboardStats(
     staleListings,
     readyToList,
     listingsThisWeek,
+    pendingFeedReview,
     syncSources,
     memberStats,
   };

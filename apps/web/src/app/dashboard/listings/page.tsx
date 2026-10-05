@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
   ArrowUpRight,
@@ -28,6 +29,8 @@ import {
 import {
   generateMarketplacePackage,
   isFacebookMarketplaceItemUrl,
+  isListingDueForRenewal,
+  type ListingLocale,
 } from "@okauto/shared";
 import { ProtectedRoute } from "@/components/protected-route";
 import { useAuth } from "@/components/auth-provider";
@@ -77,11 +80,27 @@ interface Listing {
   id: string;
   status: "ACTIVE" | "STALE" | "REMOVED" | "SOLD" | "DRAFT";
   listedAt: string;
+  lastRenewedAt?: string | null;
   removedAt: string | null;
   priceAtListing: number | null;
+  marketplacePrice?: number | null;
   externalUrl: string | null;
+  staleSince?: string | null;
+  hoursStale?: number | null;
+  health?: {
+    priceMismatch: { from: number; to: number; direction: "up" | "down" } | null;
+    renewDue: boolean;
+    daysSinceFreshness: number;
+  };
   vehicle: Vehicle;
   user: { name: string };
+}
+
+interface TodaySuggestion {
+  vehicle: Vehicle & { photoUrl?: string | null; managerPriority?: boolean };
+  score: number;
+  reasons: string[];
+  alreadyListedBy: Array<{ name: string }>;
 }
 
 interface Organization {
@@ -90,9 +109,19 @@ interface Organization {
   address?: string | null;
   city?: string | null;
   state?: string | null;
+  listingLocale?: string | null;
+  listingLanguage?: string | null;
+  listingRenewalDays?: number | null;
+  monthlyListingLimit?: number | null;
+  marketplaceMonthlyVehicleLimit?: number | null;
+  allInPriceConfirmedAt?: string | null;
+  freightFee?: number | string | null;
+  pdiFee?: number | string | null;
+  adminFee?: number | string | null;
+  acExciseFee?: number | string | null;
 }
 
-type Queue = "prepare" | "active" | "remove" | "history";
+type Queue = "today" | "prepare" | "active" | "remove" | "renew" | "history";
 type InventoryType = "" | "NEW" | "USED" | "DEMO";
 
 const MARKETPLACE_CREATE_URL =
@@ -103,11 +132,14 @@ const APP_MESSAGE_SOURCE = "okauto-web";
 const EXTENSION_MESSAGE_SOURCE = "okauto-extension";
 
 const QUEUES: Array<{ id: Queue; label: string; icon: typeof Clipboard }> = [
+  { id: "today", label: "Aujourd’hui", icon: Zap },
   { id: "prepare", label: "À préparer", icon: Clipboard },
   { id: "active", label: "Publiées", icon: CheckCircle2 },
+  { id: "renew", label: "À renouveler", icon: RefreshCw },
   { id: "remove", label: "À retirer", icon: AlertTriangle },
   { id: "history", label: "Historique", icon: History },
 ];
+const MARKETPLACE_YOUR_LISTINGS_URL = "https://www.facebook.com/marketplace/";
 
 const INVENTORY_TYPES: Array<{ id: InventoryType; label: string }> = [
   { id: "", label: "Tous" },
@@ -138,13 +170,21 @@ function copyWithLegacyClipboard(value: string) {
 export default function ListingsPage() {
   return (
     <ProtectedRoute>
-      <ListingsContent />
+      <Suspense
+        fallback={
+          <div className="h-24 animate-pulse rounded-xl bg-slate-200" />
+        }
+      >
+        <ListingsContent />
+      </Suspense>
     </ProtectedRoute>
   );
 }
 
 function ListingsContent() {
   const { apiFetch, user } = useAuth();
+  const searchParams = useSearchParams();
+  const prepareId = searchParams.get("prepare");
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [readyTotal, setReadyTotal] = useState(0);
   const [allReadyTotal, setAllReadyTotal] = useState(0);
@@ -155,7 +195,20 @@ function ListingsContent() {
   const [organization, setOrganization] = useState<Organization>({
     name: "Votre concession",
   });
-  const [queue, setQueue] = useState<Queue>("prepare");
+  const [draftLocale, setDraftLocale] = useState<ListingLocale>("fr");
+  const [quota, setQuota] = useState<{
+    usedThisMonth: number;
+    remainingThisMonth: number;
+    monthlyLimit: number;
+    resetsAt?: string;
+  } | null>(null);
+  const [todaySuggestions, setTodaySuggestions] = useState<TodaySuggestion[]>(
+    [],
+  );
+  const [activeHealthFilter, setActiveHealthFilter] = useState<
+    "all" | "price" | "renew"
+  >("all");
+  const [queue, setQueue] = useState<Queue>("today");
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [inventoryType, setInventoryType] = useState<InventoryType>("");
@@ -199,21 +252,26 @@ function ListingsContent() {
         });
         if (searchTerm) vehicleParams.set("search", searchTerm);
 
-        const [vehicleResponse, listingResponse, orgResponse] =
+        const [vehicleResponse, listingResponse, orgResponse, queueResponse, todayResponse] =
           await Promise.all([
             apiFetch(`/api/v1/vehicles?${vehicleParams}`),
             apiFetch("/api/v1/listings?limit=250&page=1"),
             apiFetch("/api/v1/organizations/current"),
+            apiFetch("/api/v1/analytics/publish-queue"),
+            apiFetch("/api/v1/listings/today"),
           ]);
 
         if (!vehicleResponse.ok || !listingResponse.ok || !orgResponse.ok) {
           throw new Error("Impossible de charger le centre de publication.");
         }
 
-        const [vehicleData, listingData, orgData] = await Promise.all([
+        const [vehicleData, listingData, orgData, queueData, todayData] =
+          await Promise.all([
           vehicleResponse.json(),
           listingResponse.json(),
           orgResponse.json(),
+          queueResponse.ok ? queueResponse.json() : Promise.resolve(null),
+          todayResponse.ok ? todayResponse.json() : Promise.resolve(null),
         ]);
 
         setVehicles(vehicleData.vehicles ?? []);
@@ -223,6 +281,29 @@ function ListingsContent() {
         setListings(listingData.listings ?? []);
         setListingCounts(listingData.counts ?? {});
         setOrganization(orgData);
+        setDraftLocale(
+          orgData.listingLanguage === "fr_en" ||
+            orgData.listingLocale === "bilingual"
+            ? "bilingual"
+            : orgData.listingLocale === "en"
+              ? "en"
+              : "fr",
+        );
+        if (todayData?.quota) {
+          setQuota({
+            usedThisMonth: todayData.quota.used,
+            remainingThisMonth: todayData.quota.remaining,
+            monthlyLimit: todayData.quota.limit,
+            resetsAt: todayData.quota.resetsAt,
+          });
+          setTodaySuggestions(todayData.suggestions ?? []);
+        } else if (queueData) {
+          setQuota({
+            usedThisMonth: queueData.usedThisMonth,
+            remainingThisMonth: queueData.remainingThisMonth,
+            monthlyLimit: queueData.monthlyLimit,
+          });
+        }
         lastListingRefresh.current = Date.now();
       } catch (loadError) {
         setError(
@@ -439,6 +520,19 @@ function ListingsContent() {
   const historyListings = listings.filter((listing) =>
     ["REMOVED", "SOLD"].includes(listing.status),
   );
+  const renewalDays = organization.listingRenewalDays ?? 7;
+  const renewListings = activeListings.filter(
+    (listing) =>
+      listing.health?.renewDue ??
+      isListingDueForRenewal(
+        listing.listedAt,
+        listing.lastRenewedAt,
+        renewalDays,
+      ),
+  );
+  const priceMismatchListings = activeListings.filter(
+    (listing) => listing.health?.priceMismatch,
+  );
 
   const normalizedSearch = search.trim().toLowerCase();
   const filteredReady = readyVehicles.filter((vehicle) =>
@@ -455,8 +549,12 @@ function ListingsContent() {
       : (filteredReady[0] ?? null);
 
   const counts: Record<Queue, number> = {
+    today: todaySuggestions.length,
     prepare: allReadyTotal,
     active: listingCounts.ACTIVE ?? activeListings.length,
+    renew:
+      listingCounts.RENEW_DUE ??
+      activeListings.filter((listing) => listing.health?.renewDue).length,
     remove: listingCounts.STALE ?? staleListings.length,
     history:
       (listingCounts.REMOVED ?? 0) + (listingCounts.SOLD ?? 0) ||
@@ -465,15 +563,26 @@ function ListingsContent() {
 
   const listingPackage = useMemo(() => {
     if (!selected) return null;
-    const generated = generateMarketplacePackage({
-      ...selected,
-      dealershipName: organization.name,
-      contactName: user?.name || MARKETPLACE_CONTACT_NAME,
-      phone: organization.phone ?? undefined,
-      location: [organization.address, organization.city, organization.state]
-        .filter(Boolean)
-        .join(", "),
-    });
+    const generated = generateMarketplacePackage(
+      {
+        ...selected,
+        dealershipName: organization.name,
+        contactName: user?.name || MARKETPLACE_CONTACT_NAME,
+        phone: organization.phone ?? undefined,
+        location: [organization.address, organization.city, organization.state]
+          .filter(Boolean)
+          .join(", "),
+        organizationFees: {
+          freightFee: Number(organization.freightFee ?? 0),
+          pdiFee: Number(organization.pdiFee ?? 0),
+          adminFee: Number(organization.adminFee ?? 0),
+          acExciseFee: Number(organization.acExciseFee ?? 0),
+        },
+        allInPriceConfirmed: Boolean(organization.allInPriceConfirmedAt),
+        language: draftLocale === "bilingual" ? "fr_en" : "fr",
+      },
+      draftLocale,
+    );
     const draft = selected.marketplaceDrafts?.[0];
     const activeEdit =
       draftEdit?.vehicleId === selected.id ? draftEdit : undefined;
@@ -484,7 +593,7 @@ function ListingsContent() {
         ? activeEdit.description
         : draft?.description || generated.description,
     };
-  }, [draftEdit, organization, selected, user?.name]);
+  }, [draftEdit, draftLocale, organization, selected, user?.name]);
   const draftDirty = Boolean(
     selected &&
     draftEdit?.vehicleId === selected.id &&
@@ -535,15 +644,30 @@ function ListingsContent() {
         throw new Error(data.error ?? "Impossible de préparer ce véhicule.");
       }
       const vehicle = data as Vehicle;
-      const generated = generateMarketplacePackage({
-        ...vehicle,
-        dealershipName: organization.name,
-        contactName: user?.name || MARKETPLACE_CONTACT_NAME,
-        phone: organization.phone ?? undefined,
-        location: [organization.address, organization.city, organization.state]
-          .filter(Boolean)
-          .join(", "),
-      });
+      const generated = generateMarketplacePackage(
+        {
+          ...vehicle,
+          dealershipName: organization.name,
+          contactName: user?.name || MARKETPLACE_CONTACT_NAME,
+          phone: organization.phone ?? undefined,
+          location: [
+            organization.address,
+            organization.city,
+            organization.state,
+          ]
+            .filter(Boolean)
+            .join(", "),
+          organizationFees: {
+            freightFee: Number(organization.freightFee ?? 0),
+            pdiFee: Number(organization.pdiFee ?? 0),
+            adminFee: Number(organization.adminFee ?? 0),
+            acExciseFee: Number(organization.acExciseFee ?? 0),
+          },
+          allInPriceConfirmed: Boolean(organization.allInPriceConfirmedAt),
+          language: draftLocale === "bilingual" ? "fr_en" : "fr",
+        },
+        draftLocale,
+      );
       const personalDraft = vehicle.marketplaceDrafts?.[0];
       const initialDraft = {
         vehicleId: vehicle.id,
@@ -710,6 +834,12 @@ function ListingsContent() {
 
   const startMarketplace = async () => {
     if (!selected || !listingPackage || !marketplaceReady) return;
+    if (quota && quota.remainingThisMonth <= 0) {
+      const proceed = window.confirm(
+        `Selon Suivia, vous avez déjà ${quota.usedThisMonth} annonce(s) Véhicules ce mois-ci. Facebook pourrait refuser la publication. Ouvrir Marketplace quand même?`,
+      );
+      if (!proceed) return;
+    }
 
     setLaunchingMarketplace(true);
     setError("");
@@ -822,6 +952,45 @@ function ListingsContent() {
     await refreshListings(true);
   };
 
+  const confirmRenewed = async (listing: Listing) => {
+    setSaving(true);
+    const response = await apiFetch(
+      `/api/v1/listings/${listing.id}/confirm-renewal`,
+      { method: "POST" },
+    );
+    setSaving(false);
+    if (!response.ok) {
+      const data = await response.json();
+      setError(data.error ?? "Le renouvellement n’a pas pu être enregistré.");
+      return;
+    }
+    setMessage("Renouvellement enregistré. Prochain rappel dans 7 jours.");
+    await refreshListings(true);
+  };
+
+  const confirmPriceUpdated = async (listing: Listing) => {
+    const price = Number(listing.vehicle.price);
+    setSaving(true);
+    const response = await apiFetch(
+      `/api/v1/listings/${listing.id}/confirm-price`,
+      { method: "POST", body: JSON.stringify({ price }) },
+    );
+    setSaving(false);
+    if (!response.ok) {
+      const data = await response.json();
+      setError(data.error ?? "Le prix n’a pas pu être confirmé.");
+      return;
+    }
+    setMessage("Prix confirmé sur Marketplace.");
+    await refreshListings(true);
+  };
+
+  useEffect(() => {
+    if (!prepareId || loading) return;
+    void prepareVehicle(prepareId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prepareId, loading]);
+
   return (
     <div className="min-w-0 space-y-4">
       <header className="relative overflow-hidden rounded-[1.35rem] bg-[#071426] px-5 py-4 text-white shadow-[0_22px_55px_-35px_rgba(7,20,38,0.9)] sm:px-6 sm:py-5">
@@ -884,20 +1053,32 @@ function ListingsContent() {
       <div className="rounded-2xl border border-[#b9d5f5] bg-[#edf6ff] px-4 py-3 text-sm text-[#0b315c]">
         <div className="flex items-start gap-3">
           <ShieldCheck className="mt-0.5 shrink-0 text-[#0b4da2]" size={19} />
-          <p className="min-w-0 leading-6">
-            <strong>Chaque annonce demeure sous votre contrôle.</strong> Suivia
-            Auto prépare tout, mais Facebook vous laisse relire l’annonce avant
-            la publication finale. Meta limite la catégorie Véhicules à cinq
-            nouvelles annonces par mois.{" "}
-            <a
-              className="font-bold underline underline-offset-2"
-              href="https://www.facebook.com/help/811082570742714"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Voir la règle
-            </a>
-          </p>
+          <div className="min-w-0 leading-6">
+            {quota && quota.remainingThisMonth <= 0 ? (
+              <p>
+                <strong>Limite du mois atteinte.</strong> Concentrez-vous sur
+                les annonces déjà en ligne : prix à jour, renouvellement et
+                retraits.
+              </p>
+            ) : (
+              <p>
+                <strong>
+                  Il vous reste {quota?.remainingThisMonth ?? "—"} nouvelle(s)
+                  annonce(s) Véhicules ce mois-ci
+                </strong>{" "}
+                (limite indiquée : {quota?.monthlyLimit ?? "configurable"}).
+                {quota?.resetsAt
+                  ? ` Remise à zéro le ${new Date(quota.resetsAt).toLocaleDateString("fr-CA", { timeZone: "America/Toronto" })}.`
+                  : null}
+              </p>
+            )}
+            <p className="mt-1 text-xs text-[#24527e]">
+              Compté par Suivia à partir de vos publications enregistrées. Les
+              annonces supprimées peuvent aussi compter pour Meta. Fiez-vous à
+              la limite affichée dans votre compte Facebook. Ne supprimez pas
+              une annonce pour la republier.
+            </p>
+          </div>
         </div>
       </div>
 
@@ -974,6 +1155,71 @@ function ListingsContent() {
             />
           ))}
         </div>
+      ) : queue === "today" ? (
+        <section aria-labelledby="today-heading">
+          <h2 id="today-heading" className="text-lg font-bold text-slate-950">
+            File du jour
+          </h2>
+          <p className="mb-4 mt-1 text-sm text-slate-500">
+            Priorisés selon l’âge en stock, la priorité du directeur et les
+            baisses de prix. Âge calculé depuis l’arrivée du véhicule dans
+            Suivia. Évitez une deuxième annonce pour un véhicule déjà en ligne
+            chez un collègue.
+          </p>
+          {todaySuggestions.length === 0 ? (
+            <EmptyState
+              title="Aucun véhicule à suggérer"
+              detail="Vérifiez le quota, les prix et les photos, ou passez à À préparer."
+            />
+          ) : (
+            <div className="grid min-w-0 gap-3">
+              {todaySuggestions.map((item, index) => (
+                <article
+                  key={item.vehicle.id}
+                  className="card flex min-w-0 w-full flex-col gap-4 p-4 sm:flex-row sm:items-center"
+                >
+                  <div className="h-20 w-full shrink-0 overflow-hidden rounded-lg bg-slate-100 sm:w-28">
+                    {item.vehicle.photoUrl || item.vehicle.photos?.[0]?.url ? (
+                      <img
+                        src={item.vehicle.photoUrl || item.vehicle.photos[0].url}
+                        alt=""
+                        className="h-full w-full object-cover"
+                      />
+                    ) : null}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-bold uppercase tracking-wide text-[#0b66d8]">
+                      Priorité n° {index + 1}
+                    </p>
+                    <h3 className="font-bold text-slate-950">
+                      {vehicleName(item.vehicle)}
+                    </h3>
+                    <ul className="mt-1 text-sm text-slate-600">
+                      {item.reasons.map((reason) => (
+                        <li key={reason}>• {reason}</li>
+                      ))}
+                    </ul>
+                    {item.alreadyListedBy.length > 0 && (
+                      <p className="mt-2 text-sm font-semibold text-amber-800">
+                        Déjà en ligne chez{" "}
+                        {item.alreadyListedBy.map((person) => person.name).join(", ")}{" "}
+                        : évitez une deuxième annonce pour le même véhicule.
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={() => void prepareVehicle(item.vehicle.id)}
+                    disabled={preparingVehicleId === item.vehicle.id}
+                  >
+                    Préparer l’annonce
+                  </button>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
       ) : queue === "prepare" ? (
         <section aria-labelledby="prepare-heading">
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -1106,13 +1352,25 @@ function ListingsContent() {
           queue={queue}
           listings={
             queue === "active"
-              ? activeListings
-              : queue === "remove"
-                ? staleListings
-                : historyListings
+              ? activeHealthFilter === "price"
+                ? priceMismatchListings
+                : activeHealthFilter === "renew"
+                  ? renewListings
+                  : activeListings
+              : queue === "renew"
+                ? renewListings
+                : queue === "remove"
+                  ? staleListings
+                  : historyListings
           }
           saving={saving}
+          priceMismatchCount={listingCounts.PRICE_MISMATCH ?? priceMismatchListings.length}
+          renewCount={listingCounts.RENEW_DUE ?? renewListings.length}
+          healthFilter={activeHealthFilter}
+          onHealthFilter={setActiveHealthFilter}
           onConfirmRemoved={confirmRemoved}
+          onConfirmRenewed={confirmRenewed}
+          onConfirmPrice={confirmPriceUpdated}
         />
       )}
 
@@ -1581,18 +1839,36 @@ function ListingQueue({
   queue,
   listings,
   saving,
+  priceMismatchCount = 0,
+  renewCount = 0,
+  healthFilter = "all",
+  onHealthFilter,
   onConfirmRemoved,
+  onConfirmRenewed,
+  onConfirmPrice,
 }: {
   queue: Queue;
   listings: Listing[];
   saving: boolean;
+  priceMismatchCount?: number;
+  renewCount?: number;
+  healthFilter?: "all" | "price" | "renew";
+  onHealthFilter?: (value: "all" | "price" | "renew") => void;
   onConfirmRemoved: (listing: Listing) => void;
+  onConfirmRenewed?: (listing: Listing) => void;
+  onConfirmPrice?: (listing: Listing) => void;
 }) {
   const copy = {
     active: {
       title: "Annonces publiées",
-      detail: "URLs enregistrées et reliées à l’inventaire.",
+      detail: "Prix à jour, renouvellement officiel, sans suppression.",
       empty: "Aucune annonce active enregistrée.",
+    },
+    renew: {
+      title: "Renouvellement possible",
+      detail:
+        "Dans Facebook : Vendre > Vos annonces > Renouveler. Ne supprimez pas l’annonce pour la republier : une annonce supprimée peut compter dans votre limite mensuelle.",
+      empty: "Aucun renouvellement dû pour le moment.",
     },
     remove: {
       title: "Retraits à confirmer",
@@ -1604,7 +1880,7 @@ function ListingQueue({
       detail: "Annonces vendues ou retirées, conservées pour le suivi.",
       empty: "Aucune annonce archivée.",
     },
-  }[queue as "active" | "remove" | "history"];
+  }[queue as "active" | "renew" | "remove" | "history"];
 
   return (
     <section aria-labelledby={`${queue}-heading`}>
@@ -1612,6 +1888,31 @@ function ListingQueue({
         {copy.title}
       </h2>
       <p className="mb-4 mt-1 text-sm text-slate-500">{copy.detail}</p>
+      {queue === "active" && onHealthFilter && (
+        <div className="mb-4 flex flex-wrap gap-2">
+          {(
+            [
+              ["all", "Toutes"],
+              ["price", `Prix à mettre à jour (${priceMismatchCount})`],
+              ["renew", `Renouvellement possible (${renewCount})`],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              className={cn(
+                "rounded-full px-3 py-1.5 text-sm font-semibold",
+                healthFilter === id
+                  ? "bg-[#071426] text-white"
+                  : "bg-slate-100 text-slate-600",
+              )}
+              onClick={() => onHealthFilter(id)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
       {listings.length === 0 ? (
         <EmptyState
           title={copy.empty}
@@ -1619,64 +1920,123 @@ function ListingQueue({
         />
       ) : (
         <div className="grid min-w-0 gap-3">
-          {listings.map((listing) => (
-            <article
-              key={listing.id}
-              className="card flex min-w-0 w-full flex-col gap-4 p-4 sm:flex-row sm:items-center"
-            >
-              <div className="h-20 w-full shrink-0 overflow-hidden rounded-lg bg-slate-100 sm:w-28">
-                {listing.vehicle.photos[0] && (
-                  <img
-                    src={listing.vehicle.photos[0].url}
-                    alt=""
-                    width={224}
-                    height={160}
-                    loading="lazy"
-                    className="h-full w-full object-cover"
-                  />
-                )}
-              </div>
-              <div className="min-w-0 flex-1">
-                <h3 className="font-bold text-slate-950">
-                  {vehicleName(listing.vehicle)}
-                </h3>
-                <p className="mt-1 text-sm text-slate-500">
-                  Stock {listing.vehicle.stockNumber ?? "—"} · Publiée par{" "}
-                  {listing.user.name} · {formatDateTime(listing.listedAt)}
-                </p>
-                {queue === "remove" && (
-                  <p className="mt-2 text-sm font-semibold text-amber-800">
-                    Action requise : retirer sur Facebook.
+          {listings.map((listing) => {
+            const mismatch = listing.health?.priceMismatch;
+            const hoursStale = listing.hoursStale;
+            const staleTone =
+              hoursStale == null
+                ? "text-amber-800"
+                : hoursStale > 48
+                  ? "text-red-700"
+                  : hoursStale >= 24
+                    ? "text-orange-700"
+                    : "text-slate-600";
+            return (
+              <article
+                key={listing.id}
+                className="card flex min-w-0 w-full flex-col gap-4 p-4 sm:flex-row sm:items-center"
+              >
+                <div className="h-20 w-full shrink-0 overflow-hidden rounded-lg bg-slate-100 sm:w-28">
+                  {listing.vehicle.photos[0] && (
+                    <img
+                      src={listing.vehicle.photos[0].url}
+                      alt=""
+                      width={224}
+                      height={160}
+                      loading="lazy"
+                      className="h-full w-full object-cover"
+                    />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="font-bold text-slate-950">
+                    {vehicleName(listing.vehicle)}
+                  </h3>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Stock {listing.vehicle.stockNumber ?? "—"} · Publiée par{" "}
+                    {listing.user.name} · {formatDateTime(listing.listedAt)}
                   </p>
-                )}
-              </div>
-              <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                <p className="mr-2 font-bold tabular-nums">
-                  {formatCurrency(listing.priceAtListing)}
-                </p>
-                {listing.externalUrl && (
-                  <a
-                    className="btn-secondary"
-                    href={listing.externalUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Voir <ExternalLink className="ml-2" size={14} />
-                  </a>
-                )}
-                {queue === "remove" && (
-                  <button
-                    type="button"
-                    className="btn-primary"
-                    onClick={() => onConfirmRemoved(listing)}
-                    disabled={saving}
-                  >
-                    Confirmer le retrait
-                  </button>
-                )}
-              </div>
-            </article>
-          ))}
+                  {mismatch?.direction === "up" && (
+                    <p className="mt-2 text-sm font-bold text-red-700">
+                      Prix augmenté : à corriger maintenant ({formatCurrency(mismatch.from)} → {formatCurrency(mismatch.to)}). Au Québec, un client peut exiger le prix annoncé.
+                    </p>
+                  )}
+                  {mismatch?.direction === "down" && (
+                    <p className="mt-2 text-sm font-semibold text-amber-800">
+                      Prix à mettre à jour : {formatCurrency(mismatch.from)} → {formatCurrency(mismatch.to)}
+                    </p>
+                  )}
+                  {(queue === "renew" || listing.health?.renewDue) && queue !== "remove" && (
+                    <p className="mt-2 text-sm font-semibold text-slate-700">
+                      En ligne depuis {listing.health?.daysSinceFreshness ?? 0} jours, renouvellement possible
+                    </p>
+                  )}
+                  {queue === "remove" && (
+                    <p className={`mt-2 text-sm font-semibold ${staleTone}`}>
+                      Vendu depuis {hoursStale ?? "—"} h. Retirez l’annonce sur Facebook.
+                    </p>
+                  )}
+                </div>
+                <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                  <p className="mr-2 font-bold tabular-nums">
+                    {formatCurrency(listing.vehicle.price ?? listing.priceAtListing)}
+                  </p>
+                  {listing.externalUrl && (
+                    <a
+                      className="btn-secondary"
+                      href={listing.externalUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Ouvrir l’annonce <ExternalLink className="ml-2" size={14} />
+                    </a>
+                  )}
+                  {mismatch && onConfirmPrice && (
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={() => onConfirmPrice(listing)}
+                      disabled={saving}
+                    >
+                      J’ai mis le prix à jour dans Facebook
+                    </button>
+                  )}
+                  {(queue === "renew" || listing.health?.renewDue) &&
+                    onConfirmRenewed &&
+                    queue !== "remove" && (
+                      <>
+                        <a
+                          className="btn-secondary"
+                          href={MARKETPLACE_YOUR_LISTINGS_URL}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Ouvrir mes annonces Marketplace
+                        </a>
+                        <button
+                          type="button"
+                          className="btn-primary"
+                          onClick={() => onConfirmRenewed(listing)}
+                          disabled={saving}
+                        >
+                          J’ai cliqué Renouveler
+                        </button>
+                      </>
+                    )}
+                  {queue === "remove" && (
+                    <button
+                      type="button"
+                      className="btn-primary"
+                      onClick={() => onConfirmRemoved(listing)}
+                      disabled={saving}
+                    >
+                      J’ai retiré l’annonce
+                    </button>
+                  )}
+                </div>
+              </article>
+            );
+          })}
         </div>
       )}
     </section>
