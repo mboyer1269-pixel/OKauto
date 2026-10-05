@@ -27,6 +27,19 @@ export const PATCH = withAuth(async (request, { auth, params }) => {
   const body = await parseBody<unknown>(request);
   const data = updateLeadSchema.parse(body);
 
+  if (data.assignedToId) {
+    const assignee = await prisma.organizationMember.findFirst({
+      where: { organizationId: auth.orgId, userId: data.assignedToId },
+      select: { id: true },
+    });
+    if (!assignee) {
+      return jsonResponse(
+        { error: "Le destinataire n'est pas membre de cette organisation." },
+        400,
+      );
+    }
+  }
+
   const lead = await prisma.marketplaceLead.update({
     where: { id: existing.id },
     data: {

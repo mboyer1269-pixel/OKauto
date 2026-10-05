@@ -93,6 +93,20 @@ export function remainingListingSlots(
   return Math.max(0, monthlyLimit - Math.max(0, usedThisMonth));
 }
 
+/** member override > org marketplace setting > org listing limit > default 5 */
+export function resolveMonthlyListingLimit(input: {
+  memberLimit?: number | null;
+  organizationMarketplaceLimit?: number | null;
+  organizationMonthlyLimit?: number | null;
+}): number {
+  return (
+    input.memberLimit ??
+    input.organizationMarketplaceLimit ??
+    input.organizationMonthlyLimit ??
+    DEFAULT_MONTHLY_LISTING_LIMIT
+  );
+}
+
 export function isListingDueForRenewal(
   listedAt: Date | string,
   lastRenewedAt: Date | string | null | undefined,

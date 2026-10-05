@@ -6,6 +6,11 @@ import {
 } from "@okauto/shared";
 import { computeQuebecAdvertisedPrice, mergePricingFees } from "@okauto/shared";
 
+/**
+ * In-memory limiter: 60 requests / hour / feed token.
+ * Fine for a single web instance (Meta AIA typically polls one URL).
+ * Multi-instance deploys would need a shared store (Redis).
+ */
 const hits = new Map<string, { count: number; resetAt: number }>();
 
 function allowToken(token: string): boolean {
@@ -54,7 +59,7 @@ export async function GET(
     metaCatalogStateForDemo: organization.metaCatalogStateForDemo,
   };
 
-  const included = vehicles.filter((vehicle) => {
+  const catalogVehicles = vehicles.map((vehicle) => {
     const advertised = computeQuebecAdvertisedPrice(
       vehicle.price == null ? null : Number(vehicle.price),
       mergePricingFees(
@@ -73,38 +78,7 @@ export async function GET(
         },
       ),
     );
-    const row = toMetaVehicleCatalogRow(
-      {
-        id: vehicle.id,
-        vin: vehicle.vin,
-        stockNumber: vehicle.stockNumber,
-        year: vehicle.year,
-        make: vehicle.make,
-        model: vehicle.model,
-        trim: vehicle.trim,
-        mileage: vehicle.mileage,
-        advertisedPrice: advertised?.advertisedPrice ?? null,
-        price: vehicle.price == null ? null : Number(vehicle.price),
-        bodyStyle: vehicle.bodyStyle,
-        exteriorColor: vehicle.exteriorColor,
-        interiorColor: vehicle.interiorColor,
-        condition: vehicle.condition,
-        description: vehicle.description,
-        sourceUrl: vehicle.sourceUrl,
-        imageUrls: vehicle.photos.map((photo) => photo.url),
-        status: vehicle.status,
-        transmission: vehicle.transmission,
-        fuelType: vehicle.fuelType,
-        drivetrain: vehicle.drivetrain,
-        createdAt: vehicle.createdAt,
-      },
-      dealer,
-    );
-    return validateMetaVehicleRow(row).excluded.length === 0;
-  });
-
-  const csv = buildMetaVehicleCatalogCsv(
-    included.map((vehicle) => ({
+    return {
       id: vehicle.id,
       vin: vehicle.vin,
       stockNumber: vehicle.stockNumber,
@@ -113,6 +87,7 @@ export async function GET(
       model: vehicle.model,
       trim: vehicle.trim,
       mileage: vehicle.mileage,
+      advertisedPrice: advertised?.advertisedPrice ?? null,
       price: vehicle.price == null ? null : Number(vehicle.price),
       bodyStyle: vehicle.bodyStyle,
       exteriorColor: vehicle.exteriorColor,
@@ -126,15 +101,21 @@ export async function GET(
       fuelType: vehicle.fuelType,
       drivetrain: vehicle.drivetrain,
       createdAt: vehicle.createdAt,
-    })),
-    dealer,
-  );
+    };
+  });
+
+  const included = catalogVehicles.filter((vehicle) => {
+    const row = toMetaVehicleCatalogRow(vehicle, dealer);
+    return validateMetaVehicleRow(row).excluded.length === 0;
+  });
+
+  const csv = buildMetaVehicleCatalogCsv(included, dealer);
 
   return new Response(csv, {
     status: 200,
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
-      "Cache-Control": "public, max-age=900",
+      "Cache-Control": "private, no-store",
     },
   });
 }

@@ -4,7 +4,6 @@ import {
   classifyInventoryKind,
   computeQuebecAdvertisedPrice,
   DEFAULT_LISTING_RENEWAL_DAYS,
-  DEFAULT_MONTHLY_LISTING_LIMIT,
   getListingHealth,
   hoursSince,
   isListingDueForRenewal,
@@ -12,6 +11,7 @@ import {
   remainingListingSlots,
   rankPublishCandidates,
   resolveListingLocale,
+  resolveMonthlyListingLimit,
   scoreVehicleForToday,
   startOfCalendarMonth,
   startOfNextCalendarMonth,
@@ -114,10 +114,11 @@ export async function getPublishQueue(organizationId: string, userId: string) {
       }),
     ]);
 
-  const monthlyLimit =
-    organization?.marketplaceMonthlyVehicleLimit ??
-    organization?.monthlyListingLimit ??
-    DEFAULT_MONTHLY_LISTING_LIMIT;
+  const monthlyLimit = resolveMonthlyListingLimit({
+    organizationMarketplaceLimit:
+      organization?.marketplaceMonthlyVehicleLimit,
+    organizationMonthlyLimit: organization?.monthlyListingLimit,
+  });
   const renewalDays =
     organization?.listingRenewalDays ?? DEFAULT_LISTING_RENEWAL_DAYS;
   const remaining = remainingListingSlots(monthListings, monthlyLimit);
@@ -269,66 +270,84 @@ export async function getDirectorStats(organizationId: string) {
     }),
   ]);
 
-  const monthlyLimit =
-    organization?.marketplaceMonthlyVehicleLimit ??
-    organization?.monthlyListingLimit ??
-    DEFAULT_MONTHLY_LISTING_LIMIT;
+  const monthlyLimit = resolveMonthlyListingLimit({
+    organizationMarketplaceLimit:
+      organization?.marketplaceMonthlyVehicleLimit,
+    organizationMonthlyLimit: organization?.monthlyListingLimit,
+  });
   const renewalDays =
     organization?.listingRenewalDays ?? DEFAULT_LISTING_RENEWAL_DAYS;
 
-  const memberStats = await Promise.all(
-    members.map(async (member) => {
-      const [weekListings, monthListings, active, stale, lastListing] =
-        await Promise.all([
-          prisma.listing.count({
-            where: {
-              organizationId,
-              userId: member.userId,
-              listedAt: { gte: weekAgo },
-            },
-          }),
-          prisma.listing.count({
-            where: {
-              organizationId,
-              userId: member.userId,
-              listedAt: { gte: monthStart },
-            },
-          }),
-          prisma.listing.count({
-            where: {
-              organizationId,
-              userId: member.userId,
-              status: "ACTIVE",
-            },
-          }),
-          prisma.listing.count({
-            where: {
-              organizationId,
-              userId: member.userId,
-              status: "STALE",
-            },
-          }),
-          prisma.listing.findFirst({
-            where: { organizationId, userId: member.userId },
-            orderBy: { listedAt: "desc" },
-            select: { listedAt: true },
-          }),
-        ]);
-
-      return {
-        userId: member.userId,
-        name: member.user.name,
-        email: member.user.email,
-        role: member.role,
-        weekListings,
-        monthListings,
-        remainingThisMonth: remainingListingSlots(monthListings, monthlyLimit),
-        active,
-        stale,
-        lastActivity: lastListing?.listedAt ?? null,
-      };
+  const memberIds = members.map((member) => member.userId);
+  const [weekGroups, monthGroups, statusGroups, lastGroups] = await Promise.all([
+    prisma.listing.groupBy({
+      by: ["userId"],
+      where: { organizationId, listedAt: { gte: weekAgo } },
+      _count: { _all: true },
     }),
+    prisma.listing.groupBy({
+      by: ["userId"],
+      where: { organizationId, listedAt: { gte: monthStart } },
+      _count: { _all: true },
+    }),
+    prisma.listing.groupBy({
+      by: ["userId", "status"],
+      where: {
+        organizationId,
+        status: { in: ["ACTIVE", "STALE"] },
+      },
+      _count: { _all: true },
+    }),
+    memberIds.length === 0
+      ? Promise.resolve(
+          [] as Array<{ userId: string; _max: { listedAt: Date | null } }>,
+        )
+      : prisma.listing.groupBy({
+          by: ["userId"],
+          where: { organizationId, userId: { in: memberIds } },
+          _max: { listedAt: true },
+        }),
+  ]);
+
+  const weekByUser = Object.fromEntries(
+    weekGroups.map((row) => [row.userId, row._count._all]),
   );
+  const monthByUser = Object.fromEntries(
+    monthGroups.map((row) => [row.userId, row._count._all]),
+  );
+  const lastByUser = Object.fromEntries(
+    lastGroups.map((row) => [row.userId, row._max.listedAt]),
+  );
+  const statusByUser = new Map<string, { active: number; stale: number }>();
+  for (const row of statusGroups) {
+    const current = statusByUser.get(row.userId) ?? { active: 0, stale: 0 };
+    if (row.status === "ACTIVE") current.active = row._count._all;
+    if (row.status === "STALE") current.stale = row._count._all;
+    statusByUser.set(row.userId, current);
+  }
+
+  const memberStats = members.map((member) => {
+    const monthListings = monthByUser[member.userId] ?? 0;
+    const memberLimit = resolveMonthlyListingLimit({
+      memberLimit: member.marketplaceMonthlyVehicleLimit,
+      organizationMarketplaceLimit:
+        organization?.marketplaceMonthlyVehicleLimit,
+      organizationMonthlyLimit: organization?.monthlyListingLimit,
+    });
+    const status = statusByUser.get(member.userId);
+    return {
+      userId: member.userId,
+      name: member.user.name,
+      email: member.user.email,
+      role: member.role,
+      weekListings: weekByUser[member.userId] ?? 0,
+      monthListings,
+      remainingThisMonth: remainingListingSlots(monthListings, memberLimit),
+      active: status?.active ?? 0,
+      stale: status?.stale ?? 0,
+      lastActivity: lastByUser[member.userId] ?? null,
+    };
+  });
 
   const countsByStatus = Object.fromEntries(
     vehicleCounts.map((row) => [row.status, row._count._all]),
@@ -484,11 +503,12 @@ export async function getTodayQueue(organizationId: string, userId: string) {
     }),
   ]);
 
-  const monthlyLimit =
-    membership?.marketplaceMonthlyVehicleLimit ??
-    organization?.marketplaceMonthlyVehicleLimit ??
-    organization?.monthlyListingLimit ??
-    DEFAULT_MONTHLY_LISTING_LIMIT;
+  const monthlyLimit = resolveMonthlyListingLimit({
+    memberLimit: membership?.marketplaceMonthlyVehicleLimit,
+    organizationMarketplaceLimit:
+      organization?.marketplaceMonthlyVehicleLimit,
+    organizationMonthlyLimit: organization?.monthlyListingLimit,
+  });
   const used = monthListings.length;
   const remaining =
     monthlyLimit == null ? null : remainingListingSlots(used, monthlyLimit);

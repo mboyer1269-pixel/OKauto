@@ -7,6 +7,7 @@ import {
   getListingHealth,
   PRICE_REQUIRED_REASON,
   RENEW_AFTER_DAYS,
+  resolveMonthlyListingLimit,
   scoreVehicleForToday,
   startOfCalendarMonth,
   toMetaVehicleRow,
@@ -313,5 +314,30 @@ describe("quota month in America/Toronto", () => {
     expect(startOfCalendarMonth(october).getTime()).toBeGreaterThan(
       startOfCalendarMonth(lateSeptember).getTime(),
     );
+  });
+
+  it("resolves monthly limit as member > org marketplace > org listing > default", () => {
+    expect(
+      resolveMonthlyListingLimit({
+        memberLimit: 8,
+        organizationMarketplaceLimit: 3,
+        organizationMonthlyLimit: 5,
+      }),
+    ).toBe(8);
+    expect(
+      resolveMonthlyListingLimit({
+        memberLimit: null,
+        organizationMarketplaceLimit: 3,
+        organizationMonthlyLimit: 5,
+      }),
+    ).toBe(3);
+    expect(
+      resolveMonthlyListingLimit({
+        memberLimit: null,
+        organizationMarketplaceLimit: null,
+        organizationMonthlyLimit: 7,
+      }),
+    ).toBe(7);
+    expect(resolveMonthlyListingLimit({})).toBe(5);
   });
 });

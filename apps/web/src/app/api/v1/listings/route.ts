@@ -9,6 +9,10 @@ import {
 import { withAuth, jsonResponse, errorResponse, parseBody } from "@/lib/api";
 import { createAuditLog } from "@/lib/auth";
 import { listingHealthPayload } from "@/lib/sales-ops";
+import {
+  ListingGuardError,
+  withListingCreateLock,
+} from "@/lib/listing-guards";
 
 export const GET = withAuth(async (request, { auth }) => {
   const url = new URL(request.url);
@@ -133,29 +137,6 @@ export const POST = withAuth(async (request, { auth }) => {
     );
   }
 
-  const activeListing = await prisma.listing.findFirst({
-    where: {
-      organizationId: auth.orgId,
-      vehicleId: data.vehicleId,
-      userId: auth.sub,
-      platform: data.platform,
-      status: "ACTIVE",
-    },
-    include: {
-      vehicle: { include: { photos: { take: 1 } } },
-      user: { select: { id: true, name: true } },
-    },
-  });
-  if (activeListing) {
-    return jsonResponse(
-      {
-        error: "An active listing already exists for this vehicle and platform",
-        listing: activeListing,
-      },
-      409,
-    );
-  }
-
   const draft = vehicle.marketplaceDrafts[0];
   const vehicleData = {
     year: vehicle.year,
@@ -185,34 +166,67 @@ export const POST = withAuth(async (request, { auth }) => {
     ? draft.photoOrder
     : vehicle.photos.map((photo) => photo.url);
 
-  const listing = await prisma.listing.create({
-    data: {
-      organizationId: auth.orgId,
-      vehicleId: data.vehicleId,
-      userId: auth.sub,
-      platform: data.platform,
-      externalUrl: data.externalUrl,
-      externalId: data.externalId,
-      priceAtListing: data.priceAtListing ?? vehicle.price,
-      marketplacePrice: data.priceAtListing ?? vehicle.price,
-      lastPriceConfirmedAt: new Date(),
-      titleAtListing: draft?.title || generateMarketplaceTitle(vehicleData),
-      descriptionAtListing:
-        draft?.description || generateTemplateDescription(vehicleData),
-      photoUrlsAtListing: photoUrls,
-      notes: data.notes,
-      events: {
-        create: {
-          eventType: "listing_created",
-          metadata: { source: "dashboard" },
-        },
+  let listing;
+  try {
+    listing = await withListingCreateLock(
+      {
+        organizationId: auth.orgId,
+        userId: auth.sub,
+        vehicleId: data.vehicleId,
+        platform: data.platform,
       },
-    },
-    include: {
-      vehicle: { include: { photos: { take: 1 } } },
-      user: { select: { id: true, name: true } },
-    },
-  });
+      async (tx, { ownActiveId }) => {
+        if (ownActiveId) {
+          const activeListing = await tx.listing.findFirst({
+            where: { id: ownActiveId },
+            include: {
+              vehicle: { include: { photos: { take: 1 } } },
+              user: { select: { id: true, name: true } },
+            },
+          });
+          throw new ListingGuardError(
+            409,
+            "An active listing already exists for this vehicle and platform",
+            { listing: activeListing },
+          );
+        }
+
+        return tx.listing.create({
+          data: {
+            organizationId: auth.orgId,
+            vehicleId: data.vehicleId,
+            userId: auth.sub,
+            platform: data.platform,
+            externalUrl: data.externalUrl,
+            externalId: data.externalId,
+            priceAtListing: data.priceAtListing ?? vehicle.price,
+            marketplacePrice: data.priceAtListing ?? vehicle.price,
+            lastPriceConfirmedAt: new Date(),
+            titleAtListing: draft?.title || generateMarketplaceTitle(vehicleData),
+            descriptionAtListing:
+              draft?.description || generateTemplateDescription(vehicleData),
+            photoUrlsAtListing: photoUrls,
+            notes: data.notes,
+            events: {
+              create: {
+                eventType: "listing_created",
+                metadata: { source: "dashboard" },
+              },
+            },
+          },
+          include: {
+            vehicle: { include: { photos: { take: 1 } } },
+            user: { select: { id: true, name: true } },
+          },
+        });
+      },
+    );
+  } catch (err) {
+    if (err instanceof ListingGuardError) {
+      return jsonResponse({ error: err.message, ...err.extra }, err.status);
+    }
+    throw err;
+  }
 
   await createAuditLog({
     organizationId: auth.orgId,

@@ -108,7 +108,8 @@ describe("runSyncSource", () => {
       orderBy: { createdAt: "desc" },
       take: 5,
     });
-    expect(notifications.some((n) => n.message.includes("23,000"))).toBe(true);
+    const formatted = (23000).toLocaleString("fr-CA");
+    expect(notifications.some((n) => n.message.includes(formatted))).toBe(true);
   });
 
   it("marks vehicles sold only after two consecutive feed absences", async () => {

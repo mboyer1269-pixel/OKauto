@@ -29,10 +29,15 @@ COPY --from=builder /app/packages/database ./packages/database
 COPY --from=builder /app/packages/shared ./packages/shared
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/packages/database/node_modules ./packages/database/node_modules
+# Generate Prisma engines for this Alpine/OpenSSL image instead of a
+# cross-package .prisma symlink that breaks when layouts differ.
+WORKDIR /app/packages/database
+RUN NODE_ENV=development sh -c './node_modules/.bin/prisma generate || /app/node_modules/.bin/prisma generate'
+WORKDIR /app
 RUN mkdir -p /app/apps/worker/node_modules \
-  && ln -sfn /app/packages/database/node_modules/@prisma /app/apps/worker/node_modules/@prisma \
-  && ln -sfn /app/packages/database/node_modules/@prisma/client /app/apps/worker/node_modules/@prisma/client \
-  && ln -sfn /app/packages/database/node_modules/.prisma /app/apps/worker/node_modules/.prisma
+  && rm -rf /app/apps/worker/node_modules/@prisma /app/apps/worker/node_modules/.prisma \
+  && cp -a /app/packages/database/node_modules/@prisma /app/apps/worker/node_modules/@prisma \
+  && cp -a /app/packages/database/node_modules/.prisma /app/apps/worker/node_modules/.prisma
 ENV NODE_PATH=/app/packages/database/node_modules:/app/node_modules:/app/apps/worker/node_modules
 
 WORKDIR /app

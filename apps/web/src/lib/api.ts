@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { hasMinRole, type RoleType } from "@okauto/shared";
 import { getAuthFromRequest, type TokenPayload } from "./auth";
+import { ListingGuardError } from "./listing-guards";
 
 export function jsonResponse<T>(data: T, status = 200) {
   return NextResponse.json(data, { status });
@@ -16,6 +17,12 @@ export function errorResponse(
 }
 
 export function handleApiError(err: unknown) {
+  if (err instanceof ListingGuardError) {
+    return NextResponse.json(
+      { error: err.message, ...err.extra },
+      { status: err.status },
+    );
+  }
   if (err instanceof ZodError) {
     return errorResponse(
       "Les données envoyées sont invalides",

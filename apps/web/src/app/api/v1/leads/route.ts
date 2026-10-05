@@ -85,11 +85,25 @@ export const POST = withAuth(async (request, { auth }) => {
     }
   }
 
+  const assignedToId = data.assignedToId || auth.sub;
+  if (assignedToId !== auth.sub) {
+    const assignee = await prisma.organizationMember.findFirst({
+      where: { organizationId: auth.orgId, userId: assignedToId },
+      select: { id: true },
+    });
+    if (!assignee) {
+      return jsonResponse(
+        { error: "Le destinataire n'est pas membre de cette organisation." },
+        400,
+      );
+    }
+  }
+
   const lead = await prisma.marketplaceLead.create({
     data: {
       organizationId: auth.orgId,
       createdById: auth.sub,
-      assignedToId: data.assignedToId || auth.sub,
+      assignedToId,
       vehicleId: data.vehicleId,
       listingId: data.listingId,
       name: data.name,
