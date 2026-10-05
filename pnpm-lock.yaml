@@ -163,12 +163,18 @@ importers:
       '@okauto/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@prisma/client':
+        specifier: ^6.1.0
+        version: 6.19.3(prisma@6.19.3(magicast@0.3.5)(typescript@5.9.3))(typescript@5.9.3)
       bullmq:
         specifier: ^5.34.3
         version: 5.81.3
       ioredis:
         specifier: ^5.4.2
         version: 5.11.1
+      prisma:
+        specifier: ^6.1.0
+        version: 6.19.3(magicast@0.3.5)(typescript@5.9.3)
     devDependencies:
       '@eslint/js':
         specifier: ^9.17.0
