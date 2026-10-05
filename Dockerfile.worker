@@ -14,9 +14,15 @@ COPY . .
 RUN pnpm install --frozen-lockfile
 RUN pnpm db:generate
 RUN pnpm --filter @okauto/worker build
-# Self-contained production tree (no workspace symlinks in the runner).
+# Isolated production tree from the workspace root (deploy from apps/worker
+# reports NOTHING_TO_DEPLOY). Generate the client in that tree for Alpine/OpenSSL.
 RUN pnpm --filter @okauto/worker deploy --prod /out
-COPY packages/database/prisma /out/prisma
+RUN cp -a /app/apps/worker/dist /out/dist \
+  && cp -a /app/packages/database/prisma /out/prisma \
+  && cd /out \
+  && PRISMA_BIN="$(find /out /app -path '*/.bin/prisma' | head -1)" \
+  && test -n "$PRISMA_BIN" \
+  && "$PRISMA_BIN" generate --schema=/out/prisma/schema.prisma
 
 FROM base AS runner
 ARG GIT_SHA=unknown
@@ -24,13 +30,11 @@ ENV GIT_SHA=$GIT_SHA
 ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=builder /out ./
-# Generate Prisma engines for this Alpine/OpenSSL image (same intent as the
-# sprint-1 worker image) instead of copying a cross-package .prisma symlink.
-RUN ./node_modules/.bin/prisma generate --schema=./prisma/schema.prisma \
-  && chown -R node:node /app
+RUN chown -R node:node /app
 
 USER node
 ENV WORKER_HEARTBEAT_PATH=/tmp/worker-heartbeat
+ENV NODE_PATH=/app/node_modules
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD find /tmp/worker-heartbeat -mmin -2 | grep -q .
