@@ -1,0 +1,150 @@
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Git SHA to deploy or roll back to (7–40 hex; resolved to full SHA)
+        required: true
+        type: string
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+  actions: write
+
+jobs:
+  publish:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      sha: ${{ steps.sha.outputs.sha }}
+    steps:
+      - name: Resolve ref
+        id: ref
+        env:
+          INPUT_SHA: ${{ inputs.sha }}
+          WORKFLOW_SHA: ${{ github.event.workflow_run.head_sha }}
+          PUSH_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            SHA="${INPUT_SHA}"
+          elif [ "${{ github.event_name }}" = "workflow_run" ]; then
+            SHA="${WORKFLOW_SHA}"
+          else
+            SHA="${PUSH_SHA}"
+          fi
+          SHA="$(printf '%s' "$SHA" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
+          if [[ ! "$SHA" =~ ^[0-9a-f]{7,40}$ ]]; then
+            echo "invalid sha (expected ^[0-9a-f]{7,40}$): ${SHA}" >&2
+            exit 1
+          fi
+          echo "ref=${SHA}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ steps.ref.outputs.ref }}
+          fetch-depth: 0
+
+      - name: Canonicalize SHA
+        id: sha
+        run: |
+          SHA="$(git rev-parse HEAD)"
+          echo "sha=${SHA}" >> "$GITHUB_OUTPUT"
+          echo "Deploying SHA ${SHA}"
+
+      - name: Require dispatch SHA is an ancestor of origin/main
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          set -euo pipefail
+          SHA="$(git rev-parse HEAD)"
+          git fetch --no-tags origin "+refs/heads/main:refs/remotes/origin/main"
+          if ! git merge-base --is-ancestor "$SHA" origin/main; then
+            echo "refused: ${SHA} is not an ancestor of origin/main (no publish/deploy of a branch tip)" >&2
+            git log -1 --oneline "$SHA" >&2 || true
+            git log -1 --oneline origin/main >&2 || true
+            exit 1
+          fi
+          echo "ok: ${SHA} is an ancestor of origin/main"
+
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push web image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          tags: |
+            ghcr.io/mboyer1269-pixel/okauto-web:${{ steps.sha.outputs.sha }}
+            ghcr.io/mboyer1269-pixel/okauto-web:main
+          cache-from: type=gha,scope=okauto-web
+          cache-to: type=gha,mode=max,scope=okauto-web
+          build-args: |
+            GIT_SHA=${{ steps.sha.outputs.sha }}
+
+      - name: Push worker image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: Dockerfile.worker
+          push: true
+          tags: |
+            ghcr.io/mboyer1269-pixel/okauto-worker:${{ steps.sha.outputs.sha }}
+            ghcr.io/mboyer1269-pixel/okauto-worker:main
+          cache-from: type=gha,scope=okauto-worker
+          cache-to: type=gha,mode=max,scope=okauto-worker
+          build-args: |
+            GIT_SHA=${{ steps.sha.outputs.sha }}
+
+  deploy:
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    steps:
+      - name: SSH deploy
+        env:
+          SHA: ${{ needs.publish.outputs.sha }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ vars.VPS_USER || 'deploy' }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+          VPS_DEPLOY_KEY: ${{ secrets.VPS_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$VPS_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          printf '%s\n' "$VPS_DEPLOY_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            -o BatchMode=yes "${VPS_USER}@${VPS_HOST}" "deploy ${SHA}"
+
+      - name: Smoke check public health
+        env:
+          SHA: ${{ needs.publish.outputs.sha }}
+          HEALTH_URL: ${{ vars.PRODUCTION_HEALTH_URL || 'https://suivia.ca/api/health' }}
+        run: |
+          body="$(curl -fsS --max-time 20 "$HEALTH_URL")"
+          echo "$body"
+          python3 -c 'import json,os,sys
+          data=json.loads(sys.argv[1])
+          sha=os.environ["SHA"]
+          raise SystemExit(0 if data.get("status")=="ok" and data.get("version")==sha else 1)' "$body"

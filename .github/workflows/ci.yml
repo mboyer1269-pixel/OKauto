@@ -1,22 +1,66 @@
 name: CI
 
 on:
-  push:
-    branches: [main, 'cursor/**']
   pull_request:
     branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DATABASE_URL: postgresql://okauto:okauto@localhost:5432/okauto_test?schema=public
+  SHADOW_DATABASE_URL: postgresql://okauto:okauto@localhost:5432/okauto_shadow?schema=public
+  REDIS_URL: redis://localhost:6379
+  JWT_SECRET: ci-test-secret-minimum-32-characters-long
+  GIT_SHA: ${{ github.sha }}
 
 jobs:
-  lint-typecheck-test:
+  quality:
     runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Prisma validate
+        run: pnpm --filter @okauto/database exec prisma validate
+
+      - name: Generate Prisma client
+        run: pnpm db:generate
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck all packages
+        run: pnpm typecheck
+
+      - name: Expand/contract — reject unapproved destructive SQL
+        run: |
+          bash scripts/check-destructive-migrations.sh
+          bash scripts/check-destructive-migrations.test.sh
+
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
     services:
       postgres:
         image: postgres:16-alpine
         env:
           POSTGRES_USER: okauto
           POSTGRES_PASSWORD: okauto
-          POSTGRES_DB: okauto
+          POSTGRES_DB: postgres
         ports:
           - 5432:5432
         options: >-
@@ -24,7 +68,6 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-
       redis:
         image: redis:7-alpine
         ports:
@@ -34,18 +77,12 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-
-    env:
-      DATABASE_URL: postgresql://okauto:okauto@localhost:5432/okauto?schema=public
-      REDIS_URL: redis://localhost:6379
-      JWT_SECRET: ci-test-secret-minimum-32-characters-long
-
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: pnpm
@@ -53,37 +90,51 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Create test and shadow databases
+        env:
+          PGPASSWORD: okauto
+        run: |
+          psql -h localhost -U okauto -d postgres -c "CREATE DATABASE okauto_test;"
+          psql -h localhost -U okauto -d postgres -c "CREATE DATABASE okauto_shadow;"
+
       - name: Generate Prisma client
         run: pnpm db:generate
 
-      - name: Run migrations
+      - name: Apply migrations
         run: pnpm --filter @okauto/database exec prisma migrate deploy
 
-      - name: Seed database for integration tests
+      - name: Prisma schema vs migrations drift
+        working-directory: packages/database
+        env:
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+        run: |
+          pnpm exec prisma migrate diff \
+            --from-migrations prisma/migrations \
+            --to-schema-datamodel prisma/schema.prisma \
+            --shadow-database-url "$SHADOW_DATABASE_URL" \
+            --exit-code
+
+      - name: Seed database
         run: pnpm db:seed
 
-      - name: Typecheck packages
-        run: |
-          pnpm --filter @okauto/shared typecheck
-          pnpm --filter @okauto/database typecheck
-          pnpm --filter @okauto/extension typecheck
-          pnpm --filter @okauto/worker typecheck
+      - name: Unit tests
+        run: pnpm test:unit --concurrency=1
 
-      - name: Unit & integration tests
-        run: pnpm test
+      - name: Integration tests
+        run: pnpm test:int --concurrency=1
 
-      - name: Build all packages
-        run: pnpm build
-        env:
-          NODE_ENV: production
+      - name: Coverage (v8)
+        run: pnpm --filter @okauto/shared exec vitest run --coverage
 
-      - name: Extension build verification
-        run: pnpm --filter @okauto/extension test
-
-  e2e:
+  images:
     runs-on: ubuntu-latest
-    needs: lint-typecheck-test
-
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: write
     services:
       postgres:
         image: postgres:16-alpine
@@ -98,17 +149,155 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Validate production compose
+        env:
+          APP_VERSION: 0123456789abcdef0123456789abcdef01234567
+          POSTGRES_USER: okauto
+          POSTGRES_PASSWORD: okauto
+          POSTGRES_DB: okauto
+          DATABASE_URL: postgresql://okauto:okauto@postgres:5432/okauto?schema=public
+          REDIS_URL: redis://redis:6379
+          JWT_SECRET: ci-compose-secret-minimum-32-characters
+          NEXT_PUBLIC_APP_URL: https://suivia.ca
+        run: |
+          # Runtime on the VPS uses /opt/okauto/.env next to compose.prod.yml.
+          # CI only interpolates the spec, so an empty file is enough.
+          : > deploy/.env
+          docker compose -f deploy/compose.prod.yml config >/dev/null
+
+      - name: Build web image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: Dockerfile
+          load: true
+          tags: okauto-web:ci
+          cache-from: type=gha,scope=okauto-web
+          cache-to: type=gha,mode=max,scope=okauto-web
+          build-args: |
+            GIT_SHA=${{ github.sha }}
+
+      - name: Build worker image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: Dockerfile.worker
+          load: true
+          tags: okauto-worker:ci
+          cache-from: type=gha,scope=okauto-worker
+          cache-to: type=gha,mode=max,scope=okauto-worker
+          build-args: |
+            GIT_SHA=${{ github.sha }}
+
+      - name: Worker image contains Prisma client
+        run: docker run --rm --entrypoint node okauto-worker:ci -e "import('@prisma/client').then(() => console.log('prisma ok'))"
+
+      - name: Migrate then smoke-test web and worker
+        env:
+          DATABASE_URL: postgresql://okauto:okauto@127.0.0.1:5432/okauto?schema=public
+          REDIS_URL: redis://127.0.0.1:6379
+          JWT_SECRET: ci-test-secret-minimum-32-characters-long
+        run: |
+          docker run --rm --network host \
+            -e DATABASE_URL \
+            okauto-web:ci \
+            sh -c 'cd /app/packages/database && npx prisma migrate deploy'
+
+          docker run -d --name okauto-web-ci --network host \
+            -e DATABASE_URL -e REDIS_URL -e JWT_SECRET \
+            -e GIT_SHA=${{ github.sha }} \
+            -e NEXT_PUBLIC_APP_URL=http://127.0.0.1:3000 \
+            -e RUN_MIGRATIONS_ON_BOOT=false \
+            okauto-web:ci
+
+          docker run -d --name okauto-worker-ci --network host \
+            -e DATABASE_URL -e REDIS_URL \
+            -e GIT_SHA=${{ github.sha }} \
+            okauto-worker:ci
+
+          ready=0
+          for i in $(seq 1 30); do
+            if curl -fsS --max-time 3 http://127.0.0.1:3000/api/health > /tmp/health.json; then
+              cat /tmp/health.json
+              ready=1
+              break
+            fi
+            echo "waiting for web health (${i}/30)"
+            sleep 2
+          done
+          if [ "$ready" != 1 ]; then
+            echo "web never became healthy" >&2
+            docker logs okauto-web-ci >&2 || true
+            docker logs okauto-worker-ci >&2 || true
+            exit 1
+          fi
+          python3 - <<'PY'
+          import json, os, sys
+          data = json.load(open("/tmp/health.json"))
+          sha = os.environ["GITHUB_SHA"]
+          assert data.get("status") == "ok", data
+          assert data.get("version") == sha, data
+          assert data.get("db") is True, data
+          PY
+
+          for i in $(seq 1 20); do
+            if docker logs okauto-worker-ci 2>&1 | grep -q "worker started"; then
+              break
+            fi
+            sleep 1
+          done
+          docker logs okauto-worker-ci 2>&1 | tee /tmp/worker.log
+          grep -q "worker started" /tmp/worker.log
+          docker exec okauto-worker-ci sh -c 'test -f /tmp/worker-heartbeat'
+
+          docker rm -f okauto-web-ci okauto-worker-ci
+
+  e2e:
+    # Playwright boots `next dev` from source (playwright.config.ts webServer).
+    # It does not use the images built by `images`, so this job stays
+    # independent: a docker-smoke failure must not skip browser tests.
+    # Keep `images` as a required branch-protection check instead.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [quality, test]
+    if: github.event_name == 'push' || github.base_ref == 'main'
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: okauto
+          POSTGRES_PASSWORD: okauto
+          POSTGRES_DB: okauto
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     env:
       DATABASE_URL: postgresql://okauto:okauto@localhost:5432/okauto?schema=public
       JWT_SECRET: ci-test-secret-minimum-32-characters-long
-
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: pnpm

@@ -9,15 +9,18 @@
       "cache": false,
       "persistent": true
     },
-    "lint": {
-      "dependsOn": ["^build"]
-    },
+    "lint": {},
     "typecheck": {
       "dependsOn": ["^build"]
     },
     "test": {
-      "dependsOn": ["^build"],
-      "env": ["DATABASE_URL", "JWT_SECRET"]
+      "env": ["DATABASE_URL", "JWT_SECRET", "REDIS_URL", "GIT_SHA"]
+    },
+    "test:unit": {
+      "env": ["DATABASE_URL", "JWT_SECRET", "GIT_SHA"]
+    },
+    "test:int": {
+      "env": ["DATABASE_URL", "JWT_SECRET", "REDIS_URL", "GIT_SHA"]
     },
     "test:e2e": {
       "dependsOn": ["build"],

@@ -17,6 +17,7 @@ services:
 
   redis:
     image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
     ports:
       - "6379:6379"
     volumes:
@@ -27,10 +28,30 @@ services:
       timeout: 5s
       retries: 5
 
-  web:
+  migrate:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        GIT_SHA: ${GIT_SHA:-dev}
+    image: okauto-web:local
+    restart: "no"
+    environment:
+      DATABASE_URL: postgresql://okauto:okauto@postgres:5432/okauto?schema=public
+      GIT_SHA: ${GIT_SHA:-dev}
+    command: ["sh", "-c", "cd /app/packages/database && npx prisma migrate deploy"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    image: okauto-web:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        GIT_SHA: ${GIT_SHA:-dev}
+    init: true
     ports:
       - "3000:3000"
     environment:
@@ -46,10 +67,12 @@ services:
       AWS_REGION: ${AWS_REGION:-us-east-1}
       AWS_S3_BUCKET: ${AWS_S3_BUCKET:-}
       AWS_S3_PUBLIC_URL: ${AWS_S3_PUBLIC_URL:-}
+      GIT_SHA: ${GIT_SHA:-dev}
+      RUN_MIGRATIONS_ON_BOOT: "false"
       NODE_ENV: production
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
 
@@ -57,13 +80,18 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.worker
+      args:
+        GIT_SHA: ${GIT_SHA:-dev}
+    image: okauto-worker:local
+    init: true
     environment:
       DATABASE_URL: postgresql://okauto:okauto@postgres:5432/okauto?schema=public
       REDIS_URL: redis://redis:6379
+      GIT_SHA: ${GIT_SHA:-dev}
       NODE_ENV: production
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
 
