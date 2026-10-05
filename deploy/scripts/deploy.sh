@@ -2,6 +2,9 @@
 # Deploy an already-published GHCR image pair tagged with a git SHA.
 # Steps: lock → dump → tag previous → rehearsal migrate → pull → migrate → up → health → record.
 # On failure, re-pull the previous SHA from GHCR and bring web/worker back.
+# Rollback is APP ONLY — it does not undo prisma migrate. Schema must stay
+# backward-compatible with the previous release (expand/contract). Restoring
+# the pre-deploy dump is a manual last resort (see deploy/RUNBOOK.md).
 set -euo pipefail
 
 SHA="${1:?usage: deploy.sh <40-char-lowercase-sha>}"
@@ -73,6 +76,8 @@ wait_for_health() {
 }
 
 protect_previous_from_prune() {
+  # Convenience local tags only. `docker image prune -af` still deletes images
+  # not used by a running container. GHCR is the source of truth — always re-pull.
   local sha="$1"
   if [[ ! "$sha" =~ ^[0-9a-f]{40}$ ]]; then
     return 0
@@ -81,8 +86,6 @@ protect_previous_from_prune() {
   docker pull "${WORKER_IMAGE}:${sha}"
   docker tag "${WEB_IMAGE}:${sha}" "${WEB_IMAGE}:previous"
   docker tag "${WORKER_IMAGE}:${sha}" "${WORKER_IMAGE}:previous"
-  docker tag "${WEB_IMAGE}:${sha}" "${WEB_IMAGE}:${sha}"
-  docker tag "${WORKER_IMAGE}:${sha}" "${WORKER_IMAGE}:${sha}"
 }
 
 rollback() {
@@ -90,7 +93,8 @@ rollback() {
     echo "no previous SHA recorded; cannot rollback automatically" >&2
     return 1
   fi
-  echo "rolling back to ${previous_sha}" >&2
+  echo "rolling back APP to ${previous_sha} (schema is NOT reverted)" >&2
+  echo "last resort: restore the pre-deploy dump from ${BACKUP_DIR} — see deploy/RUNBOOK.md" >&2
   export APP_VERSION="$previous_sha"
   protect_previous_from_prune "$previous_sha"
   compose up -d --no-deps --wait web worker || compose up -d --no-deps web worker

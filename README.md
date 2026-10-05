@@ -139,7 +139,7 @@ A one-shot `migrate` service runs `prisma migrate deploy`, then `web` and `worke
 
 ## Production (Hostinger VPS)
 
-Production is **not** Render. Images are built in GitHub Actions, pushed to GHCR tagged by git SHA, and deployed over SSH to `/opt/okauto` behind the existing shared Traefik v3. Deployments to `main` require a GitHub Environment `production` approval.
+Production is **not** Render. Images are built in GitHub Actions, pushed to **private** GHCR packages tagged by git SHA, and deployed over SSH to `/opt/okauto` behind the existing shared Traefik v3 (`network_mode: host`). Deployments to `main` require a GitHub Environment `production` approval. The VPS pulls with `docker login ghcr.io` (read-only `read:packages` PAT, root-only).
 
 See [`deploy/README.md`](deploy/README.md) and [`deploy/RUNBOOK.md`](deploy/RUNBOOK.md). `render.yaml` is obsolete.
 

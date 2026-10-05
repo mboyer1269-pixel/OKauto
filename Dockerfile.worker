@@ -14,24 +14,20 @@ COPY . .
 RUN pnpm install --frozen-lockfile
 RUN pnpm db:generate
 RUN pnpm --filter @okauto/worker build
-<<<<<<< HEAD
-# Isolated production tree from the workspace root (deploy from apps/worker
-# reports NOTHING_TO_DEPLOY). Generate the client in that tree for Alpine/OpenSSL.
+# Isolated production tree from the workspace root. `WORKDIR apps/worker` +
+# `pnpm --prod deploy` reports ERR_PNPM_NOTHING_TO_DEPLOY. prisma and
+# @prisma/client are direct dependencies of @okauto/worker.
 RUN pnpm --filter @okauto/worker deploy --prod /out
+# Generate the client *inside* /out for this Alpine/OpenSSL image (sprint-1
+# generate fix), then hoist it to node_modules/@prisma/client for the bundle.
 RUN cp -a /app/apps/worker/dist /out/dist \
   && cp -a /app/packages/database/prisma /out/prisma \
   && cd /out \
   && PRISMA_BIN="$(find /out /app -path '*/.bin/prisma' | head -1)" \
-=======
-# Isolated production tree. Must run from the workspace root with --filter
-# (pnpm deploy from apps/worker reports NOTHING_TO_DEPLOY).
-RUN pnpm --filter @okauto/worker --prod deploy /app/worker-export
-RUN cp -a /app/apps/worker/dist /app/worker-export/dist \
-  && cp -a /app/packages/database/prisma /app/worker-export/prisma \
-  && PRISMA_BIN="$(ls /app/node_modules/.bin/prisma /app/packages/database/node_modules/.bin/prisma /app/worker-export/node_modules/.bin/prisma 2>/dev/null | head -1)" \
->>>>>>> 584e425 (fix(worker): deploy image from workspace root and generate Prisma there)
   && test -n "$PRISMA_BIN" \
-  && "$PRISMA_BIN" generate --schema=/out/prisma/schema.prisma
+  && "$PRISMA_BIN" generate --schema=/out/prisma/schema.prisma \
+  && sh /app/scripts/hoist-prisma-client.sh /out \
+  && node --input-type=module -e "import('@prisma/client').then(() => console.log('prisma ok'))"
 
 FROM base AS runner
 ARG GIT_SHA=unknown

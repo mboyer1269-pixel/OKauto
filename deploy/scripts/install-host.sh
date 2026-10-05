@@ -16,7 +16,14 @@ if [[ -z "$REPO_DEPLOY_DIR" ]]; then
   exit 1
 fi
 
-id deploy >/dev/null 2>&1 || useradd --system --home /home/deploy --shell /usr/sbin/nologin --create-home deploy
+# OpenSSH runs ForcedCommand via the user shell. nologin would reject
+# `ssh deploy@host "deploy <sha>"` before deploy-gate.sh. Restriction is
+# authorized_keys command= + sudoers, not the login shell.
+if ! id deploy >/dev/null 2>&1; then
+  useradd --system --home /home/deploy --shell /bin/bash --create-home deploy
+else
+  usermod -s /bin/bash deploy
+fi
 
 if id -nG deploy | grep -qw docker; then
   echo "WARNING: user deploy is in group docker — remove it (gpasswd -d deploy docker)" >&2
@@ -43,11 +50,23 @@ docker network inspect okauto >/dev/null 2>&1 || docker network create okauto
 
 cat <<'EOF'
 Next steps (manual):
-  1. Fill /opt/okauto/.env (chmod 600).
-  2. Connect Traefik to the okauto network:
-       docker network connect okauto <traefik-container>
-  3. Install the GitHub deploy public key in /home/deploy/.ssh/authorized_keys with:
+  1. Fill /opt/okauto/.env (chmod 600). DATABASE_URL must use host `postgres`
+     (compose DNS), not 127.0.0.1:5433 (that bind is for host-side admin only).
+  2. Do NOT run `docker network connect okauto <traefik>`. Traefik already
+     uses network_mode: host and Docker will refuse to attach it to a bridge.
+     Host-network Traefik reaches the web container via its IP on the okauto
+     bridge (labels traefik.docker.network=okauto). Web publishes no host port.
+  3. GHCR packages stay PRIVATE. As root, once, with a read-only PAT
+     (scope read:packages only):
+       echo '<PAT>' | docker login ghcr.io -u <github-username> --password-stdin
+       chmod 600 /root/.docker/config.json
+     deploy.sh runs as root via sudo, so this login is enough. Do not put the
+     PAT in /opt/okauto/.env and do not chmod the docker config world-readable.
+  4. Install the GitHub deploy public key in /home/deploy/.ssh/authorized_keys with:
        command="/opt/okauto/scripts/deploy-gate.sh",no-pty,no-port-forwarding,no-agent-forwarding,no-X11-forwarding ssh-ed25519 AAAA... suivia-github-deploy
      chmod 600 /home/deploy/.ssh/authorized_keys && chown -R deploy:deploy /home/deploy
-  4. Confirm `ssh deploy@VPS bash` is refused and `ssh deploy@VPS "deploy <sha>"` is accepted.
+  5. Confirm `ssh deploy@VPS bash` is refused (ForcedCommand) and
+     `ssh deploy@VPS "deploy <sha>"` is accepted.
+  6. Point /etc/cron.d/okauto-backup at OKAUTO_ROOT=/opt/okauto and
+     /opt/okauto/scripts/backup.sh (compose.prod.yml). See deploy/RUNBOOK.md.
 EOF

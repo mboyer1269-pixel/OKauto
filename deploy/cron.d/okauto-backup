@@ -1,0 +1,6 @@
+# /etc/cron.d/okauto-backup — install on the VPS at cutover (root).
+# Replaces the previous cron that called docker compose without -f compose.prod.yml.
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+OKAUTO_ROOT=/opt/okauto
+15 3 * * * root OKAUTO_ROOT=/opt/okauto /opt/okauto/scripts/backup.sh
