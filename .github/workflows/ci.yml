@@ -168,7 +168,11 @@ jobs:
           REDIS_URL: redis://redis:6379
           JWT_SECRET: ci-compose-secret-minimum-32-characters
           NEXT_PUBLIC_APP_URL: https://suivia.ca
-        run: docker compose -f deploy/compose.prod.yml config >/dev/null
+        run: |
+          # Runtime on the VPS uses /opt/okauto/.env next to compose.prod.yml.
+          # CI only interpolates the spec, so an empty file is enough.
+          : > deploy/.env
+          docker compose -f deploy/compose.prod.yml config >/dev/null
 
       - name: Build web image
         uses: docker/build-push-action@v6
