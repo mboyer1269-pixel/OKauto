@@ -1,11 +1,10 @@
-import { sentryBeforeSend } from "@okauto/shared";
+import { readEnv, sentryBeforeSend, type EnvMap } from "@okauto/shared";
 
 let enabled = false;
 
-export function sentryRelease(
-  env: NodeJS.ProcessEnv = process.env,
-): string | undefined {
-  const release = (env.APP_VERSION || env.GIT_SHA || "").trim();
+export function sentryRelease(env?: EnvMap): string | undefined {
+  const values = readEnv(env);
+  const release = (values.APP_VERSION || values.GIT_SHA || "").trim();
   return release || undefined;
 }
 

@@ -38,10 +38,19 @@ export function isDuplicateJobError(err: unknown): boolean {
   return /already (exists|used)|duplicat/i.test(message);
 }
 
-export function syncFetchLimits(env: NodeJS.ProcessEnv = process.env): {
+export type EnvMap = Record<string, string | undefined>;
+
+export function readEnv(env?: EnvMap): EnvMap {
+  if (env) return env;
+  const runtime = globalThis as { process?: { env?: EnvMap } };
+  return runtime.process?.env ?? {};
+}
+
+export function syncFetchLimits(env?: EnvMap): {
   timeoutMs: number;
   maxBytes: number;
 } {
+  env = readEnv(env);
   const timeoutMs = Number(env.SYNC_FETCH_TIMEOUT_MS);
   const maxBytes = Number(env.SYNC_FETCH_MAX_BYTES);
   return {

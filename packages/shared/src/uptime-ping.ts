@@ -1,3 +1,5 @@
+import { readEnv, type EnvMap } from "./job-policy";
+
 export type UptimePingResult = "skipped" | "ok" | "error";
 
 function firstUrl(...candidates: Array<string | undefined | null>): string {
@@ -32,12 +34,11 @@ export async function pingUptime(
   }
 }
 
-export function workerHeartbeatUrl(
-  env: NodeJS.ProcessEnv = process.env,
-): string {
+export function workerHeartbeatUrl(env?: EnvMap): string {
+  const values = readEnv(env);
   return firstUrl(
-    env.WORKER_HEARTBEAT_URL,
-    env.UPTIME_HEARTBEAT_URL,
-    env.BETTERSTACK_HEARTBEAT_URL,
+    values.WORKER_HEARTBEAT_URL,
+    values.UPTIME_HEARTBEAT_URL,
+    values.BETTERSTACK_HEARTBEAT_URL,
   );
 }

@@ -1,12 +1,13 @@
 import { sentryBeforeSend } from "@okauto/shared";
 
 export async function register() {
+  if (process.env.NEXT_RUNTIME === "edge") return;
   const dsn = process.env.SENTRY_DSN?.trim();
-  if (!dsn) {
-    return;
-  }
+  if (!dsn) return;
   try {
-    const Sentry = await import("@sentry/node");
+    // webpackIgnore: keep the Node SDK out of the Next/webpack graph.
+    // next.config serverExternalPackages copies it into standalone.
+    const Sentry = await import(/* webpackIgnore: true */ "@sentry/node");
     Sentry.init({
       dsn,
       release: process.env.APP_VERSION || process.env.GIT_SHA || undefined,

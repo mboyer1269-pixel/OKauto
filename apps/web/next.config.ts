@@ -32,6 +32,8 @@ const nextConfig: NextConfig = {
   output: process.platform === 'win32' ? undefined : 'standalone',
   outputFileTracingRoot: path.join(__dirname, '../..'),
   transpilePackages: ['@okauto/database', '@okauto/shared'],
+  // Optional Sentry Node SDK — do not webpack it (diagnostics_channel / path).
+  serverExternalPackages: ['@sentry/node'],
   async headers() {
     return [
       {
@@ -40,11 +42,17 @@ const nextConfig: NextConfig = {
       },
     ];
   },
-  webpack: (config) => {
+  webpack: (config, { isServer }) => {
     // BullMQ exports an optional Valkey Glide adapter that Suivia does not use.
     // Excluding it keeps production bundles deterministic without adding a
     // second Redis client implementation.
     config.resolve.alias['@valkey/valkey-glide'] = false;
+    if (isServer) {
+      const externals = config.externals;
+      if (Array.isArray(externals)) {
+        externals.push('@sentry/node');
+      }
+    }
     return config;
   },
   images: {
