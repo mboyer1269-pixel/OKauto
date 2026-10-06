@@ -23,8 +23,16 @@ export async function processRemovalReminders(now = new Date()) {
     byOrg.set(listing.organizationId, group);
   }
 
+  let sent = 0;
   for (const [organizationId, orgListings] of byOrg) {
+    const claimed: typeof orgListings = [];
     for (const listing of orgListings) {
+      const reserved = await prisma.listing.updateMany({
+        where: { id: listing.id, removalReminderSentAt: null },
+        data: { removalReminderSentAt: now },
+      });
+      if (reserved.count === 0) continue;
+      claimed.push(listing);
       const hours = Math.max(
         24,
         Math.floor(
@@ -44,17 +52,15 @@ export async function processRemovalReminders(now = new Date()) {
           metadata: { listingId: listing.id, vehicleId: listing.vehicleId },
         },
       });
-      await prisma.listing.update({
-        where: { id: listing.id },
-        data: { removalReminderSentAt: now },
-      });
+      sent += 1;
     }
+    if (claimed.length === 0) continue;
 
     const managers = await prisma.organizationMember.findMany({
       where: { organizationId, role: { in: ["OWNER", "ADMIN", "MANAGER"] } },
       select: { userId: true },
     });
-    const oldest = [...orgListings]
+    const oldest = [...claimed]
       .sort(
         (a, b) =>
           (a.staleSince ?? a.updatedAt).getTime() -
@@ -76,13 +82,13 @@ export async function processRemovalReminders(now = new Date()) {
         data: {
           userId: manager.userId,
           type: "LISTING_REMINDER",
-          title: `${orgListings.length} annonce(s) de véhicules vendus encore en ligne`,
+          title: `${claimed.length} annonce(s) de véhicules vendus encore en ligne`,
           message: `Les plus anciennes : ${oldest.join(" ; ")}`,
-          metadata: { organizationId, count: orgListings.length },
+          metadata: { organizationId, count: claimed.length },
         },
       });
     }
   }
 
-  return listings.length;
+  return sent;
 }

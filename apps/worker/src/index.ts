@@ -4,12 +4,12 @@ import { prisma } from "@okauto/database";
 import {
   DEGRADED_EVERY_MS,
   DEGRADED_JOB_NAME,
+  MAINTENANCE_JOB_OPTS,
   REMINDER_EVERY_MS,
   REMINDER_JOB_NAME,
   SYNC_JOB_NAME,
   SYNC_TICK_EVERY_MS,
   SYNC_TICK_JOB_NAME,
-  isDuplicateJobError,
   isLastAttempt,
   pingUptime,
   syncJobOptions,
@@ -163,16 +163,12 @@ export async function scheduleSyncJobs() {
     const lastSync = source.lastSyncAt?.getTime() ?? 0;
     const intervalMs = source.intervalMinutes * 60 * 1000;
     if (Date.now() - lastSync >= intervalMs) {
-      try {
-        await syncQueue.add(
-          SYNC_JOB_NAME,
-          { syncSourceId: source.id },
-          syncJobOptions(source.id),
-        );
-        queued += 1;
-      } catch (err) {
-        if (!isDuplicateJobError(err)) throw err;
-      }
+      await syncQueue.add(
+        SYNC_JOB_NAME,
+        { syncSourceId: source.id },
+        syncJobOptions(source.id),
+      );
+      queued += 1;
     }
   }
   return { queued };
@@ -182,17 +178,29 @@ async function startSchedulers() {
   await maintenanceQueue.upsertJobScheduler(
     "suivia-sync-tick",
     { every: SYNC_TICK_EVERY_MS },
-    { name: SYNC_TICK_JOB_NAME, data: { kind: SYNC_TICK_JOB_NAME } },
+    {
+      name: SYNC_TICK_JOB_NAME,
+      data: { kind: SYNC_TICK_JOB_NAME },
+      opts: MAINTENANCE_JOB_OPTS,
+    },
   );
   await maintenanceQueue.upsertJobScheduler(
     "suivia-reminders",
     { every: REMINDER_EVERY_MS },
-    { name: REMINDER_JOB_NAME, data: { kind: REMINDER_JOB_NAME } },
+    {
+      name: REMINDER_JOB_NAME,
+      data: { kind: REMINDER_JOB_NAME },
+      opts: MAINTENANCE_JOB_OPTS,
+    },
   );
   await maintenanceQueue.upsertJobScheduler(
     "suivia-degraded",
     { every: DEGRADED_EVERY_MS },
-    { name: DEGRADED_JOB_NAME, data: { kind: DEGRADED_JOB_NAME } },
+    {
+      name: DEGRADED_JOB_NAME,
+      data: { kind: DEGRADED_JOB_NAME },
+      opts: MAINTENANCE_JOB_OPTS,
+    },
   );
 }
 
@@ -200,10 +208,7 @@ void initWorkerSentry();
 startSchedulers()
   .then(() => {
     console.log("  - BullMQ job schedulers registered");
-    return scheduleSyncJobs();
   })
-  .then(() => processRemovalReminders())
-  .then(() => checkSyncDegraded())
   .catch(console.error);
 
 process.on("SIGTERM", async () => {

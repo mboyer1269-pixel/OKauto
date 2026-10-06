@@ -1,4 +1,4 @@
-import { sentryBeforeSend } from "@okauto/shared";
+import { sentryBeforeBreadcrumb, sentryBeforeSend } from "@okauto/shared";
 
 export async function register() {
   if (process.env.NEXT_RUNTIME === "edge") return;
@@ -14,8 +14,20 @@ export async function register() {
       environment: process.env.NODE_ENV ?? "production",
       sendDefaultPii: false,
       beforeSend: sentryBeforeSend,
+      beforeBreadcrumb: sentryBeforeBreadcrumb,
     });
   } catch (err) {
     console.error("sentry init failed", err);
+  }
+}
+
+export async function onRequestError(err: unknown) {
+  if (process.env.NEXT_RUNTIME === "edge") return;
+  if (!process.env.SENTRY_DSN?.trim()) return;
+  try {
+    const Sentry = await import(/* webpackIgnore: true */ "@sentry/node");
+    Sentry.captureException(err);
+  } catch {
+    // no-op when the SDK is unavailable
   }
 }

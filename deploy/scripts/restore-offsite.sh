@@ -14,6 +14,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 R2_PY="${SCRIPT_DIR}/r2.py"
 ROOT="${OKAUTO_ROOT:-/opt/okauto}"
 ENV_FILE="${ROOT}/.env"
+BACKUP_ENV_FILE="${ROOT}/backup.env"
 BUNDLE=""
 KEY=""
 LATEST=0
@@ -21,13 +22,17 @@ IDENTITY_FILE=""
 POSTGRES_IMAGE="${RESTORE_POSTGRES_IMAGE:-postgres:16-alpine}"
 MIN_ORGS="${RESTORE_MIN_ORGS:-1}"
 MIN_USERS="${RESTORE_MIN_USERS:-1}"
+MIN_VEHICLES="${RESTORE_MIN_VEHICLES:-100}"
 
+# shellcheck disable=SC1090
+set -a
 if [[ -f "$ENV_FILE" ]]; then
-  # shellcheck disable=SC1090
-  set -a
   source "$ENV_FILE"
-  set +a
 fi
+if [[ -f "$BACKUP_ENV_FILE" ]]; then
+  source "$BACKUP_ENV_FILE"
+fi
+set +a
 
 usage() {
   echo "usage: restore-offsite.sh --bundle FILE | --latest | --key R2_KEY [--identity FILE]" >&2
@@ -52,7 +57,7 @@ fi
 work="$(mktemp -d "${TMPDIR:-/tmp}/okauto-restore.XXXXXX")"
 cleanup() {
   if [[ -n "${CID:-}" ]]; then
-    docker rm -f "$CID" >/dev/null 2>&1 || true
+    docker rm -fv "$CID" >/dev/null 2>&1 || true
   fi
   rm -rf "$work"
 }
@@ -89,21 +94,19 @@ if [[ "$LATEST" -eq 1 || -n "$KEY" ]]; then
     exit 0
   fi
   echo "restore-offsite downloading ${KEY}"
-  # Re-use PUT's inverse: curl via a tiny python get by writing the object through
-  # a signed GET — list already proved credentials. Fetch with r2.py by printing
-  # to a file via a GET implemented as: python helper below.
-  python3 - <<PY
+  RESTORE_SCRIPT_DIR="$SCRIPT_DIR" RESTORE_R2_KEY="$KEY" RESTORE_OUT="${work}/bundle.tar.gz.age" python3 - <<'PY'
 import os, sys
-sys.path.insert(0, "${SCRIPT_DIR}")
+sys.path.insert(0, os.environ["RESTORE_SCRIPT_DIR"])
 import r2
 cfg = r2.R2Config()
 missing = cfg.missing()
 if missing:
     raise SystemExit("R2 not configured: missing " + ", ".join(missing))
-status, headers, body = r2._request(cfg, "GET", "${KEY}")
+key = os.environ["RESTORE_R2_KEY"]
+status, _headers, body = r2._request(cfg, "GET", key)
 if status != 200:
     raise SystemExit(f"R2 get unexpected status {status}")
-open("${work}/bundle.tar.gz.age", "wb").write(body)
+open(os.environ["RESTORE_OUT"], "wb").write(body)
 print(f"downloaded {len(body)} bytes")
 PY
   BUNDLE="${work}/bundle.tar.gz.age"
@@ -127,7 +130,7 @@ if [[ "${RESTORE_SKIP_DOCKER:-}" == "1" ]] || ! command -v docker >/dev/null 2>&
   exit 0
 fi
 
-CID="$(docker run -d --rm \
+CID="$(docker run -d --rm --network none \
   -e POSTGRES_USER=okauto \
   -e POSTGRES_PASSWORD=okauto \
   -e POSTGRES_DB=okauto \
@@ -166,8 +169,9 @@ echo "$counts"
 
 orgs="$(echo "$counts" | awk '$1=="organizations"{print $2}')"
 users="$(echo "$counts" | awk '$1=="users"{print $2}')"
-if [[ "${orgs:-0}" -lt "$MIN_ORGS" || "${users:-0}" -lt "$MIN_USERS" ]]; then
-  echo "restore-offsite failed: row counts too low (orgs=${orgs} users=${users})" >&2
+vehicles="$(echo "$counts" | awk '$1=="vehicles"{print $2}')"
+if [[ "${orgs:-0}" -lt "$MIN_ORGS" || "${users:-0}" -lt "$MIN_USERS" || "${vehicles:-0}" -lt "$MIN_VEHICLES" ]]; then
+  echo "restore-offsite failed: row counts too low (orgs=${orgs} users=${users} vehicles=${vehicles})" >&2
   exit 1
 fi
 

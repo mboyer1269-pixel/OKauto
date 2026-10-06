@@ -66,11 +66,12 @@ sudo /opt/okauto/scripts/deploy.sh <ancien-sha-40>
 
 Cron (`/etc/cron.d/okauto-backup`) : `15 3 * * *` → `/opt/okauto/scripts/backup.sh` → log `/opt/okauto/backups/backup.log`.
 
-1. **Local (toujours)** : `pg_dump -Fc` → `/opt/okauto/backups/suivia-<UTC>.dump`, contrôle taille + `pg_restore -l`, rétention `BACKUP_RETENTION_DAYS` (14).
-2. **Hors VPS (si configuré)** : `offsite-backup.sh` emballe dump + `.env`, chiffre avec `age` (`BACKUP_AGE_RECIPIENT`), envoie sur R2 (`r2.py`, API S3, stdlib). Vérifie taille + `x-amz-meta-sha256`. Élague `BACKUP_R2_RETENTION_DAYS` (30).
-3. Si R2 n’est pas configuré : une ligne `offsite backup skipped: R2 not configured` puis exit 0. Le dump local reste.
-4. Si R2 est configuré sans `BACKUP_AGE_RECIPIENT` : **refus** d’uploader du plaintext (exit 1).
-5. Heartbeat `BACKUP_HEARTBEAT_URL` : GET après succès ; no-op si vide.
+1. **Local (toujours)** : `pg_dump -Fc` → `/opt/okauto/backups/suivia-<UTC>.dump`, contrôle taille + `pg_restore -l`, rétention locale `BACKUP_RETENTION_DAYS` (14, dans `backup.env`).
+2. **Hors VPS (si configuré dans `backup.env`)** : `offsite-backup.sh` emballe dump + `.env` + `backup.env`, chiffre avec `age`, envoie sur R2. Vérifie taille + `x-amz-meta-sha256`. **Aucun prune** : rétention = lifecycle R2 (30 j). Jeton VPS write-only.
+3. Si R2 n’est pas configuré : `offsite backup skipped: R2 not configured` puis exit 0. Le dump local reste.
+4. Si R2 est configuré sans `BACKUP_AGE_RECIPIENT` : **refus** d’uploader du plaintext (exit 1 **de l’offsite seulement**).
+5. `backup.sh --label …` (appelé par `deploy.sh`) : dump local seulement — pas d’offsite, pas de heartbeat. Un échec R2 **ne fait jamais échouer** le deploy.
+6. Heartbeat `BACKUP_HEARTBEAT_URL` : GET après un nocturne dont l’offsite a réussi ou a été skippé proprement. Pas pingé si l’offsite échoue (Better Stack alerte alors).
 
 ```bash
 # manuel
@@ -82,12 +83,12 @@ Prérequis hôte pour l’offsite : `apt-get install -y age`. Générer la paire
 
 ```bash
 age-keygen -o suivia-backup.age
-# ligne « public key: age1… » → BACKUP_AGE_RECIPIENT dans /opt/okauto/.env
-# fichier identité (AGE-SECRET-KEY-1…) → coffre-fort + secret GitHub BACKUP_AGE_IDENTITY
+# ligne « public key: age1… » → BACKUP_AGE_RECIPIENT dans /opt/okauto/backup.env
+# fichier identité (AGE-SECRET-KEY-1…) → coffre-fort + secret Environment `backup-drill`
 # ne jamais copier l’identité sur le VPS
 ```
 
-R2 : bucket privé, jeton **écriture** sur le VPS, jeton **lecture seule** pour GitHub (workflow `Backup restore drill`).
+R2 : bucket privé, **lifecycle 30 jours**, jeton VPS **PutObject only**, jeton **lecture seule** dans l’environment GitHub `backup-drill` (branches = `main`).
 
 ## Restaurer un dump
 
@@ -113,9 +114,9 @@ export BACKUP_R2_SECRET_ACCESS_KEY=…
 bash deploy/scripts/restore-offsite.sh --latest
 ```
 
-Le script lève un Postgres jetable, `pg_restore`, compte `organizations` / `users` / `vehicles`, détruit le conteneur.
+Le script lève un Postgres jetable (`--network none`), `pg_restore`, exige orgs ≥ 1, users ≥ 1, vehicles ≥ 100, puis `docker rm -fv`.
 
-Workflow mensuel : Actions → **Backup restore drill** (ou cron le 1er du mois). Sort 0 tant que les secrets ne sont pas là.
+Workflow mensuel : Actions → **Backup restore drill** (environment `backup-drill`, limité à `main`). Sort 0 tant que les secrets d’environment sont vides.
 
 ### Restauration réelle (maintenance)
 
@@ -153,19 +154,27 @@ Tout est optionnel. Sans DSN / URL : no-op + une ligne de log.
 | Sentry web + worker | `SENTRY_DSN` | `release=APP_VERSION` (ou `GIT_SHA`). `sendDefaultPii=false` + scrub email/cookies/Authorization. Pas de wrapper `next.config`. |
 | Heartbeat backup | `BACKUP_HEARTBEAT_URL` | GET après `backup.sh` OK |
 | Heartbeat worker | `WORKER_HEARTBEAT_URL` | GET avec le heartbeat fichier/Redis (30 s) |
-| Sync DÉGRADÉE | (in-app) + `SYNC_ALERT_WEBHOOK_URL` | Scheduler 15 min. `degraded` si runs FAILED/PARTIAL, source error, ou `lastSync` > 2× intervalle. Notif `SYSTEM` 1× / org / jour UTC. Webhook JSON optionnel. |
+| Sync DÉGRADÉE | `SYNC_DEGRADED_ALERTS=1` + webhook optionnel | **Off par défaut.** Sources actives seulement. Scheduler 15 min. Notif `SYSTEM` 1× / org / jour UTC. |
 
 Logs toujours : `docker compose --env-file /opt/okauto/.env -f /opt/okauto/compose.prod.yml logs -f web worker`
 
-## Après merge lot 2 (hôte)
+## Après merge de cette PR de suivi (hôte)
 
 1. Snapshot Hostinger.
-2. Recopier `deploy/scripts/`, `deploy/README.md`, `deploy/RUNBOOK.md`, `deploy/cron.d/okauto-backup` (le cron pointe toujours sur `backup.sh`). Relancer `install-host.sh` ou `cp` ciblé. **Ne pas** toucher `deploy-gate.sh` / sudoers.
-3. `apt-get install -y age` (même avant d’avoir R2 — le skip reste propre).
-4. Laisser les nouvelles variables **vides** dans `.env` jusqu’à ce que le bucket / la clé age / Sentry / Better Stack existent.
-5. Approuver le Deploy GHA habituel. Smoke : `/api/health`, `/api/health/ready`, `grep -E 'offsite backup skipped|worker started|schedulers' /opt/okauto/backups/backup.log` après un `backup.sh` manuel.
-6. Quand R2+age sont prêts : remplir les `BACKUP_*`, relancer `backup.sh`, vérifier l’objet dans R2 (taille + checksum) et le workflow **Backup restore drill**.
-7. Quand Sentry / Better Stack sont prêts : remplir `SENTRY_DSN`, `BACKUP_HEARTBEAT_URL`, `WORKER_HEARTBEAT_URL` puis recreer web/worker (`deploy` du même SHA ou `up -d --force-recreate web worker`).
+2. En root, copier **seulement** :
+   - `deploy/scripts/{backup.sh,offsite-backup.sh,restore-offsite.sh,r2.py}` → `/opt/okauto/scripts/` (`root:root`, 755)
+   - `deploy/README.md`, `deploy/RUNBOOK.md` → `/opt/okauto/`
+   - `deploy/backup.env.example` → `/opt/okauto/backup.env` s’il n’existe pas encore (`chmod 600`)
+   Ne pas toucher `deploy-gate.sh`, `deploy.sh` ni sudoers.
+3. Si des `BACKUP_*` étaient déjà dans `.env` (lot 2 initial, jamais déployé) : les **déplacer** vers `backup.env` et les retirer de `.env`.
+4. `apt-get install -y age` (même avant R2).
+5. Laisser `backup.env` et `SYNC_DEGRADED_ALERTS` **vides**. Approuver le Deploy.
+6. Vérifier :
+   - worker : `BullMQ job schedulers registered`, `sentry skipped`
+   - `/api/health` et `/api/health/ready`
+   - **deux synchros successives** de la même source (`lastSyncAt` avance ; bouton « Synchroniser maintenant » aussi)
+   - `backup.sh` manuel → skip R2 ; `backup.sh --label deploy-test` → skip offsite + heartbeat
+7. Plus tard : lifecycle R2 30 j + jeton write-only, remplir `backup.env`, environment GitHub `backup-drill` (main only), drill manuel. Activer `SYNC_DEGRADED_ALERTS=1` seulement après revue des runs FAILED récents.
 
 ---
 
