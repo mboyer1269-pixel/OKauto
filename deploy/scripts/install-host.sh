@@ -37,20 +37,23 @@ chmod 755 "$ROOT/scripts"
 chmod 750 "$ROOT/backups"
 chmod 700 /home/deploy/.ssh
 
-cp -a "${REPO_DEPLOY_DIR}/compose.prod.yml" "${ROOT}/compose.prod.yml"
-cp -a "${REPO_DEPLOY_DIR}/README.md" "${ROOT}/README.md"
-cp -a "${REPO_DEPLOY_DIR}/RUNBOOK.md" "${ROOT}/RUNBOOK.md"
-chmod 644 "${ROOT}/README.md" "${ROOT}/RUNBOOK.md"
-cp -a "${REPO_DEPLOY_DIR}/scripts/." "${ROOT}/scripts/"
-chmod 755 "${ROOT}/scripts/"*.sh
-if [[ -f "${ROOT}/scripts/r2.py" ]]; then
-  chmod 755 "${ROOT}/scripts/r2.py"
-fi
+install -o root -g root -m 644 "${REPO_DEPLOY_DIR}/compose.prod.yml" "${ROOT}/compose.prod.yml"
+install -o root -g root -m 644 "${REPO_DEPLOY_DIR}/README.md" "${ROOT}/README.md"
+install -o root -g root -m 644 "${REPO_DEPLOY_DIR}/RUNBOOK.md" "${ROOT}/RUNBOOK.md"
+install -o root -g root -m 755 -d "${ROOT}/scripts"
+for script in "${REPO_DEPLOY_DIR}/scripts/"*; do
+  install -o root -g root -m 755 "$script" "${ROOT}/scripts/$(basename "$script")"
+done
 
 if [[ ! -f "${ROOT}/.env" ]]; then
-  cp "${REPO_DEPLOY_DIR}/.env.prod.example" "${ROOT}/.env"
-  chmod 600 "${ROOT}/.env"
+  install -o root -g root -m 600 "${REPO_DEPLOY_DIR}/.env.prod.example" "${ROOT}/.env"
   echo "created ${ROOT}/.env from example — fill in real values before the first deploy"
+fi
+if [[ ! -f "${ROOT}/backup.env" ]]; then
+  if [[ -f "${REPO_DEPLOY_DIR}/backup.env.example" ]]; then
+    install -o root -g root -m 600 "${REPO_DEPLOY_DIR}/backup.env.example" "${ROOT}/backup.env"
+    echo "created ${ROOT}/backup.env from example — host-only R2/age settings (not injected into containers)"
+  fi
 fi
 
 install -m 440 "${REPO_DEPLOY_DIR}/sudoers.deploy" /etc/sudoers.d/okauto-deploy
@@ -81,7 +84,8 @@ Next steps (manual):
      `ssh deploy@VPS "deploy <sha>"` is accepted.
   6. Point /etc/cron.d/okauto-backup at OKAUTO_ROOT=/opt/okauto and
      /opt/okauto/scripts/backup.sh (compose.prod.yml). Offsite R2 upload is
-     skipped until BACKUP_R2_* + BACKUP_AGE_RECIPIENT are set. Install age:
+     skipped until /opt/okauto/backup.env has BACKUP_R2_* + BACKUP_AGE_RECIPIENT.
+     Install age:
        apt-get install -y age
      See /opt/okauto/README.md and /opt/okauto/RUNBOOK.md.
 EOF

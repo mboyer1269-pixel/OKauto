@@ -25,8 +25,9 @@ test -n "$recipient"
 mkdir -p "${tmp}/bundle"
 printf 'not-a-real-dump' >"${tmp}/bundle/database.dump"
 printf 'JWT_SECRET=keep-me\n' >"${tmp}/bundle/env"
+printf 'BACKUP_R2_BUCKET=suivia-backups\n' >"${tmp}/bundle/backup.env"
 printf 'fixture\n' >"${tmp}/bundle/stamp"
-tar -C "${tmp}/bundle" -czf "${tmp}/bundle.tar.gz" database.dump env stamp
+tar -C "${tmp}/bundle" -czf "${tmp}/bundle.tar.gz" database.dump env backup.env stamp
 age -r "$recipient" -o "${tmp}/bundle.tar.gz.age" "${tmp}/bundle.tar.gz"
 
 RESTORE_SKIP_DOCKER=1 \

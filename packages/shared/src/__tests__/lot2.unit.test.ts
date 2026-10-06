@@ -2,15 +2,20 @@ import { describe, expect, it, vi } from "vitest";
 import {
   classifySyncHealth,
   isStaleSyncSource,
+  isSyncDegradedAlertsEnabled,
 } from "../sync-degraded";
 import {
-  isDuplicateJobError,
   isLastAttempt,
   syncFetchLimits,
   syncJobId,
   syncJobOptions,
 } from "../job-policy";
-import { sentryBeforeSend, stripQuery } from "../sentry-scrub";
+import {
+  redactPiiText,
+  sentryBeforeBreadcrumb,
+  sentryBeforeSend,
+  stripQuery,
+} from "../sentry-scrub";
 import { pingUptime, workerHeartbeatUrl } from "../uptime-ping";
 
 describe("classifySyncHealth", () => {
@@ -95,6 +100,24 @@ describe("classifySyncHealth", () => {
     ).toBe(false);
   });
 
+  it("ignores inactive sources when counting source errors", () => {
+    const health = classifySyncHealth({
+      sources: [
+        {
+          id: "off",
+          isActive: false,
+          intervalMinutes: 60,
+          lastSyncAt: "2026-10-05T19:50:00Z",
+          lastSyncStatus: "error",
+        },
+      ],
+      failedRunsLast10: 0,
+      nowMs: now,
+    });
+    expect(health.status).toBe("healthy");
+    expect(health.sourceErrors).toBe(0);
+  });
+
   it("is degraded on failed runs or source errors", () => {
     expect(
       classifySyncHealth({
@@ -145,13 +168,22 @@ describe("classifySyncHealth", () => {
 });
 
 describe("job policy", () => {
-  it("dedups sync jobs by source id and retries with backoff", () => {
+  it("dedups in-flight sync jobs without a sticky jobId", () => {
     expect(syncJobId("abc")).toBe("sync-abc");
-    expect(syncJobOptions("abc")).toMatchObject({
-      jobId: "sync-abc",
+    const opts = syncJobOptions("abc");
+    expect(opts).toMatchObject({
+      deduplication: { id: "sync-abc" },
       attempts: 3,
       backoff: { type: "exponential", delay: 5000 },
     });
+    expect(opts).not.toHaveProperty("jobId");
+  });
+
+  it("keeps the DÉGRADÉE alert off until SYNC_DEGRADED_ALERTS=1", () => {
+    expect(isSyncDegradedAlertsEnabled({})).toBe(false);
+    expect(isSyncDegradedAlertsEnabled({ SYNC_DEGRADED_ALERTS: "1" })).toBe(
+      true,
+    );
   });
 
   it("notifies only on the last attempt", () => {
@@ -159,11 +191,6 @@ describe("job policy", () => {
     expect(isLastAttempt(1, 3)).toBe(false);
     expect(isLastAttempt(2, 3)).toBe(true);
     expect(isLastAttempt(0, 1)).toBe(true);
-  });
-
-  it("detects BullMQ duplicate job errors", () => {
-    expect(isDuplicateJobError(new Error("JobId is already used"))).toBe(true);
-    expect(isDuplicateJobError(new Error("network down"))).toBe(false);
   });
 
   it("reads fetch limits from env with defaults", () => {
@@ -195,6 +222,9 @@ describe("sentry scrub", () => {
         },
       },
       extra: { jwt: "nope", ok: "keep" },
+      exception: {
+        values: [{ value: "Unique constraint failed on email a@b.com" }],
+      },
     });
     expect(event?.user).toEqual({ id: "u1" });
     expect(event?.request?.cookies).toBeUndefined();
@@ -204,7 +234,20 @@ describe("sentry scrub", () => {
     expect(event?.request?.headers?.authorization).toBe("[Filtered]");
     expect(event?.request?.headers?.["content-type"]).toBe("application/json");
     expect(event?.extra).toEqual({ jwt: "[Filtered]", ok: "keep" });
+    expect(event?.exception?.values?.[0]?.value).toBe(
+      "Unique constraint failed on email [Filtered]",
+    );
     expect(stripQuery("https://x.test/y")).toBe("https://x.test/y");
+    expect(redactPiiText("call +1 514-555-1212")).toContain("[Filtered]");
+    expect(
+      sentryBeforeBreadcrumb({
+        message: "login a@b.com",
+        data: { authorization: "Bearer x", path: "/ok" },
+      }),
+    ).toEqual({
+      message: "login [Filtered]",
+      data: { authorization: "[Filtered]", path: "/ok" },
+    });
   });
 });
 

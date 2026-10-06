@@ -1,10 +1,6 @@
 import { Queue } from "bullmq";
 import IORedis from "ioredis";
-import {
-  SYNC_JOB_NAME,
-  isDuplicateJobError,
-  syncJobOptions,
-} from "@okauto/shared";
+import { SYNC_JOB_NAME, syncJobOptions } from "@okauto/shared";
 
 let syncQueue: Queue | null = null;
 let connection: IORedis | null = null;
@@ -29,15 +25,10 @@ export function getSyncQueue(): Queue {
 }
 
 export async function enqueueSyncJob(syncSourceId: string): Promise<string> {
-  try {
-    const job = await getSyncQueue().add(
-      SYNC_JOB_NAME,
-      { syncSourceId },
-      syncJobOptions(syncSourceId),
-    );
-    return job.id ?? syncSourceId;
-  } catch (err) {
-    if (isDuplicateJobError(err)) return syncSourceId;
-    throw err;
-  }
+  const job = await getSyncQueue().add(
+    SYNC_JOB_NAME,
+    { syncSourceId },
+    syncJobOptions(syncSourceId),
+  );
+  return job.id ?? syncSourceId;
 }

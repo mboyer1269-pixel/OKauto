@@ -1,3 +1,5 @@
+import { readEnv } from "./job-policy";
+
 export type SyncHealthStatus =
   | "healthy"
   | "degraded"
@@ -51,8 +53,10 @@ export function classifySyncHealth(input: {
   nowMs?: number;
 }): SyncHealthClassification {
   const nowMs = input.nowMs ?? Date.now();
-  const sourceErrors = input.sources.filter((source) =>
-    ERROR_STATUSES.has((source.lastSyncStatus ?? "").toLowerCase()),
+  const sourceErrors = input.sources.filter(
+    (source) =>
+      source.isActive &&
+      ERROR_STATUSES.has((source.lastSyncStatus ?? "").toLowerCase()),
   ).length;
   const stale = input.sources.filter((source) =>
     isStaleSyncSource(source, nowMs),
@@ -94,3 +98,10 @@ export function classifySyncHealth(input: {
 }
 
 export const SYNC_DEGRADED_KIND = "sync_degraded";
+
+export function isSyncDegradedAlertsEnabled(
+  env?: Record<string, string | undefined>,
+): boolean {
+  const raw = (env ?? readEnv()).SYNC_DEGRADED_ALERTS?.trim().toLowerCase();
+  return raw === "1" || raw === "true" || raw === "yes";
+}

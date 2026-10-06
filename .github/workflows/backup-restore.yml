@@ -1,7 +1,7 @@
 # Monthly (and manual) restore drill of the latest age+R2 backup.
 # Off by default: exits 0 when the read-only R2 token or age identity is unset.
-# The age private key and R2 credentials must NEVER be committed; store them
-# as repository secrets. Use a *read-only* R2 API token here (not the VPS writer).
+# Secrets live in the GitHub Environment `backup-drill` (restricted to main),
+# never in repository secrets. Use a *read-only* R2 API token (not the VPS writer).
 name: Backup restore drill
 
 on:
@@ -17,6 +17,7 @@ jobs:
   restore-drill:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    environment: backup-drill
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
@@ -35,9 +36,10 @@ jobs:
           RESTORE_POSTGRES_IMAGE: postgres:16-alpine
           RESTORE_MIN_ORGS: "1"
           RESTORE_MIN_USERS: "1"
+          RESTORE_MIN_VEHICLES: "100"
         run: |
           if [ -z "${BACKUP_AGE_IDENTITY}" ] || [ -z "${BACKUP_R2_ACCESS_KEY_ID}" ] || [ -z "${BACKUP_R2_SECRET_ACCESS_KEY}" ] || [ -z "${BACKUP_R2_ENDPOINT}" ] || [ -z "${BACKUP_R2_BUCKET}" ]; then
-            echo "restore drill skipped: BACKUP_AGE_IDENTITY / R2 read-only secrets are not configured yet"
+            echo "restore drill skipped: backup-drill environment secrets are not configured yet"
             exit 0
           fi
           bash deploy/scripts/restore-offsite.sh --latest

@@ -3,6 +3,9 @@ const REDACT = "[Filtered]";
 const SENSITIVE_KEY =
   /^(email|password|pass|token|authorization|cookie|set-cookie|secret|jwt|phone|ssn|vin|otp|api[-_]?key|access[-_]?key|refresh[-_]?token)$/i;
 
+const EMAIL_RE = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
+const PHONE_RE = /(?<!\d)(?:\+?1[-.\s]?)?(?:\(?\d{3}\)?[-.\s]*)\d{3}[-.\s]?\d{4}(?!\d)/g;
+
 export type SentryLikeEvent = {
   user?: Record<string, unknown> | null;
   request?: {
@@ -13,6 +16,20 @@ export type SentryLikeEvent = {
     url?: string;
   };
   extra?: Record<string, unknown>;
+  exception?: {
+    values?: Array<{ value?: string; type?: string }>;
+  };
+  breadcrumbs?: Array<{
+    message?: string;
+    data?: Record<string, unknown>;
+    category?: string;
+  }>;
+};
+
+export type SentryLikeBreadcrumb = {
+  message?: string;
+  data?: Record<string, unknown>;
+  category?: string;
 };
 
 export function isSensitiveKey(key: string): boolean {
@@ -22,6 +39,10 @@ export function isSensitiveKey(key: string): boolean {
 export function stripQuery(url: string): string {
   const cut = url.indexOf("?");
   return cut === -1 ? url : url.slice(0, cut);
+}
+
+export function redactPiiText(value: string): string {
+  return value.replace(EMAIL_RE, REDACT).replace(PHONE_RE, REDACT);
 }
 
 export function sentryBeforeSend<T extends SentryLikeEvent>(
@@ -50,8 +71,40 @@ export function sentryBeforeSend<T extends SentryLikeEvent>(
     for (const key of Object.keys(event.extra)) {
       if (isSensitiveKey(key)) {
         event.extra[key] = REDACT;
+      } else if (typeof event.extra[key] === "string") {
+        event.extra[key] = redactPiiText(event.extra[key]);
       }
     }
   }
+  if (event.exception?.values) {
+    for (const value of event.exception.values) {
+      if (typeof value.value === "string") {
+        value.value = redactPiiText(value.value);
+      }
+    }
+  }
+  if (event.breadcrumbs) {
+    event.breadcrumbs = event.breadcrumbs.map((crumb) =>
+      sentryBeforeBreadcrumb(crumb),
+    );
+  }
   return event;
+}
+
+export function sentryBeforeBreadcrumb<T extends SentryLikeBreadcrumb>(
+  breadcrumb: T,
+): T {
+  if (typeof breadcrumb.message === "string") {
+    breadcrumb.message = redactPiiText(breadcrumb.message);
+  }
+  if (breadcrumb.data) {
+    for (const key of Object.keys(breadcrumb.data)) {
+      if (isSensitiveKey(key)) {
+        breadcrumb.data[key] = REDACT;
+      } else if (typeof breadcrumb.data[key] === "string") {
+        breadcrumb.data[key] = redactPiiText(breadcrumb.data[key]);
+      }
+    }
+  }
+  return breadcrumb;
 }

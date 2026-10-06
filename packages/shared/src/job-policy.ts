@@ -16,15 +16,21 @@ export function syncJobId(syncSourceId: string): string {
   return `sync-${syncSourceId}`;
 }
 
+/** In-flight only. Do not set `jobId` — completed jobs would block later adds. */
 export function syncJobOptions(syncSourceId: string) {
   return {
-    jobId: syncJobId(syncSourceId),
+    deduplication: { id: syncJobId(syncSourceId) },
     attempts: SYNC_JOB_ATTEMPTS,
     backoff: { type: "exponential" as const, delay: SYNC_JOB_BACKOFF_MS },
-    removeOnComplete: { count: 50 },
-    removeOnFail: { count: 100 },
+    removeOnComplete: { count: 50, age: 7 * 24 * 3600 },
+    removeOnFail: { count: 100, age: 30 * 24 * 3600 },
   };
 }
+
+export const MAINTENANCE_JOB_OPTS = {
+  removeOnComplete: { count: 100 },
+  removeOnFail: { age: 7 * 24 * 3600 },
+};
 
 export function isLastAttempt(
   attemptsMade: number,

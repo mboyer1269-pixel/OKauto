@@ -1,4 +1,9 @@
-import { readEnv, sentryBeforeSend, type EnvMap } from "@okauto/shared";
+import {
+  readEnv,
+  sentryBeforeBreadcrumb,
+  sentryBeforeSend,
+  type EnvMap,
+} from "@okauto/shared";
 
 let enabled = false;
 
@@ -22,6 +27,7 @@ export async function initWorkerSentry(): Promise<boolean> {
       environment: process.env.NODE_ENV ?? "production",
       sendDefaultPii: false,
       beforeSend: sentryBeforeSend,
+      beforeBreadcrumb: sentryBeforeBreadcrumb,
     });
     enabled = true;
     console.log("sentry initialized");

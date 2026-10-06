@@ -49,6 +49,19 @@ def canonical_uri(bucket: str, key: str) -> str:
     return f"/{bucket}/{encoded_key}" if key else f"/{bucket}"
 
 
+def canonical_query(parts: list[tuple[str, str]]) -> str:
+    """SigV4 requires query params sorted by encoded name (botocore-compatible)."""
+    encoded = [
+        (
+            urllib.parse.quote(name, safe="-_.~"),
+            urllib.parse.quote(value, safe="-_.~"),
+        )
+        for name, value in parts
+    ]
+    encoded.sort()
+    return "&".join(f"{name}={value}" for name, value in encoded)
+
+
 def sign_headers(
     *,
     method: str,
@@ -211,7 +224,7 @@ def _iter_objects(cfg: R2Config, prefix: str) -> Iterable[tuple[str, dt.datetime
         parts = [("list-type", "2"), ("prefix", prefix)]
         if token:
             parts.append(("continuation-token", token))
-        query = urllib.parse.urlencode(parts)
+        query = canonical_query(parts)
         status, _, body = _request(cfg, "GET", "", query=query)
         if status != 200:
             raise SystemExit(f"R2 list unexpected status {status}")
@@ -243,6 +256,8 @@ def cmd_delete(cfg: R2Config, key: str) -> None:
 
 
 def cmd_prune(cfg: R2Config, prefix: str, days: int) -> None:
+    if days < 7:
+        raise SystemExit(f"R2 prune refused: days={days} (minimum 7)")
     cutoff = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=days)
     deleted = 0
     for key, when, _size in _iter_objects(cfg, prefix):
@@ -272,6 +287,16 @@ def self_test() -> None:
     assert "Signature=" in auth
     assert headers["x-amz-date"] == "20130524T000000Z"
     assert canonical_uri("bucket", "a/b c.age") == "/bucket/a/b%20c.age"
+    page1 = canonical_query([("list-type", "2"), ("prefix", "suivia/")])
+    page2 = canonical_query(
+        [
+            ("list-type", "2"),
+            ("prefix", "suivia/"),
+            ("continuation-token", "tok+1"),
+        ]
+    )
+    assert page1 == "list-type=2&prefix=suivia%2F"
+    assert page2 == "continuation-token=tok%2B1&list-type=2&prefix=suivia%2F"
     print("r2.py self-test ok")
 
 

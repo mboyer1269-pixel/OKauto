@@ -1,6 +1,6 @@
 # /etc/cron.d/okauto-backup — install on the VPS as root.
 # Nightly local dump (kept on disk) then optional age+R2 offsite upload.
-# Offsite is a no-op until BACKUP_R2_* and BACKUP_AGE_RECIPIENT are in /opt/okauto/.env.
+# Offsite is a no-op until BACKUP_R2_* and BACKUP_AGE_RECIPIENT are in /opt/okauto/backup.env.
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 OKAUTO_ROOT=/opt/okauto

@@ -2,6 +2,7 @@ import { prisma } from "@okauto/database";
 import {
   SYNC_DEGRADED_KIND,
   classifySyncHealth,
+  isSyncDegradedAlertsEnabled,
   type SyncSourceHealthInput,
 } from "@okauto/shared";
 
@@ -33,6 +34,9 @@ export async function postSyncAlertWebhook(
 }
 
 export async function checkSyncDegraded(now = new Date()) {
+  if (!isSyncDegradedAlertsEnabled()) {
+    return { notified: 0, skipped: true as const };
+  }
   const organizations = await prisma.organization.findMany({
     select: { id: true, name: true },
   });

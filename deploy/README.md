@@ -53,28 +53,31 @@ GitHub Actions (CI verte sur main)
 
 ## Secrets applicatifs (VPS uniquement)
 
-Tous dans `/opt/okauto/.env`. Voir `.env.prod.example`. **Aucun secret dans le dépôt.**
+`/opt/okauto/.env` = secrets applicatifs (injectés dans les conteneurs).  
+`/opt/okauto/backup.env` = age + R2 + heartbeat backup (**hôte seulement**, chmod 600).  
+**Aucun secret dans le dépôt.**
 
 ### Lot 2 — à fournir par Michael (quand les comptes existent)
 
-Tout est **éteint** tant que la variable est vide (log « skipped », pas d’erreur).
+Tout est **éteint** tant que la variable est vide (log « skipped », pas d’erreur), y compris l’alerte sync DÉGRADÉE (`SYNC_DEGRADED_ALERTS`).
 
 | Variable | Où | Rôle |
 |----------|----|------|
-| `BACKUP_AGE_RECIPIENT` | `/opt/okauto/.env` | Clé **publique** age (`age1…`). Générer hors VPS : `age-keygen -o suivia-backup.age`. La clé **privée** ne va **jamais** sur le VPS. |
-| `BACKUP_R2_ENDPOINT` | `.env` | `https://<ACCOUNT_ID>.r2.cloudflarestorage.com` |
-| `BACKUP_R2_BUCKET` | `.env` | Bucket R2 **privé** |
-| `BACKUP_R2_ACCESS_KEY_ID` / `BACKUP_R2_SECRET_ACCESS_KEY` | `.env` | Jeton R2 **écriture** (hôte seulement) |
-| `BACKUP_R2_REGION` | `.env` | `auto` (défaut) |
-| `BACKUP_R2_PREFIX` | `.env` | Préfixe objets, défaut `suivia` |
-| `BACKUP_R2_RETENTION_DAYS` | `.env` | Rétention R2, défaut `30` |
-| `BACKUP_HEARTBEAT_URL` | `.env` | GET après un backup réussi (Better Stack / autre). No-op si vide. |
+| `BACKUP_AGE_RECIPIENT` | `/opt/okauto/backup.env` | Clé **publique** age (`age1…`). Générer hors VPS : `age-keygen -o suivia-backup.age`. La clé **privée** ne va **jamais** sur le VPS. |
+| `BACKUP_R2_ENDPOINT` | `backup.env` | `https://<ACCOUNT_ID>.r2.cloudflarestorage.com` |
+| `BACKUP_R2_BUCKET` | `backup.env` | Bucket R2 **privé** + **lifecycle 30 j** + verrou objet. Pas de prune depuis le VPS. |
+| `BACKUP_R2_ACCESS_KEY_ID` / `BACKUP_R2_SECRET_ACCESS_KEY` | `backup.env` | Jeton R2 **écriture seule** (PutObject). Pas de List/Delete. |
+| `BACKUP_R2_REGION` | `backup.env` | `auto` (défaut) |
+| `BACKUP_R2_PREFIX` | `backup.env` | Préfixe objets, défaut `suivia` |
+| `BACKUP_R2_RETENTION_DAYS` | `backup.env` | Documente le lifecycle (min 7, défaut 30). N’efface rien. |
+| `BACKUP_HEARTBEAT_URL` | `backup.env` | GET après un backup **nocturne** OK. Pas pingé sur les dumps `--label` (deploy). |
 | `SENTRY_DSN` | `.env` | Sentry web + worker. No-op si vide. `release` = `APP_VERSION`. Pas de PII. |
 | `WORKER_HEARTBEAT_URL` | `.env` | GET périodique du worker. Alias : `UPTIME_HEARTBEAT_URL`, `BETTERSTACK_HEARTBEAT_URL`. |
-| `SYNC_ALERT_WEBHOOK_URL` | `.env` | POST JSON optionnel pour l’alerte « sync DÉGRADÉE ». |
+| `SYNC_DEGRADED_ALERTS` | `.env` | `1` pour activer l’alerte in-app. **Off par défaut.** |
+| `SYNC_ALERT_WEBHOOK_URL` | `.env` | POST JSON optionnel (uniquement si `SYNC_DEGRADED_ALERTS=1`). |
 | `SYNC_FETCH_TIMEOUT_MS` / `SYNC_FETCH_MAX_BYTES` | `.env` | Limites HTTP sync (défauts 30s / 8 Mio). |
 
-**GitHub repository secrets** (drill mensuel, jeton R2 **lecture seule**, pas le writer du VPS) :
+**GitHub Environment `backup-drill`** (branches de déploiement = `main` seulement). Secrets **d’environment**, pas repository :
 
 | Secret | Rôle |
 |--------|------|
@@ -85,6 +88,8 @@ Tout est **éteint** tant que la variable est vide (log « skipped », pas d’e
 Le workflow `.github/workflows/backup-restore.yml` sort 0 tant que ces secrets sont vides.
 
 Paquet hôte : `apt-get install -y age` (python3 est déjà là pour `r2.py`, client S3 stdlib — pas d’awscli).
+
+R2 à configurer côté Cloudflare **avant** de remplir `backup.env` : lifecycle « expire after 30 days », object lock si disponible, jeton VPS **PutObject only**.
 
 ## GHCR privé
 
@@ -112,14 +117,14 @@ Environment **`production`** (reviewer Michael) :
 | `VPS_USER` | `deploy` |
 | `PRODUCTION_HEALTH_URL` | `https://suivia.ca/api/health` |
 
-`JWT_SECRET`, `DATABASE_URL`, AWS, PAT GHCR, clés R2 **ne vont pas** dans GitHub (sauf le jeton R2 lecture-seule du drill).
+`JWT_SECRET`, `DATABASE_URL`, AWS, PAT GHCR, clés R2 **écriture** ne vont pas dans GitHub. Le drill utilise l’environment `backup-drill` (jeton lecture + identité age).
 
 ## Mise en place VPS (une fois)
 
 1. Snapshot Hostinger.
 2. Clé dédiée : `ssh-keygen -t ed25519 -f suivia-github-deploy -C suivia-github-deploy -N ""`
 3. `sudo bash deploy/scripts/install-host.sh /chemin/deploy` — crée `deploy` (shell `/bin/bash`, hors groupe docker), `/opt/okauto` **chmod 751**, copie `compose.prod.yml`, `scripts/`, **ce README** et `RUNBOOK.md`, sudoers limité à `deploy.sh`, réseau `okauto`.
-4. Remplir `/opt/okauto/.env` (`chmod 600`). `DATABASE_URL` → `postgres:5432`, **pas** `127.0.0.1:5433`.
+4. Remplir `/opt/okauto/.env` (`chmod 600`). `DATABASE_URL` → `postgres:5432`, **pas** `127.0.0.1:5433`. Les clés backup/R2 vont dans `/opt/okauto/backup.env`, pas dans `.env`.
 5. **Ne pas** `docker network connect okauto <traefik>` (Traefik est `network_mode: host`).
 6. `docker login ghcr.io` root.
 7. `authorized_keys` de `deploy` — une ligne ForcedCommand :
@@ -151,5 +156,5 @@ Migrations expand/contract uniquement. CI : `scripts/check-destructive-migration
 
 - `GET /api/health` — liveness + SHA. Reste 200 si le worker est mort.
 - `GET /api/health/ready` — db / redis / worker.
-- Worker : schedulers BullMQ (`tick` 5 min, `reminders` 1 h, `degraded` 15 min), pas de `setInterval` métier.
-- Sync DÉGRADÉE : `health.status=degraded` (runs en échec, source en erreur, ou `lastSync` > 2× `intervalMinutes`) → notif SYSTEM 1×/jour/org + webhook optionnel.
+- Worker : schedulers BullMQ (`tick` 5 min, `reminders` 1 h, `degraded` 15 min), pas de `setInterval` métier. Les schedulers suffisent au démarrage (pas d’appel direct en double).
+- Sync DÉGRADÉE : **off** sans `SYNC_DEGRADED_ALERTS=1`. Quand activé : sources **actives** seulement, notif SYSTEM 1×/jour/org + webhook optionnel.
