@@ -65,8 +65,8 @@ Tout est **éteint** tant que la variable est vide (log « skipped », pas d’e
 |----------|----|------|
 | `BACKUP_AGE_RECIPIENT` | `/opt/okauto/backup.env` | Clé **publique** age (`age1…`). Générer hors VPS : `age-keygen -o suivia-backup.age`. La clé **privée** ne va **jamais** sur le VPS. |
 | `BACKUP_R2_ENDPOINT` | `backup.env` | `https://<ACCOUNT_ID>.r2.cloudflarestorage.com` |
-| `BACKUP_R2_BUCKET` | `backup.env` | Bucket R2 **privé** + **lifecycle 30 j** + verrou objet. Pas de prune depuis le VPS. |
-| `BACKUP_R2_ACCESS_KEY_ID` / `BACKUP_R2_SECRET_ACCESS_KEY` | `backup.env` | Jeton R2 **écriture seule** (PutObject). Pas de List/Delete. |
+| `BACKUP_R2_BUCKET` | `backup.env` | Bucket R2 **privé**. **Bucket Lock 30 j obligatoire** sur `suivia/` + lifecycle delete 30–35 j. Pas de prune depuis le VPS. |
+| `BACKUP_R2_ACCESS_KEY_ID` / `BACKUP_R2_SECRET_ACCESS_KEY` | `backup.env` | Jeton R2 **Object Read & Write**, limité à ce bucket. R2 n’a pas de permission PutObject-only (Read & Write inclut Delete) ; la protection = Bucket Lock. |
 | `BACKUP_R2_REGION` | `backup.env` | `auto` (défaut) |
 | `BACKUP_R2_PREFIX` | `backup.env` | Préfixe objets, défaut `suivia` |
 | `BACKUP_R2_RETENTION_DAYS` | `backup.env` | Documente le lifecycle (min 7, défaut 30). N’efface rien. |
@@ -82,14 +82,14 @@ Tout est **éteint** tant que la variable est vide (log « skipped », pas d’e
 | Secret | Rôle |
 |--------|------|
 | `BACKUP_AGE_IDENTITY` | Contenu du fichier identité age (`AGE-SECRET-KEY-1…`) |
-| `BACKUP_R2_ENDPOINT` / `BACKUP_R2_BUCKET` / `BACKUP_R2_ACCESS_KEY_ID` / `BACKUP_R2_SECRET_ACCESS_KEY` | Lecture R2 |
+| `BACKUP_R2_ENDPOINT` / `BACKUP_R2_BUCKET` / `BACKUP_R2_ACCESS_KEY_ID` / `BACKUP_R2_SECRET_ACCESS_KEY` | Jeton **Object Read only** |
 | `BACKUP_R2_REGION` / `BACKUP_R2_PREFIX` | Optionnels (défauts `auto` / `suivia`) |
 
 Le workflow `.github/workflows/backup-restore.yml` sort 0 tant que ces secrets sont vides.
 
 Paquet hôte : `apt-get install -y age` (python3 est déjà là pour `r2.py`, client S3 stdlib — pas d’awscli).
 
-R2 à configurer côté Cloudflare **avant** de remplir `backup.env` : lifecycle « expire after 30 days », object lock si disponible, jeton VPS **PutObject only**.
+R2 à configurer côté Cloudflare **avant** de remplir `backup.env` : **Bucket Lock 30 jours obligatoire** sur le préfixe `suivia/`, lifecycle delete 30–35 jours, jeton VPS **Object Read & Write** (ce bucket seulement). Le drill utilise un jeton **Object Read only** dans l’environment `backup-drill` (restreint à `main`).
 
 ## GHCR privé
 

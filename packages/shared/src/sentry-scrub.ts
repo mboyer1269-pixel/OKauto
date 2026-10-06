@@ -7,6 +7,7 @@ const EMAIL_RE = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
 const PHONE_RE = /(?<!\d)(?:\+?1[-.\s]?)?(?:\(?\d{3}\)?[-.\s]*)\d{3}[-.\s]?\d{4}(?!\d)/g;
 
 export type SentryLikeEvent = {
+  message?: string;
   user?: Record<string, unknown> | null;
   request?: {
     headers?: Record<string, string>;
@@ -16,6 +17,8 @@ export type SentryLikeEvent = {
     url?: string;
   };
   extra?: Record<string, unknown>;
+  contexts?: Record<string, unknown>;
+  tags?: Record<string, unknown>;
   exception?: {
     values?: Array<{ value?: string; type?: string }>;
   };
@@ -45,9 +48,34 @@ export function redactPiiText(value: string): string {
   return value.replace(EMAIL_RE, REDACT).replace(PHONE_RE, REDACT);
 }
 
+function looksLikeUrl(value: string): boolean {
+  return /^https?:\/\//i.test(value) || (value.startsWith("/") && value.includes("?"));
+}
+
+function scrubString(value: string): string {
+  return redactPiiText(looksLikeUrl(value) ? stripQuery(value) : value);
+}
+
+function scrubMap(map: Record<string, unknown>, depth = 0): void {
+  if (depth > 3) return;
+  for (const key of Object.keys(map)) {
+    const value = map[key];
+    if (isSensitiveKey(key)) {
+      map[key] = REDACT;
+    } else if (typeof value === "string") {
+      map[key] = scrubString(value);
+    } else if (value && typeof value === "object" && !Array.isArray(value)) {
+      scrubMap(value as Record<string, unknown>, depth + 1);
+    }
+  }
+}
+
 export function sentryBeforeSend<T extends SentryLikeEvent>(
   event: T,
 ): T | null {
+  if (typeof event.message === "string") {
+    event.message = scrubString(event.message);
+  }
   if (event.user) {
     const id = event.user.id;
     event.user = typeof id === "string" || typeof id === "number" ? { id } : {};
@@ -67,15 +95,9 @@ export function sentryBeforeSend<T extends SentryLikeEvent>(
       }
     }
   }
-  if (event.extra) {
-    for (const key of Object.keys(event.extra)) {
-      if (isSensitiveKey(key)) {
-        event.extra[key] = REDACT;
-      } else if (typeof event.extra[key] === "string") {
-        event.extra[key] = redactPiiText(event.extra[key]);
-      }
-    }
-  }
+  if (event.extra) scrubMap(event.extra);
+  if (event.contexts) scrubMap(event.contexts);
+  if (event.tags) scrubMap(event.tags);
   if (event.exception?.values) {
     for (const value of event.exception.values) {
       if (typeof value.value === "string") {
@@ -95,16 +117,8 @@ export function sentryBeforeBreadcrumb<T extends SentryLikeBreadcrumb>(
   breadcrumb: T,
 ): T {
   if (typeof breadcrumb.message === "string") {
-    breadcrumb.message = redactPiiText(breadcrumb.message);
+    breadcrumb.message = scrubString(breadcrumb.message);
   }
-  if (breadcrumb.data) {
-    for (const key of Object.keys(breadcrumb.data)) {
-      if (isSensitiveKey(key)) {
-        breadcrumb.data[key] = REDACT;
-      } else if (typeof breadcrumb.data[key] === "string") {
-        breadcrumb.data[key] = redactPiiText(breadcrumb.data[key]);
-      }
-    }
-  }
+  if (breadcrumb.data) scrubMap(breadcrumb.data);
   return breadcrumb;
 }
