@@ -67,7 +67,7 @@ sudo /opt/okauto/scripts/deploy.sh <ancien-sha-40>
 Cron (`/etc/cron.d/okauto-backup`) : `15 3 * * *` → `/opt/okauto/scripts/backup.sh` → log `/opt/okauto/backups/backup.log`.
 
 1. **Local (toujours)** : `pg_dump -Fc` → `/opt/okauto/backups/suivia-<UTC>.dump`, contrôle taille + `pg_restore -l`, rétention locale `BACKUP_RETENTION_DAYS` (14, dans `backup.env`).
-2. **Hors VPS (si configuré dans `backup.env`)** : `offsite-backup.sh` emballe dump + `.env` + `backup.env`, chiffre avec `age`, envoie sur R2. Vérifie taille + `x-amz-meta-sha256`. **Aucun prune** : rétention = lifecycle R2 (30 j). Jeton VPS write-only.
+2. **Hors VPS (si configuré dans `backup.env`)** : `offsite-backup.sh` emballe dump + `.env` + `backup.env`, chiffre avec `age`, envoie sur R2. Vérifie taille + `x-amz-meta-sha256`. **Aucun prune** : rétention = lifecycle delete 30–35 j + **Bucket Lock 30 j** (obligatoire) sur `suivia/`. Jeton VPS **Object Read & Write** (ce bucket seulement ; R2 n’offre pas PutObject-only).
 3. Si R2 n’est pas configuré : `offsite backup skipped: R2 not configured` puis exit 0. Le dump local reste.
 4. Si R2 est configuré sans `BACKUP_AGE_RECIPIENT` : **refus** d’uploader du plaintext (exit 1 **de l’offsite seulement**).
 5. `backup.sh --label …` (appelé par `deploy.sh`) : dump local seulement — pas d’offsite, pas de heartbeat. Un échec R2 **ne fait jamais échouer** le deploy.
@@ -88,7 +88,7 @@ age-keygen -o suivia-backup.age
 # ne jamais copier l’identité sur le VPS
 ```
 
-R2 : bucket privé, **lifecycle 30 jours**, jeton VPS **PutObject only**, jeton **lecture seule** dans l’environment GitHub `backup-drill` (branches = `main`).
+R2 : bucket privé ; **Bucket Lock 30 jours obligatoire** sur le préfixe `suivia/` **avant** de remplir `backup.env` ; lifecycle delete 30–35 jours ; jeton VPS **Object Read & Write** (ce bucket seulement) ; jeton **Object Read only** dans l’environment GitHub `backup-drill` (restreint à `main`).
 
 ## Restaurer un dump
 
@@ -151,7 +151,7 @@ Tout est optionnel. Sans DSN / URL : no-op + une ligne de log.
 
 | Signal | Variable | Comportement |
 |--------|----------|--------------|
-| Sentry web + worker | `SENTRY_DSN` | `release=APP_VERSION` (ou `GIT_SHA`). `sendDefaultPii=false` + scrub email/cookies/Authorization. Pas de wrapper `next.config`. |
+| Sentry web + worker | `SENTRY_DSN` | `release=APP_VERSION` (ou `GIT_SHA`). `sendDefaultPii=false` + scrub email/cookies/Authorization. **TODO** avant d’activer le DSN : `event.message`, contexts, tags, query strings des URLs de breadcrumbs (traités dans `sentry-scrub` ; confirmer sur un event réel). Pas de wrapper `next.config`. |
 | Heartbeat backup | `BACKUP_HEARTBEAT_URL` | GET après `backup.sh` OK |
 | Heartbeat worker | `WORKER_HEARTBEAT_URL` | GET avec le heartbeat fichier/Redis (30 s) |
 | Sync DÉGRADÉE | `SYNC_DEGRADED_ALERTS=1` + webhook optionnel | **Off par défaut.** Sources actives seulement. Scheduler 15 min. Notif `SYSTEM` 1× / org / jour UTC. |
@@ -174,7 +174,7 @@ Logs toujours : `docker compose --env-file /opt/okauto/.env -f /opt/okauto/compo
    - `/api/health` et `/api/health/ready`
    - **deux synchros successives** de la même source (`lastSyncAt` avance ; bouton « Synchroniser maintenant » aussi)
    - `backup.sh` manuel → skip R2 ; `backup.sh --label deploy-test` → skip offsite + heartbeat
-7. Plus tard : lifecycle R2 30 j + jeton write-only, remplir `backup.env`, environment GitHub `backup-drill` (main only), drill manuel. Activer `SYNC_DEGRADED_ALERTS=1` seulement après revue des runs FAILED récents.
+7. Plus tard : **Bucket Lock 30 j** sur `suivia/` + lifecycle delete 30–35 j, **puis** remplir `backup.env` (jeton VPS **Object Read & Write**, bucket only). Environment GitHub `backup-drill` (restreint à `main`, jeton **Object Read only**), drill manuel. Activer `SYNC_DEGRADED_ALERTS=1` seulement après revue des runs FAILED récents.
 
 ---
 

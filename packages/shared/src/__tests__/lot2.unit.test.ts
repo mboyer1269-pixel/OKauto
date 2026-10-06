@@ -210,6 +210,7 @@ describe("job policy", () => {
 describe("sentry scrub", () => {
   it("strips PII from the event", () => {
     const event = sentryBeforeSend({
+      message: "failed for a@b.com",
       user: { id: "u1", email: "a@b.c", ip_address: "1.2.3.4" },
       request: {
         url: "https://suivia.ca/api?token=abc",
@@ -222,10 +223,13 @@ describe("sentry scrub", () => {
         },
       },
       extra: { jwt: "nope", ok: "keep" },
+      contexts: { trace: { email: "a@b.com", status: "ok" } },
+      tags: { token: "secret", route: "/vehicles" },
       exception: {
         values: [{ value: "Unique constraint failed on email a@b.com" }],
       },
     });
+    expect(event?.message).toBe("failed for [Filtered]");
     expect(event?.user).toEqual({ id: "u1" });
     expect(event?.request?.cookies).toBeUndefined();
     expect(event?.request?.data).toBeUndefined();
@@ -234,6 +238,10 @@ describe("sentry scrub", () => {
     expect(event?.request?.headers?.authorization).toBe("[Filtered]");
     expect(event?.request?.headers?.["content-type"]).toBe("application/json");
     expect(event?.extra).toEqual({ jwt: "[Filtered]", ok: "keep" });
+    expect(event?.contexts).toEqual({
+      trace: { email: "[Filtered]", status: "ok" },
+    });
+    expect(event?.tags).toEqual({ token: "[Filtered]", route: "/vehicles" });
     expect(event?.exception?.values?.[0]?.value).toBe(
       "Unique constraint failed on email [Filtered]",
     );
@@ -242,11 +250,19 @@ describe("sentry scrub", () => {
     expect(
       sentryBeforeBreadcrumb({
         message: "login a@b.com",
-        data: { authorization: "Bearer x", path: "/ok" },
+        data: {
+          authorization: "Bearer x",
+          path: "/ok",
+          url: "https://suivia.ca/api?token=abc",
+        },
       }),
     ).toEqual({
       message: "login [Filtered]",
-      data: { authorization: "[Filtered]", path: "/ok" },
+      data: {
+        authorization: "[Filtered]",
+        path: "/ok",
+        url: "https://suivia.ca/api",
+      },
     });
   });
 });
