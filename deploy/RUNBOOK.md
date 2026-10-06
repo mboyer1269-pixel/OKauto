@@ -62,20 +62,66 @@ sudo /opt/okauto/scripts/deploy.sh <ancien-sha-40>
 
 **Le rollback ne ramène pas le schéma.** `prisma migrate deploy` n’est pas inversé. Les migrations doivent être expand/contract (compatibles avec le SHA précédent). Voir `packages/database/prisma/MIGRATIONS.md`. Une migration `DROP` / `TRUNCATE` / `RENAME` / `ALTER TYPE` / `SET NOT NULL` sans défaut exige le fichier `ALLOW_DESTRUCTIVE` (CI) et un plan de restore.
 
-## Restaurer un dump (dernier recours, manuel)
+## Sauvegardes
 
-Les dumps pré-deploy sont dans `/opt/okauto/backups/` (14 jours). **Snapshot Hostinger avant.** Ceci est le seul moyen de « rollbacker » le schéma. Ne pas l’automatiser dans `deploy.sh`.
+Cron (`/etc/cron.d/okauto-backup`) : `15 3 * * *` → `/opt/okauto/scripts/backup.sh` → log `/opt/okauto/backups/backup.log`.
+
+1. **Local (toujours)** : `pg_dump -Fc` → `/opt/okauto/backups/suivia-<UTC>.dump`, contrôle taille + `pg_restore -l`, rétention `BACKUP_RETENTION_DAYS` (14).
+2. **Hors VPS (si configuré)** : `offsite-backup.sh` emballe dump + `.env`, chiffre avec `age` (`BACKUP_AGE_RECIPIENT`), envoie sur R2 (`r2.py`, API S3, stdlib). Vérifie taille + `x-amz-meta-sha256`. Élague `BACKUP_R2_RETENTION_DAYS` (30).
+3. Si R2 n’est pas configuré : une ligne `offsite backup skipped: R2 not configured` puis exit 0. Le dump local reste.
+4. Si R2 est configuré sans `BACKUP_AGE_RECIPIENT` : **refus** d’uploader du plaintext (exit 1).
+5. Heartbeat `BACKUP_HEARTBEAT_URL` : GET après succès ; no-op si vide.
 
 ```bash
-# test non destructif
-sudo OKAUTO_ROOT=/opt/okauto /opt/okauto/scripts/restore-drill.sh
-
-# restauration réelle (fenêtre de maintenance) : restaurer vers une nouvelle base,
-# pointer DATABASE_URL, puis basculer. Ne pas écraser postgres_data à chaud.
-# Ne jamais down ni down -v.
+# manuel
+sudo OKAUTO_ROOT=/opt/okauto /opt/okauto/scripts/backup.sh
+tail -n 50 /opt/okauto/backups/backup.log
 ```
 
-RPO cible 24 h / RTO 1 h (sauvegardes hors VPS : lot 2).
+Prérequis hôte pour l’offsite : `apt-get install -y age`. Générer la paire **hors VPS** :
+
+```bash
+age-keygen -o suivia-backup.age
+# ligne « public key: age1… » → BACKUP_AGE_RECIPIENT dans /opt/okauto/.env
+# fichier identité (AGE-SECRET-KEY-1…) → coffre-fort + secret GitHub BACKUP_AGE_IDENTITY
+# ne jamais copier l’identité sur le VPS
+```
+
+R2 : bucket privé, jeton **écriture** sur le VPS, jeton **lecture seule** pour GitHub (workflow `Backup restore drill`).
+
+## Restaurer un dump
+
+**Snapshot Hostinger avant.** Ne pas automatiser une restore « réelle » dans `deploy.sh`. Ne jamais `down` / `down -v`.
+
+### Drill local (dump encore sur le VPS)
+
+```bash
+sudo OKAUTO_ROOT=/opt/okauto /opt/okauto/scripts/restore-drill.sh
+```
+
+### Drill hors site (âge + R2) — laptop ou GitHub Actions
+
+L’identité age est requise. Sur le VPS de prod ce script ne doit **pas** avoir la clé privée.
+
+```bash
+# depuis une machine qui a l’identité + un jeton R2 lecture
+export BACKUP_AGE_IDENTITY_FILE=./suivia-backup.age
+export BACKUP_R2_ENDPOINT=https://<ACCOUNT>.r2.cloudflarestorage.com
+export BACKUP_R2_BUCKET=…
+export BACKUP_R2_ACCESS_KEY_ID=…          # read-only
+export BACKUP_R2_SECRET_ACCESS_KEY=…
+bash deploy/scripts/restore-offsite.sh --latest
+```
+
+Le script lève un Postgres jetable, `pg_restore`, compte `organizations` / `users` / `vehicles`, détruit le conteneur.
+
+Workflow mensuel : Actions → **Backup restore drill** (ou cron le 1er du mois). Sort 0 tant que les secrets ne sont pas là.
+
+### Restauration réelle (maintenance)
+
+Restaurer vers une **nouvelle** base, pointer `DATABASE_URL`, basculer. Ne pas écraser `postgres_data` à chaud.
+
+RPO 24 h / RTO 1 h une fois R2+age actifs.
 
 ## Reconstruire le VPS de zéro
 
@@ -98,9 +144,28 @@ Clé de déploiement GitHub : régénérer la paire, remplacer le secret `VPS_DE
 
 PAT GHCR : régénérer un jeton `read:packages`, `docker login ghcr.io` en root, `chmod 600 /root/.docker/config.json`, révoquer l’ancien.
 
-## Alertes (lot 2)
+## Alertes et observabilité
 
-Pas de Sentry / Better Stack dans ce lot. En attendant : `docker compose -f /opt/okauto/compose.prod.yml logs -f web worker`.
+Tout est optionnel. Sans DSN / URL : no-op + une ligne de log.
+
+| Signal | Variable | Comportement |
+|--------|----------|--------------|
+| Sentry web + worker | `SENTRY_DSN` | `release=APP_VERSION` (ou `GIT_SHA`). `sendDefaultPii=false` + scrub email/cookies/Authorization. Pas de wrapper `next.config`. |
+| Heartbeat backup | `BACKUP_HEARTBEAT_URL` | GET après `backup.sh` OK |
+| Heartbeat worker | `WORKER_HEARTBEAT_URL` | GET avec le heartbeat fichier/Redis (30 s) |
+| Sync DÉGRADÉE | (in-app) + `SYNC_ALERT_WEBHOOK_URL` | Scheduler 15 min. `degraded` si runs FAILED/PARTIAL, source error, ou `lastSync` > 2× intervalle. Notif `SYSTEM` 1× / org / jour UTC. Webhook JSON optionnel. |
+
+Logs toujours : `docker compose --env-file /opt/okauto/.env -f /opt/okauto/compose.prod.yml logs -f web worker`
+
+## Après merge lot 2 (hôte)
+
+1. Snapshot Hostinger.
+2. Recopier `deploy/scripts/`, `deploy/README.md`, `deploy/RUNBOOK.md`, `deploy/cron.d/okauto-backup` (le cron pointe toujours sur `backup.sh`). Relancer `install-host.sh` ou `cp` ciblé. **Ne pas** toucher `deploy-gate.sh` / sudoers.
+3. `apt-get install -y age` (même avant d’avoir R2 — le skip reste propre).
+4. Laisser les nouvelles variables **vides** dans `.env` jusqu’à ce que le bucket / la clé age / Sentry / Better Stack existent.
+5. Approuver le Deploy GHA habituel. Smoke : `/api/health`, `/api/health/ready`, `grep -E 'offsite backup skipped|worker started|schedulers' /opt/okauto/backups/backup.log` après un `backup.sh` manuel.
+6. Quand R2+age sont prêts : remplir les `BACKUP_*`, relancer `backup.sh`, vérifier l’objet dans R2 (taille + checksum) et le workflow **Backup restore drill**.
+7. Quand Sentry / Better Stack sont prêts : remplir `SENTRY_DSN`, `BACKUP_HEARTBEAT_URL`, `WORKER_HEARTBEAT_URL` puis recreer web/worker (`deploy` du même SHA ou `up -d --force-recreate web worker`).
 
 ---
 

@@ -47,3 +47,20 @@ fi
 echo "backup ok ${dump} (${size} bytes)"
 
 find "$BACKUP_DIR" -name 'suivia-*.dump' -type f -mtime "+${RETENTION_DAYS}" -delete
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+if [[ -x "${SCRIPT_DIR}/offsite-backup.sh" ]]; then
+  "${SCRIPT_DIR}/offsite-backup.sh" "$dump"
+else
+  echo "offsite backup skipped: script not installed"
+fi
+
+if [[ -z "${BACKUP_HEARTBEAT_URL:-}" ]]; then
+  echo "heartbeat skipped: BACKUP_HEARTBEAT_URL unset"
+else
+  if curl -fsS --max-time 10 --output /dev/null "${BACKUP_HEARTBEAT_URL}"; then
+    echo "heartbeat ping ok"
+  else
+    echo "heartbeat ping failed" >&2
+  fi
+fi

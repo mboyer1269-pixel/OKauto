@@ -54,6 +54,13 @@ jobs:
       - name: Persist APP_VERSION helper
         run: bash deploy/scripts/persist-app-version.test.sh
 
+      - name: Offsite backup / restore helpers
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y age
+          bash deploy/scripts/offsite-backup.test.sh
+          bash deploy/scripts/restore-offsite.test.sh
+
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 12

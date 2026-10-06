@@ -15,11 +15,16 @@ export async function writeWorkerHeartbeat(redis: Redis): Promise<void> {
   await redis.set(WORKER_HEARTBEAT_REDIS_KEY, now);
 }
 
-export function startWorkerHeartbeat(redis: Redis): NodeJS.Timeout {
+export function startWorkerHeartbeat(
+  redis: Redis,
+  onBeat?: () => Promise<unknown> | unknown,
+): NodeJS.Timeout {
   const beat = () => {
-    writeWorkerHeartbeat(redis).catch((err: unknown) => {
-      console.error("worker heartbeat failed", err);
-    });
+    writeWorkerHeartbeat(redis)
+      .then(() => onBeat?.())
+      .catch((err: unknown) => {
+        console.error("worker heartbeat failed", err);
+      });
   };
   beat();
   return setInterval(beat, WORKER_HEARTBEAT_INTERVAL_MS);
