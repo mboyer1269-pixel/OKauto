@@ -79,6 +79,11 @@
     color-scheme: dark;
   }
 
+  /* Liens texte en sombre : cyan AA (jamais le marine clair). */
+  .dark a:not([class*="btn"]):not([class*="text-"]):not(.card) {
+    color: hsl(var(--primary));
+  }
+
   body {
     @apply min-w-[320px] bg-background text-foreground antialiased;
     font-family: var(--font-geist-sans), system-ui, sans-serif;

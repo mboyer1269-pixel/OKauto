@@ -256,7 +256,7 @@ function TeamContent() {
                 size={22}
               />
               <div>
-                <h2 className="font-bold text-emerald-950">
+                <h2 className="font-bold text-foreground">
                   {createdMember.action === "reset"
                     ? `Nouvel accès prêt pour ${createdMember.name}`
                     : `${createdMember.name} a été ajouté à l’équipe`}
@@ -297,14 +297,14 @@ function TeamContent() {
         </section>
       )}
 
-      <section className="overflow-hidden rounded-2xl border border-blue-200 bg-card shadow-sm">
-        <div className="flex flex-col gap-4 border-l-4 border-blue-700 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+      <section className="overflow-hidden rounded-2xl border border-primary/25 bg-card shadow-sm">
+        <div className="flex flex-col gap-4 border-l-4 border-primary px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <div className="flex items-start gap-3">
-            <div className="rounded-xl bg-blue-50 p-2.5 text-blue-700">
+            <div className="rounded-xl bg-primary/10 p-2.5 text-primary">
               <Building2 size={21} />
             </div>
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.14em] text-blue-700">
+              <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary">
                 Inventaire partagé
               </p>
               <h2 className="mt-1 font-bold text-foreground">
@@ -330,7 +330,7 @@ function TeamContent() {
       {showInvite && (
         <form onSubmit={handleInvite} className="card max-w-2xl p-5 sm:p-6">
           <div className="flex items-start gap-3">
-            <div className="rounded-xl bg-blue-100 p-2 text-blue-700">
+            <div className="rounded-xl bg-primary/15 p-2 text-primary">
               <Users size={20} />
             </div>
             <div>
@@ -482,13 +482,13 @@ function TeamContent() {
 
       {resettingMember && (
         <section
-          className="rounded-2xl border-2 border-blue-200 bg-blue-50 p-5"
+          className="rounded-2xl border-2 border-primary/30 bg-primary/10 p-5"
           aria-labelledby="reset-access-title"
         >
-          <h2 id="reset-access-title" className="font-bold text-blue-950">
+          <h2 id="reset-access-title" className="font-bold text-foreground">
             Réinitialiser l’accès de {resettingMember.user.name}
           </h2>
-          <p className="mt-1 text-sm leading-5 text-blue-800">
+          <p className="mt-1 text-sm leading-5 text-muted-foreground">
             Ce nouveau mot de passe remplacera l’ancien et fermera ses sessions
             existantes.
           </p>

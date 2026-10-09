@@ -208,7 +208,7 @@ function NewVehicleForm() {
       <h1 className="text-2xl font-bold mb-6">Ajouter un véhicule</h1>
       <form onSubmit={handleSubmit} className="card max-w-2xl space-y-4">
         {error && (
-          <div className="p-3 bg-red-50 text-red-700 rounded-lg text-sm">
+          <div className="p-3 bg-destructive/10 text-destructive rounded-lg text-sm">
             {error}
           </div>
         )}

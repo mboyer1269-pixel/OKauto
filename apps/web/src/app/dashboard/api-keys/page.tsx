@@ -147,10 +147,10 @@ function ApiKeysContent() {
             </p>
           </div>
           <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-card/[0.06] px-4 py-3">
-            <ShieldCheck className="text-emerald-400" size={22} />
+            <ShieldCheck className="text-signal" size={22} />
             <div>
               <p className="text-2xl font-black tabular-nums">{activeCount}</p>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-muted-foreground">
                 poste{activeCount === 1 ? "" : "s"} actif
                 {activeCount === 1 ? "" : "s"}
               </p>
@@ -162,7 +162,7 @@ function ApiKeysContent() {
       {error && (
         <div
           role="alert"
-          className="flex items-center justify-between rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+          className="flex items-center justify-between rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive"
         >
           <span className="flex items-center gap-2">
             <AlertCircle size={17} />
@@ -171,7 +171,7 @@ function ApiKeysContent() {
           <button
             type="button"
             onClick={() => setError("")}
-            className="rounded p-1 hover:bg-red-100"
+            className="rounded p-1 hover:bg-destructive/15"
             aria-label="Fermer le message"
           >
             <X size={16} />
@@ -181,18 +181,18 @@ function ApiKeysContent() {
 
       {createdKey && (
         <section
-          className="rounded-2xl border-2 border-emerald-300 bg-emerald-50 p-5"
+          className="rounded-2xl border-2 border-signal/40 bg-signal/10 p-5"
           aria-labelledby="created-key-title"
         >
           <div className="flex items-start justify-between gap-4">
             <div>
               <h2
                 id="created-key-title"
-                className="font-black text-emerald-950"
+                className="font-black text-foreground"
               >
                 Clé prête à installer
               </h2>
-              <p className="mt-1 text-sm text-emerald-800">
+              <p className="mt-1 text-sm text-muted-foreground">
                 Copiez-la maintenant : elle ne sera plus affichée après avoir
                 fermé ce bloc.
               </p>
@@ -200,7 +200,7 @@ function ApiKeysContent() {
             <button
               type="button"
               onClick={() => setCreatedKey(null)}
-              className="rounded-lg p-2 text-emerald-800 hover:bg-emerald-100"
+              className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
               aria-label="Fermer la nouvelle clé"
             >
               <X size={18} />
@@ -335,8 +335,8 @@ function ApiKeysContent() {
                 </div>
                 {key.isActive &&
                   (revokeId === key.id ? (
-                    <div className="flex flex-wrap items-center gap-2 rounded-xl bg-red-50 p-2">
-                      <span className="px-1 text-xs font-bold text-red-800">
+                    <div className="flex flex-wrap items-center gap-2 rounded-xl bg-destructive/10 p-2">
+                      <span className="px-1 text-xs font-bold text-destructive">
                         Confirmer?
                       </span>
                       <button
@@ -359,7 +359,7 @@ function ApiKeysContent() {
                     <button
                       type="button"
                       onClick={() => setRevokeId(key.id)}
-                      className="btn-secondary min-h-11 text-red-700 hover:bg-red-50"
+                      className="btn-secondary min-h-11 text-destructive hover:bg-destructive/10"
                       aria-label={`Révoquer la clé ${key.name}`}
                     >
                       <Trash2 size={16} className="mr-2" /> Révoquer

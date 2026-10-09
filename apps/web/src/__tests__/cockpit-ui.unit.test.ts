@@ -45,7 +45,20 @@ describe("Cockpit — logo D et thème", () => {
     const dark = css.split(".dark {")[1]?.split("html.dark")[0] ?? "";
     expect(dark).toMatch(/--primary:\s*188 83% 51%/);
     expect(dark).toMatch(/--primary-foreground:\s*223 24% 5%/);
+    expect(css).toContain(
+      '.dark a:not([class*="btn"]):not([class*="text-"]):not(.card)',
+    );
     expect(webRoot("next.config.ts")).toContain("devIndicators: false");
+
+    const dashboard = src("app", "dashboard", "page.tsx");
+    expect(dashboard).toContain("Parcourir les véhicules");
+    expect(dashboard).toContain("Ouvrir le carnet");
+    expect(dashboard).toContain("Voir la synchronisation");
+    expect(dashboard).toContain("Exporter le catalogue Meta");
+    expect(dashboard).toContain("text-primary hover:underline");
+    expect(src("app", "dashboard", "team", "page.tsx")).not.toMatch(
+      /text-blue-|bg-blue-|border-blue-/,
+    );
   });
 
   it("respecte prefers-reduced-motion et le verre dépoli", () => {

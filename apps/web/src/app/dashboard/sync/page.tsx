@@ -161,9 +161,9 @@ function SyncHealthContent() {
   }
 
   const statusIcon = {
-    healthy: <CheckCircle className="text-green-600" size={24} />,
-    review: <AlertTriangle className="text-amber-600" size={24} />,
-    degraded: <AlertTriangle className="text-amber-600" size={24} />,
+    healthy: <CheckCircle className="text-signal" size={24} />,
+    review: <AlertTriangle className="text-warning" size={24} />,
+    degraded: <AlertTriangle className="text-warning" size={24} />,
     no_sources: <RefreshCw className="text-muted-foreground" size={24} />,
   }[data.health.status] ?? <Activity size={24} />;
 
@@ -311,8 +311,8 @@ function SyncHealthContent() {
                       <span
                         className={
                           s.lastSyncStatus === "success"
-                            ? "text-green-600"
-                            : "text-red-600"
+                            ? "text-signal"
+                            : "text-destructive"
                         }
                       >
                         {formatStatus(s.lastSyncStatus)} ·{" "}
@@ -323,7 +323,7 @@ function SyncHealthContent() {
                     )}
                   </p>
                   {s.lastSyncError && (
-                    <p className="text-xs text-red-600 mt-1">
+                    <p className="text-xs text-destructive mt-1">
                       {s.lastSyncError}
                     </p>
                   )}
