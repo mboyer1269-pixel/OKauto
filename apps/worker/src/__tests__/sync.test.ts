@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { prisma } from "@okauto/database";
+import { isVinSourcedField } from "@okauto/shared";
 import { runSyncSource } from "../sync.js";
 import { processVinDecodeBatch } from "../vin-decode.js";
 
@@ -117,6 +118,50 @@ describe("runSyncSource", () => {
     });
     expect(vehicle?.engine).toBe("5.3L V8");
     expect(vehicle?.vinDecodedFields).toContain("engine");
+  });
+
+  it("clears engine and trim when vinDecodedFields is empty and the site removes them", async () => {
+    await runSyncSource(sourceId);
+    await prisma.vehicle.updateMany({
+      where: { vin: testVin, organizationId: orgId },
+      data: {
+        engine: "5.3L V8",
+        trim: "AT4",
+        vinDecodedFields: [],
+        vinDecodedAt: new Date(),
+        vinDecodedVin: testVin,
+      },
+    });
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        headers: { get: () => "application/json" },
+        text: async () =>
+          JSON.stringify([
+            {
+              vin: testVin,
+              year: 2024,
+              make: "Test",
+              model: "SyncCar",
+              engine: "",
+              trim: "",
+              price: 25000,
+            },
+          ]),
+      }),
+    );
+
+    await runSyncSource(sourceId);
+    const vehicle = await prisma.vehicle.findFirstOrThrow({
+      where: { vin: testVin, organizationId: orgId },
+    });
+    expect(vehicle.engine).toBeNull();
+    expect(vehicle.trim).toBeNull();
+    expect(vehicle.vinDecodedFields).toEqual([]);
+    expect(isVinSourcedField(vehicle, "engine")).toBe(false);
+    expect(isVinSourcedField(vehicle, "trim")).toBe(false);
   });
 
   it("lets a non-empty dealer value replace vPIC and drop the field marker", async () => {

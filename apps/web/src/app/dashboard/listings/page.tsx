@@ -31,7 +31,10 @@ import {
   isFacebookMarketplaceItemUrl,
   isListingDueForRenewal,
   carfaxSourceUrlCheckboxState,
+  listingDescriptionMeetsMinLength,
   listingDescriptionWithCarfax,
+  listingEditorDescription,
+  MIN_LISTING_DESCRIPTION_LENGTH,
   resolveIncludeCarfaxSourceUrl,
   type ListingLocale,
   type VehicleData,
@@ -135,6 +138,28 @@ const MARKETPLACE_CREATE_URL =
 const MARKETPLACE_CONTACT_NAME =
   process.env.NEXT_PUBLIC_MARKETPLACE_CONTACT_NAME?.trim() || "Michael Boyer";
 const APP_MESSAGE_SOURCE = "okauto-web";
+
+function marketplaceListingVehicle(
+  vehicle: Vehicle,
+  organization: Organization,
+  contactName: string,
+  locale: ListingLocale,
+): VehicleData {
+  return {
+    ...vehicle,
+    dealershipName: organization.name,
+    contactName,
+    phone: organization.phone ?? undefined,
+    location: [organization.address, organization.city, organization.state]
+      .filter(Boolean)
+      .join(", "),
+    includeCarfaxSourceUrl: resolveIncludeCarfaxSourceUrl(
+      organization.includeCarfaxSourceUrl,
+      vehicle.includeCarfaxSourceUrl,
+    ),
+    language: locale === "bilingual" ? "fr_en" : "fr",
+  };
+}
 const EXTENSION_MESSAGE_SOURCE = "okauto-extension";
 
 const QUEUES: Array<{ id: Queue; label: string; icon: typeof Clipboard }> = [
@@ -596,30 +621,29 @@ function ListingsContent() {
     const draft = selected.marketplaceDrafts?.[0];
     const activeEdit =
       draftEdit?.vehicleId === selected.id ? draftEdit : undefined;
-    const marketplaceVehicle: VehicleData = {
-      ...selected,
-      dealershipName: organization.name,
-      contactName: user?.name || MARKETPLACE_CONTACT_NAME,
-      phone: organization.phone ?? undefined,
-      location: [organization.address, organization.city, organization.state]
-        .filter(Boolean)
-        .join(", "),
-      includeCarfaxSourceUrl: resolveIncludeCarfaxSourceUrl(
-        organization.includeCarfaxSourceUrl,
-        selected.includeCarfaxSourceUrl,
-      ),
-      language: draftLocale === "bilingual" ? "fr_en" : "fr",
-    };
     return {
       ...generated,
       title: activeEdit ? activeEdit.title : draft?.title || generated.title,
-      description: listingDescriptionWithCarfax(
-        activeEdit?.description ?? draft?.description ?? generated.description,
-        marketplaceVehicle,
-        draftLocale,
+      description: listingEditorDescription(
+        activeEdit?.description,
+        draft?.description,
+        generated.description,
       ),
     };
   }, [draftEdit, draftLocale, organization, selected, user?.name]);
+  const descriptionForCopyOrSave = (raw: string) => {
+    if (!selected) return raw;
+    return listingDescriptionWithCarfax(
+      raw,
+      marketplaceListingVehicle(
+        selected,
+        organization,
+        user?.name || MARKETPLACE_CONTACT_NAME,
+        draftLocale,
+      ),
+      draftLocale,
+    );
+  };
   const carfaxLinkCheckbox = carfaxSourceUrlCheckboxState(
     organization.includeCarfaxSourceUrl,
     selected?.includeCarfaxSourceUrl,
@@ -634,7 +658,7 @@ function ListingsContent() {
   const draftContentReady = Boolean(
     listingPackage &&
     listingPackage.title.trim().length >= 5 &&
-    listingPackage.description.trim().length >= 80,
+    listingDescriptionMeetsMinLength(listingPackage.description),
   );
   const marketplaceReady = Boolean(
     listingPackage?.isReady &&
@@ -706,20 +730,10 @@ function ListingsContent() {
       const initialDraft = {
         vehicleId: vehicle.id,
         title: personalDraft?.title || generated.title,
-        description: listingDescriptionWithCarfax(
-          personalDraft?.description || generated.description,
-          {
-            ...vehicle,
-            dealershipName: organization.name,
-            contactName: user?.name || MARKETPLACE_CONTACT_NAME,
-            phone: organization.phone ?? undefined,
-            includeCarfaxSourceUrl: resolveIncludeCarfaxSourceUrl(
-              organization.includeCarfaxSourceUrl,
-              vehicle.includeCarfaxSourceUrl,
-            ),
-            language: draftLocale === "bilingual" ? "fr_en" : "fr",
-          },
-          draftLocale,
+        description: listingEditorDescription(
+          undefined,
+          personalDraft?.description,
+          generated.description,
         ),
       };
       setDraftEdit(initialDraft);
@@ -823,29 +837,27 @@ function ListingsContent() {
   const saveMarketplaceDraft = async (advanceToNext = false) => {
     if (!selected || !draftEdit || draftEdit.vehicleId !== selected.id) return;
     const title = draftEdit.title.trim();
-    const description = listingDescriptionWithCarfax(
-      draftEdit.description.trim(),
-      {
-        ...selected,
-        dealershipName: organization.name,
-        contactName: user?.name || MARKETPLACE_CONTACT_NAME,
-        phone: organization.phone ?? undefined,
-        includeCarfaxSourceUrl: resolveIncludeCarfaxSourceUrl(
-          organization.includeCarfaxSourceUrl,
-          selected.includeCarfaxSourceUrl,
-        ),
-        language: draftLocale === "bilingual" ? "fr_en" : "fr",
-      },
-      draftLocale,
-    );
+    const rawDescription = draftEdit.description.trim();
     if (title.length < 5) {
       setError("Le titre doit contenir au moins 5 caractères.");
       return;
     }
-    if (description.length < 80) {
-      setError("La description doit contenir au moins 80 caractères.");
+    if (!listingDescriptionMeetsMinLength(rawDescription)) {
+      setError(
+        `La description doit contenir au moins ${MIN_LISTING_DESCRIPTION_LENGTH} caractères.`,
+      );
       return;
     }
+    const description = listingDescriptionWithCarfax(
+      rawDescription,
+      marketplaceListingVehicle(
+        selected,
+        organization,
+        user?.name || MARKETPLACE_CONTACT_NAME,
+        draftLocale,
+      ),
+      draftLocale,
+    );
 
     setSavingDraft(true);
     setError("");
@@ -917,7 +929,7 @@ function ListingsContent() {
           contactName: user?.name || MARKETPLACE_CONTACT_NAME,
           dealershipName: organization.name,
           phone: organization.phone ?? undefined,
-          description: listingPackage.description,
+          description: descriptionForCopyOrSave(listingPackage.description),
           title: listingPackage.title,
           photos: selected.photos.map((photo) => photo.url),
         },
@@ -930,7 +942,7 @@ function ListingsContent() {
   const prepareManualMarketplace = () => {
     if (!selected || !listingPackage || !marketplaceReady) return;
 
-    const packageText = `${listingPackage.title}\n\n${formatCurrency(selected.price)}\n\n${listingPackage.description}`;
+    const packageText = `${listingPackage.title}\n\n${formatCurrency(selected.price)}\n\n${descriptionForCopyOrSave(listingPackage.description)}`;
     setError("");
     setMessage(
       "Marketplace s’ouvre. La photo est en téléchargement et le contenu est copié.",
@@ -1502,7 +1514,8 @@ function ListingsContent() {
                     {!draftContentReady && (
                       <li>
                         Le titre doit avoir au moins 5 caractères et la
-                        description au moins 80 caractères.
+                        description au moins {MIN_LISTING_DESCRIPTION_LENGTH}{" "}
+                        caractères.
                       </li>
                     )}
                   </ul>
@@ -1702,7 +1715,10 @@ function ListingsContent() {
                     }
                     copied={copied === "description"}
                     onCopy={() =>
-                      copyText("description", listingPackage.description)
+                      copyText(
+                        "description",
+                        descriptionForCopyOrSave(listingPackage.description),
+                      )
                     }
                   />
                   <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 sm:flex sm:items-center sm:justify-between sm:gap-4">
@@ -1802,7 +1818,7 @@ function ListingsContent() {
                   onClick={() =>
                     copyText(
                       "all",
-                      `${listingPackage.title}\n\n${formatCurrency(selected.price)}\n\n${listingPackage.description}`,
+                      `${listingPackage.title}\n\n${formatCurrency(selected.price)}\n\n${descriptionForCopyOrSave(listingPackage.description)}`,
                     )
                   }
                 >

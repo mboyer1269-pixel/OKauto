@@ -124,18 +124,11 @@ export function unionVinDecodedFields(
   return normalizeVinDecodedFields([...(current ?? []), ...filled]);
 }
 
-/**
- * Fields filled from vPIC. If the list is empty but the NIV was already
- * stamped (vehicles decoded before this column existed), treat currently
- * non-empty enrichable fields as vPIC-sourced so the next sync cannot wipe them.
- */
+/** Fields recorded as filled from vPIC. An empty list means none. */
 export function effectiveVinDecodedFields(
   vehicle: VinDecodeSource,
 ): VinDecodeField[] {
-  const recorded = normalizeVinDecodedFields(vehicle.vinDecodedFields);
-  if (recorded.length > 0) return recorded;
-  if (!vehicle.vinDecodedAt) return [];
-  return VIN_DECODE_FIELDS.filter((field) => !isEmptyVinDecodeField(vehicle[field]));
+  return normalizeVinDecodedFields(vehicle.vinDecodedFields);
 }
 
 export function isVinSourcedField(
@@ -446,7 +439,7 @@ export function mapVpicTransmission(value: string): string {
   }
   if (/manu/.test(n) && !/auto/.test(n)) return 'Manuelle';
   if (/\bcvt\b/.test(n)) return 'CVT';
-  if (/auto/.test(n)) return 'Auto.';
+  if (/auto/.test(n)) return 'Automatique';
   return truncateToLimit(value, VIN_DECODE_STRING_LIMITS.transmission);
 }
 

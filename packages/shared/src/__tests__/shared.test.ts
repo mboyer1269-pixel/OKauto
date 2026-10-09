@@ -11,7 +11,9 @@ import {
   generateMarketplaceTitle,
   generateTemplateDescription,
   listingDescriptionForExtension,
+  listingDescriptionMeetsMinLength,
   listingDescriptionWithCarfax,
+  listingEditorDescription,
   shouldIncludeCarfaxMention,
 } from "../description";
 import {
@@ -32,6 +34,7 @@ import {
   isRetryableVinDecodeError,
   isRetryableVinDecodeFailure,
   isValidVinFormat,
+  isVinSourcedField,
   mapVpicTransmission,
   mergeDealerFieldsOverVinDecode,
   mergeVinDecodeIntoForm,
@@ -272,12 +275,12 @@ describe("vin", () => {
     });
     expect(terrain.bodyStyle).toBe("VUS");
     expect(terrain.fuelType).toBe("Essence");
-    expect(terrain.transmission).toBe("Auto.");
+    expect(terrain.transmission).toBe("Automatique");
     expect(terrain.drivetrain).toBe("Intégrale");
     expect(terrain.make).toBe("Chevrolet");
     expect(equinox.drivetrain).toBe("Traction avant");
     expect(mapVpicTransmission("Manual")).toBe("Manuelle");
-    expect(mapVpicTransmission("Automatic")).toBe("Auto.");
+    expect(mapVpicTransmission("Automatic")).toBe("Automatique");
     expect(VPIC_SUV_BODY_CLASS.length).toBeGreaterThan(50);
     expect(createVehicleSchema.safeParse(terrain).success).toBe(true);
     expect(createVehicleSchema.safeParse(equinox).success).toBe(true);
@@ -312,7 +315,8 @@ describe("vin", () => {
     expect(live.next.model).toBe("Saisi");
   });
 
-  it("maps Automated Manual to Automatique, not Manuelle", () => {
+  it("maps Automatic and Automated Manual to the same Automatique label", () => {
+    expect(mapVpicTransmission("Automatic")).toBe("Automatique");
     expect(mapVpicTransmission("Automated Manual")).toBe("Automatique");
     expect(mapVpicTransmission("Automated Manual Transmission")).toBe(
       "Automatique",
@@ -348,24 +352,25 @@ describe("vin", () => {
     expect(omitted.vinDecodedFields).toEqual(["engine"]);
   });
 
-  it("protects non-empty fields on vehicles decoded before vinDecodedFields existed", () => {
-    const legacy = mergeDealerFieldsOverVinDecode(
-      {
-        engine: "1.5L L4",
-        drivetrain: "Intégrale",
-        make: "GMC",
-        vinDecodedAt: "2026-10-09T12:00:00.000Z",
-        vinDecodedFields: [],
-      },
-      { engine: "", drivetrain: null, make: "GMC" },
-    );
-    expect(legacy.patch.engine).toBeUndefined();
-    expect(legacy.patch.drivetrain).toBeUndefined();
-    expect(legacy.patch.make).toBe("GMC");
-    expect(legacy.vinDecodedFields).toEqual(
-      expect.arrayContaining(["engine", "drivetrain"]),
-    );
-    expect(legacy.vinDecodedFields).not.toContain("make");
+  it("clears dealer fields when vinDecodedFields is empty, even if the NIV is stamped", () => {
+    const current = {
+      engine: "5.3L V8",
+      trim: "AT4",
+      make: "GMC",
+      vinDecodedAt: "2026-10-09T12:00:00.000Z",
+      vinDecodedFields: [],
+    };
+    const cleared = mergeDealerFieldsOverVinDecode(current, {
+      engine: "",
+      trim: null,
+      make: "GMC",
+    });
+    expect(cleared.patch.engine).toBeNull();
+    expect(cleared.patch.trim).toBeNull();
+    expect(cleared.patch.make).toBe("GMC");
+    expect(cleared.vinDecodedFields).toEqual([]);
+    expect(isVinSourcedField(current, "engine")).toBe(false);
+    expect(isVinSourcedField(current, "trim")).toBe(false);
   });
 
   it("spaces retryable vPIC failures 15 min, then 1 h, 6 h and 24 h", () => {
@@ -614,6 +619,54 @@ describe("Carfax listing mention", () => {
         model: "Trax",
       }),
     ).not.toMatch(/carfax/i);
+  });
+
+  it("keeps an emptied editor description empty instead of regenerating the template", () => {
+    const generated = generateTemplateDescription({
+      mileage: 12000,
+      year: 2025,
+      make: "GMC",
+      model: "Terrain",
+    });
+    expect(listingEditorDescription("", generated, generated)).toBe("");
+    expect(listingEditorDescription("", generated, generated)).not.toContain(
+      "Terrain",
+    );
+  });
+
+  it("does not duplicate Carfax when the mention is edited in the editor", () => {
+    const vehicle = {
+      mileage: 12000,
+      year: 2025,
+      make: "GMC",
+      model: "Terrain",
+    };
+    const generated = generateTemplateDescription(vehicle);
+    const edited = generated.replace(
+      CARFAX_MENTION_FR,
+      "Rapport Carfax modifié pour cet essai.",
+    );
+    expect(listingEditorDescription(edited, generated, generated)).toBe(edited);
+    expect(
+      (listingEditorDescription(edited, generated, generated).match(/carfax/gi) ??
+        []).length,
+    ).toBe(1);
+    const published = listingDescriptionWithCarfax(edited, vehicle);
+    expect(published.match(/carfax/gi) ?? []).toHaveLength(1);
+    expect(published).toContain("Rapport Carfax modifié pour cet essai.");
+    expect(published).not.toContain(CARFAX_MENTION_FR);
+  });
+
+  it("rejects Belle auto. before appending the Carfax mention", () => {
+    expect(listingDescriptionMeetsMinLength("Belle auto.")).toBe(false);
+    const published = listingDescriptionWithCarfax("Belle auto.", {
+      mileage: 12000,
+      year: 2025,
+      make: "GMC",
+      model: "Terrain",
+    });
+    expect(published).toContain("Belle auto.");
+    expect(published).toContain(CARFAX_MENTION_FR);
   });
 
   it("keeps one French and one English Carfax line in bilingual copy", () => {

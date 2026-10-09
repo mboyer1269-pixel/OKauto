@@ -599,6 +599,22 @@ export function composeListingDescription(
   return `${french}\n\n${ENGLISH_VERSION_SEPARATOR}\n\n${english}`;
 }
 
+export const MIN_LISTING_DESCRIPTION_LENGTH = 80;
+
+/** Raw editor text. Empty string stays empty — never regenerate the template. */
+export function listingEditorDescription(
+  edited: string | null | undefined,
+  saved: string | null | undefined,
+  generated: string,
+): string {
+  if (edited != null) return edited;
+  return saved || generated;
+}
+
+export function listingDescriptionMeetsMinLength(text: string): boolean {
+  return text.trim().length >= MIN_LISTING_DESCRIPTION_LENGTH;
+}
+
 export function listingDescriptionWithCarfax(
   draftDescription: string | null | undefined,
   vehicle: VehicleData,
