@@ -92,7 +92,7 @@ Le mot de passe local est affiché uniquement par `pnpm db:seed` dans le termina
 
 ### Invitations d’équipe
 
-L’app **n’envoie aucun courriel**. Un administrateur crée une invitation ; le lien (jeton à usage unique, 7 jours) s’affiche **une seule fois** et doit être copié puis transmis hors bande. S’il existe déjà un compte, le titulaire doit être **connecté avec ce courriel** pour accepter (aucun mot de passe n’est accepté sur cette route). Sinon, il choisit lui-même son mot de passe en ouvrant le lien — la concession ne le connaît jamais.
+L’app **n’envoie aucun courriel**. Un administrateur crée une invitation ; le lien (jeton à usage unique, 7 jours) s’affiche **une seule fois** et doit être copié puis transmis hors bande. S’il existe déjà un compte, le titulaire doit être **connecté avec ce courriel** pour accepter (aucun mot de passe n’est accepté sur cette route). Un compte actif sans organisation se connecte via `/login?next=/invitation/<jeton>` : le login délivre un jeton `scope: invitation` (environ 10 min), accepté seulement par la route d’acceptation. Sinon, il choisit lui-même son mot de passe en ouvrant le lien — la concession ne le connaît jamais.
 
 **Risque accepté par conception** : quiconque possède le lien d’une invitation pour un courriel **inexistant** peut créer ce compte. Ne transmettez le lien qu’au destinataire.
 

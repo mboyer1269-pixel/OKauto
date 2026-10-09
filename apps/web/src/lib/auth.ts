@@ -16,22 +16,37 @@ function getJwtSecret(): Uint8Array {
   );
 }
 
+export const INVITATION_TOKEN_SCOPE = "invitation" as const;
+export const INVITATION_ACCESS_TTL = "10m";
+
 export interface TokenPayload {
   sub: string;
   email: string;
   orgId: string;
   role: RoleType;
+  scope?: typeof INVITATION_TOKEN_SCOPE;
   iat?: number;
   exp?: number;
   /** Millisecond clock, used to revoke tokens after a password reset. */
   issuedAtMs?: number;
 }
 
-export async function signAccessToken(payload: TokenPayload): Promise<string> {
+export function isInvitationScopedToken(
+  auth: TokenPayload | null | undefined,
+): boolean {
+  return auth?.scope === INVITATION_TOKEN_SCOPE;
+}
+
+export async function signAccessToken(
+  payload: TokenPayload,
+  options?: { expiresIn?: string },
+): Promise<string> {
   return new SignJWT({ ...payload, issuedAtMs: Date.now() })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
-    .setExpirationTime(process.env.JWT_ACCESS_EXPIRY ?? "15m")
+    .setExpirationTime(
+      options?.expiresIn ?? process.env.JWT_ACCESS_EXPIRY ?? "15m",
+    )
     .sign(getJwtSecret());
 }
 

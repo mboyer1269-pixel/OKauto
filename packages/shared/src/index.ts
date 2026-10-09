@@ -60,6 +60,7 @@ export const registerSchema = z.object({
 export const loginSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
   password: z.string().min(1),
+  next: z.string().max(200).optional(),
 });
 
 export const createAccessRequestSchema = z.object({

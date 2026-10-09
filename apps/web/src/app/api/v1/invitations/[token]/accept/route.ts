@@ -14,6 +14,7 @@ import {
   hashPassword,
   hashToken,
   isAccessTokenRevoked,
+  isInvitationScopedToken,
   signAccessToken,
 } from "@/lib/auth";
 import {
@@ -135,10 +136,49 @@ export async function POST(
         request: request as never,
       });
 
-      return jsonResponse({
+      if (!isInvitationScopedToken(auth)) {
+        return jsonResponse({
+          memberId: member.id,
+          attached: true,
+        });
+      }
+
+      const accessToken = await signAccessToken({
+        sub: existing.id,
+        email: existing.email,
+        orgId: invite.organizationId,
+        role: member.role,
+      });
+      const refreshToken = await createRefreshToken(
+        existing.id,
+        invite.organizationId,
+      );
+      const response = jsonResponse({
         memberId: member.id,
         attached: true,
+        user: {
+          id: existing.id,
+          email: existing.email,
+          name: existing.name,
+        },
+        organization: {
+          id: invite.organization.id,
+          name: invite.organization.name,
+          slug: invite.organization.slug,
+        },
+        role: member.role,
+        isPlatformAdmin: isPlatformAdminUserId(existing.id),
+        accessToken,
+        refreshToken,
       });
+      response.cookies.set("access_token", accessToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 15 * 60,
+        path: "/",
+      });
+      return response;
     }
 
     if (auth) {

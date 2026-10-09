@@ -3,6 +3,10 @@ import {
   MEMBER_INVITE_NOTICE,
   dealerMayResetMemberPassword,
 } from "@/lib/member-provisioning";
+import {
+  INVITATION_TOKEN_SCOPE,
+  isInvitationScopedToken,
+} from "@/lib/auth";
 
 describe("dealerMayResetMemberPassword", () => {
   const orgA = "org-a";
@@ -48,5 +52,27 @@ describe("dealerMayResetMemberPassword", () => {
   it("uses an invite notice that does not say whether the email exists", () => {
     expect(MEMBER_INVITE_NOTICE.toLowerCase()).not.toContain("existe");
     expect(MEMBER_INVITE_NOTICE.toLowerCase()).not.toContain("déjà enregistré");
+  });
+});
+
+describe("invitation-scoped tokens", () => {
+  it("recognizes only the invitation scope", () => {
+    expect(
+      isInvitationScopedToken({
+        sub: "u1",
+        email: "a@example.com",
+        orgId: "",
+        role: "SALESPERSON",
+        scope: INVITATION_TOKEN_SCOPE,
+      }),
+    ).toBe(true);
+    expect(
+      isInvitationScopedToken({
+        sub: "u1",
+        email: "a@example.com",
+        orgId: "org",
+        role: "ADMIN",
+      }),
+    ).toBe(false);
   });
 });

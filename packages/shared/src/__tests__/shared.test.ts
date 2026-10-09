@@ -816,6 +816,7 @@ describe("authentication schemas", () => {
       loginSchema.parse({
         email: "  MBoyer@BuckinghamGM.com ",
         password: "secret",
+        next: "/invitation/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       }).email,
     ).toBe("mboyer@buckinghamgm.com");
 

@@ -5,6 +5,7 @@ import { hasMinRole, isPlatformAdminUserId, type RoleType } from "@okauto/shared
 import {
   getAuthFromRequest,
   isAccessTokenRevoked,
+  isInvitationScopedToken,
   type TokenPayload,
 } from "./auth";
 import { ListingGuardError } from "./listing-guards";
@@ -101,6 +102,9 @@ export function withAuth(
     try {
       const auth = await getAuthFromRequest(request as never);
       if (!auth) {
+        return errorResponse("Authentification requise", 401);
+      }
+      if (isInvitationScopedToken(auth)) {
         return errorResponse("Authentification requise", 401);
       }
       if (await isAccessTokenRevoked(auth)) {

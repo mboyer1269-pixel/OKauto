@@ -26,7 +26,7 @@ export function LoginForm({
     setError("");
     setLoading(true);
     try {
-      await login(email, password);
+      await login(email, password, next);
       router.push(next || "/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Connexion impossible");

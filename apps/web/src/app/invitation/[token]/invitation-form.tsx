@@ -85,10 +85,6 @@ export function InvitationForm({ token }: { token: string }) {
         organization?: { id: string; name: string; slug: string };
         role?: string;
       };
-      if (response.ok && data.attached) {
-        window.location.assign("/dashboard");
-        return;
-      }
       if (
         response.ok &&
         data.accessToken &&
@@ -103,6 +99,11 @@ export function InvitationForm({ token }: { token: string }) {
           organization: data.organization,
           role: data.role ?? "SALESPERSON",
         });
+        localStorage.removeItem("authScope");
+        window.location.assign("/dashboard");
+        return;
+      }
+      if (response.ok && data.attached) {
         window.location.assign("/dashboard");
         return;
       }

@@ -28,7 +28,7 @@ interface AuthState {
   isPlatformAdmin: boolean;
   accessToken: string | null;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, next?: string | null) => Promise<void>;
   register: (data: {
     email: string;
     password: string;
@@ -176,20 +176,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           );
           localStorage.setItem("role", profile.role);
         } else if (profileResponse?.status === 401) {
-          [
-            "accessToken",
-            "refreshToken",
-            "user",
-            "organization",
-            "role",
-          ].forEach((key) => localStorage.removeItem(key));
-          if (!cancelled) {
-            setUser(null);
-            setOrganization(null);
-            setRole(null);
-            setIsPlatformAdmin(false);
-            setAccessToken(null);
-            setRefreshToken(null);
+          if (localStorage.getItem("authScope") === "invitation" && stored.accessToken) {
+            // Keep the short-lived invitation token so the invite page can accept.
+          } else {
+            [
+              "accessToken",
+              "refreshToken",
+              "user",
+              "organization",
+              "role",
+              "authScope",
+            ].forEach((key) => localStorage.removeItem(key));
+            if (!cancelled) {
+              setUser(null);
+              setOrganization(null);
+              setRole(null);
+              setIsPlatformAdmin(false);
+              setAccessToken(null);
+              setRefreshToken(null);
+            }
           }
         }
       } catch {
@@ -207,30 +212,53 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const persist = (data: {
     accessToken: string;
-    refreshToken: string;
+    refreshToken?: string | null;
     user: User;
-    organization: Organization;
-    role?: string;
+    organization?: Organization | null;
+    role?: string | null;
     isPlatformAdmin?: boolean;
+    scope?: string | null;
   }) => {
     setAccessToken(data.accessToken);
-    setRefreshToken(data.refreshToken);
+    setRefreshToken(data.refreshToken ?? null);
     setUser(data.user);
-    setOrganization(data.organization);
+    setOrganization(data.organization ?? null);
     setRole(data.role ?? null);
     setIsPlatformAdmin(Boolean(data.isPlatformAdmin));
     localStorage.setItem("accessToken", data.accessToken);
-    localStorage.setItem("refreshToken", data.refreshToken);
     localStorage.setItem("user", JSON.stringify(data.user));
-    localStorage.setItem("organization", JSON.stringify(data.organization));
+    if (data.refreshToken) {
+      localStorage.setItem("refreshToken", data.refreshToken);
+    } else {
+      localStorage.removeItem("refreshToken");
+    }
+    if (data.organization) {
+      localStorage.setItem("organization", JSON.stringify(data.organization));
+    } else {
+      localStorage.removeItem("organization");
+    }
     if (data.role) localStorage.setItem("role", data.role);
+    else localStorage.removeItem("role");
+    if (data.scope === "invitation") {
+      localStorage.setItem("authScope", "invitation");
+    } else {
+      localStorage.removeItem("authScope");
+    }
   };
 
-  const login = async (email: string, password: string) => {
+  const login = async (
+    email: string,
+    password: string,
+    next?: string | null,
+  ) => {
     const res = await fetch("/api/v1/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({
+        email,
+        password,
+        ...(next ? { next } : {}),
+      }),
     });
     if (!res.ok) {
       const err = await res.json();
@@ -277,9 +305,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsPlatformAdmin(false);
     setAccessToken(null);
     setRefreshToken(null);
-    ["accessToken", "refreshToken", "user", "organization", "role"].forEach(
-      (key) => localStorage.removeItem(key),
-    );
+    [
+      "accessToken",
+      "refreshToken",
+      "user",
+      "organization",
+      "role",
+      "authScope",
+    ].forEach((key) => localStorage.removeItem(key));
     window.location.assign("/login");
   };
 
