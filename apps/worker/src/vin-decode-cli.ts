@@ -4,7 +4,8 @@
  * The worker already runs this automatically on boot and every minute.
  * Use this command only if you need to drain the backlog without waiting:
  *
- *   pnpm --filter @okauto/worker vin-decode
+ *   pnpm --filter @okauto/worker build && pnpm --filter @okauto/worker vin-decode
+ *   # image prod : node dist/vin-decode-cli.js
  *
  * Idempotent: vehicles with vinDecodedAt for the current NIV are skipped.
  */

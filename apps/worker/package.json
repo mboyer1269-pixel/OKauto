@@ -6,14 +6,14 @@
   "files": ["dist"],
   "scripts": {
     "dev": "node --env-file=../../.env ./node_modules/tsx/dist/cli.mjs watch src/index.ts",
-    "build": "tsc --noEmit && esbuild src/index.ts --bundle --platform=node --format=esm --target=node22 --outfile=dist/index.js --external:bullmq --external:ioredis --external:@prisma/client --external:@sentry/node",
+    "build": "tsc --noEmit && esbuild src/index.ts src/vin-decode-cli.ts --bundle --platform=node --format=esm --target=node22 --outdir=dist --external:bullmq --external:ioredis --external:@prisma/client --external:@sentry/node",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:unit": "vitest run --config vitest.unit.config.ts",
     "test:int": "vitest run --config vitest.int.config.ts",
     "lint": "eslint .",
-    "vin-decode": "node --env-file=../../.env ./node_modules/tsx/dist/cli.mjs src/vin-decode-cli.ts"
+    "vin-decode": "node dist/vin-decode-cli.js"
   },
   "dependencies": {
     "@okauto/database": "workspace:*",

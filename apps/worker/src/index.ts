@@ -13,6 +13,7 @@ import {
   VIN_DECODE_EVERY_MS,
   VIN_DECODE_JOB_NAME,
   isLastAttempt,
+  shouldLogVinDecodeJobComplete,
   pingUptime,
   syncJobOptions,
   vinDecodeJobOptions,
@@ -157,9 +158,12 @@ maintenanceWorker.on("failed", (job, err) => {
   console.error(`Maintenance job ${job?.id} failed:`, err);
   void captureWorkerException(err);
 });
-vinDecodeWorker.on("completed", (job) =>
-  console.log(`VIN decode job ${job.id} completed`, job.returnvalue),
-);
+vinDecodeWorker.on("completed", (job) => {
+  const value = job.returnvalue as { scanned?: number } | undefined;
+  if (shouldLogVinDecodeJobComplete(value)) {
+    console.log(`VIN decode job ${job.id} completed`, value);
+  }
+});
 vinDecodeWorker.on("failed", (job, err) => {
   console.error(`VIN decode job ${job?.id} failed:`, err);
   void captureWorkerException(err);

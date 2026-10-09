@@ -30,6 +30,7 @@ import {
   generateMarketplacePackage,
   isFacebookMarketplaceItemUrl,
   isListingDueForRenewal,
+  carfaxSourceUrlCheckboxState,
   resolveIncludeCarfaxSourceUrl,
   type ListingLocale,
 } from "@okauto/shared";
@@ -601,6 +602,10 @@ function ListingsContent() {
         : draft?.description || generated.description,
     };
   }, [draftEdit, draftLocale, organization, selected, user?.name]);
+  const carfaxLinkCheckbox = carfaxSourceUrlCheckboxState(
+    organization.includeCarfaxSourceUrl,
+    selected?.includeCarfaxSourceUrl,
+  );
   const draftDirty = Boolean(
     selected &&
     draftEdit?.vehicleId === selected.id &&
@@ -1599,8 +1604,11 @@ function ListingsContent() {
                     <input
                       type="checkbox"
                       className="mt-1"
-                      checked={Boolean(selected.includeCarfaxSourceUrl)}
-                      disabled={!selected.sourceUrl}
+                      checked={carfaxLinkCheckbox.checked}
+                      disabled={
+                        !selected.sourceUrl ||
+                        carfaxLinkCheckbox.lockedByOrganization
+                      }
                       onChange={(event) => {
                         const checked = event.target.checked;
                         void apiFetch(`/api/v1/vehicles/${selected.id}`, {
@@ -1629,6 +1637,9 @@ function ListingsContent() {
                       Occasion et démonstrateurs seulement. Régénérez la
                       description pour appliquer le changement à un brouillon
                       déjà enregistré.
+                      {carfaxLinkCheckbox.lockedByOrganization
+                        ? " Activé pour toute l’organisation (Paramètres) — la case reflète l’état effectif."
+                        : null}
                     </span>
                   </label>
                   <EditableDraftField

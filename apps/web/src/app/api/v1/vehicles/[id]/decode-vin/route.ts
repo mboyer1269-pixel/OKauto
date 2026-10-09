@@ -2,6 +2,7 @@ import {
   decodeVin,
   emptyFieldsFromVinDecode,
   vinDecodeErrorMessageFr,
+  vinDecodeIsRetryable,
 } from "@okauto/shared";
 import { prisma } from "@okauto/database";
 import { withAuth, jsonResponse, errorResponse } from "@/lib/api";
@@ -15,7 +16,7 @@ export const POST = withAuth(async (_request, { auth, params }) => {
 
   const decoded = await decodeVin(vehicle.vin);
   if (decoded.error) {
-    const status = /NHTSA API error/i.test(decoded.error) ? 503 : 400;
+    const status = vinDecodeIsRetryable(decoded) ? 503 : 400;
     return errorResponse(vinDecodeErrorMessageFr(decoded.error), status);
   }
 
@@ -36,6 +37,8 @@ export const POST = withAuth(async (_request, { auth, params }) => {
       cylinders: patch.cylinders as number | undefined,
       vinDecodedAt: new Date(),
       vinDecodedVin: decoded.vin,
+      vinDecodeAttempts: 0,
+      vinDecodeError: null,
     },
     include: { photos: true },
   });

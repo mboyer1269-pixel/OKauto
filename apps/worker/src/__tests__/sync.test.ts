@@ -79,6 +79,41 @@ describe("runSyncSource", () => {
     expect(source?.lastSyncStatus).toBe("success");
   });
 
+  it("clears a site field when the feed no longer sends it", async () => {
+    await runSyncSource(sourceId);
+    await prisma.vehicle.updateMany({
+      where: { vin: testVin, organizationId: orgId },
+      data: { make: "GMC", trim: "AT4" },
+    });
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        headers: { get: () => "application/json" },
+        text: async () =>
+          JSON.stringify([
+            {
+              vin: testVin,
+              year: 2024,
+              make: null,
+              model: "SyncCar",
+              trim: null,
+              price: 25000,
+            },
+          ]),
+      }),
+    );
+
+    await runSyncSource(sourceId);
+    const vehicle = await prisma.vehicle.findFirst({
+      where: { vin: testVin, organizationId: orgId },
+    });
+    expect(vehicle?.make).toBeNull();
+    expect(vehicle?.trim).toBeNull();
+    expect(vehicle?.model).toBe("SyncCar");
+  });
+
   it("detects price changes on re-sync", async () => {
     await runSyncSource(sourceId);
 

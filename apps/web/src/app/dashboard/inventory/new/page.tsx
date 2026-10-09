@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  fillEmptyStringFieldsFromVinDecode,
   isValidVinFormat,
+  mergeVinDecodeIntoForm,
   normalizeVin,
   VIN_DECODE_FIELD_LABELS_FR,
   type VinDecodeField,
@@ -29,6 +29,7 @@ const INITIAL_FORM = {
   drivetrain: "",
   engine: "",
   description: "",
+  condition: "Used",
 };
 
 type FormState = typeof INITIAL_FORM;
@@ -55,14 +56,16 @@ function NewVehicleForm() {
   formRef.current = form;
 
   const applyDecode = (decoded: VinDecodeResult, current: FormState) => {
-    const { next, filled, skipped } = fillEmptyStringFieldsFromVinDecode(
-      current,
-      decoded,
-    );
-    const filledLabels = filled
+    const preview = mergeVinDecodeIntoForm(current, decoded);
+    if (preview.ignored) return current;
+    setForm((prev) => {
+      const merged = mergeVinDecodeIntoForm(prev, decoded);
+      return merged.ignored ? prev : (merged.next as FormState);
+    });
+    const filledLabels = preview.filled
       .map((field) => VIN_DECODE_FIELD_LABELS_FR[field])
       .filter(Boolean);
-    const skippedLabels = skipped
+    const skippedLabels = preview.skipped
       .map((field) => VIN_DECODE_FIELD_LABELS_FR[field as VinDecodeField])
       .filter(Boolean);
     const parts: string[] = [];
@@ -76,14 +79,13 @@ function NewVehicleForm() {
         `Déjà saisi, conservé : ${skippedLabels.join(", ")} (les données du concessionnaire priment).`,
       );
     }
-    setForm(next as FormState);
     setDecodeStatus("success");
     setDecodeMessage(parts.join(" "));
     lastDecodedVin.current = decoded.vin;
-    return next as FormState;
+    return preview.next as FormState;
   };
 
-  const decodeVinIntoForm = async (vin: string, current: FormState) => {
+  const decodeVinIntoForm = async (vin: string) => {
     setDecodeStatus("loading");
     setDecodeMessage("Décodage du NIV…");
     try {
@@ -95,18 +97,21 @@ function NewVehicleForm() {
         decode?: VinDecodeResult;
         error?: string;
       };
+      if (normalizeVin(formRef.current.vin) !== normalizeVin(vin)) {
+        return formRef.current;
+      }
       if (!res.ok || !data.decode) {
         setDecodeStatus("error");
         setDecodeMessage(data.error ?? "Le NIV n’a pas pu être décodé.");
-        return current;
+        return formRef.current;
       }
-      return applyDecode(data.decode, current);
+      return applyDecode(data.decode, formRef.current);
     } catch {
       setDecodeStatus("error");
       setDecodeMessage(
         "Le service de décodage NHTSA (vPIC) est indisponible. Réessayez plus tard.",
       );
-      return current;
+      return formRef.current;
     }
   };
 
@@ -119,7 +124,7 @@ function NewVehicleForm() {
     const normalized = normalizeVin(vin);
     if (normalized === lastDecodedVin.current) return;
     const handle = window.setTimeout(() => {
-      void decodeVinIntoForm(normalized, formRef.current);
+      void decodeVinIntoForm(normalized);
     }, 400);
     return () => window.clearTimeout(handle);
     // Only re-run when the VIN changes; applying decode updates other fields.
@@ -136,8 +141,9 @@ function NewVehicleForm() {
         isValidVinFormat(form.vin) &&
         lastDecodedVin.current !== normalizeVin(form.vin)
       ) {
-        payload = await decodeVinIntoForm(normalizeVin(form.vin), form);
+        payload = await decodeVinIntoForm(normalizeVin(form.vin));
       }
+      const decodedVin = lastDecodedVin.current === normalizeVin(payload.vin);
       const res = await apiFetch("/api/v1/vehicles", {
         method: "POST",
         body: JSON.stringify({
@@ -156,6 +162,8 @@ function NewVehicleForm() {
           drivetrain: payload.drivetrain || null,
           engine: payload.engine || null,
           description: payload.description || null,
+          condition: payload.condition || null,
+          vinDecoded: decodedVin,
         }),
       });
       if (!res.ok) {
@@ -243,12 +251,32 @@ function NewVehicleForm() {
               className="btn-secondary mt-2 text-sm"
               onClick={() => {
                 lastDecodedVin.current = "";
-                void decodeVinIntoForm(normalizeVin(form.vin), form);
+                void decodeVinIntoForm(normalizeVin(form.vin));
               }}
             >
               Relancer le décodage
             </button>
           )}
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1" htmlFor="condition">
+            État
+          </label>
+          <select
+            id="condition"
+            className="input"
+            value={form.condition}
+            onChange={(e) =>
+              setForm((current) => ({
+                ...current,
+                condition: e.target.value,
+              }))
+            }
+          >
+            <option value="Used">Occasion</option>
+            <option value="New">Neuf</option>
+            <option value="Demo">Démonstrateur</option>
+          </select>
         </div>
         <div className="grid sm:grid-cols-2 gap-4">
           {fields.map((f) => (

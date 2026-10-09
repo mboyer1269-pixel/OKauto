@@ -30,6 +30,7 @@ describe("processVinDecodeBatch", () => {
   });
 
   afterEach(async () => {
+    vi.unstubAllGlobals();
     await prisma.vehicle.deleteMany({ where: { id: vehicleId } });
   });
 
@@ -76,5 +77,31 @@ describe("processVinDecodeBatch", () => {
     });
     expect(second.decoded).toBe(0);
     expect(decodeVinFn).not.toHaveBeenCalled();
+  });
+
+  it("never stamps a vehicle when fetch throws fetch failed", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw Object.assign(new TypeError("fetch failed"), {
+          cause: { code: "ECONNRESET" },
+        });
+      }),
+    );
+
+    const result = await processVinDecodeBatch({
+      limit: 50,
+      delayMs: 0,
+      vehicleIds: [vehicleId],
+      sleepFn: async () => undefined,
+    });
+
+    expect(result.failed).toBe(1);
+    expect(result.decoded).toBe(0);
+    const vehicle = await prisma.vehicle.findUnique({ where: { id: vehicleId } });
+    expect(vehicle?.vinDecodedAt).toBeNull();
+    expect(vehicle?.model).toBeNull();
+    expect(vehicle?.vinDecodeAttempts).toBe(1);
+    expect(vehicle?.vinDecodeError).toMatch(/fetch failed/i);
   });
 });

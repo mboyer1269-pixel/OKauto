@@ -8,6 +8,11 @@ export const AUTH_RATE_LIMIT = {
   maxFailuresPerIp: 20,
 } as const;
 
+export const VIN_DECODE_RATE_LIMIT = {
+  windowMs: 15 * 60 * 1000,
+  maxPerUser: 20,
+} as const;
+
 export type AuthRateLimitAction = "login" | "register";
 
 export interface RateLimitCounter {
@@ -346,6 +351,36 @@ export async function clearAuthFailures(
       "[rate-limit] Impossible de réinitialiser le compteur:",
       error instanceof Error ? error.message : error,
     );
+  }
+}
+
+function vinDecodeKey(orgId: string, userId: string): string {
+  return `vin-rl:${orgId}:${userId}`;
+}
+
+export async function checkVinDecodeRateLimit(params: {
+  orgId: string;
+  userId: string;
+}): Promise<{ allowed: boolean; retryAfterSeconds: number }> {
+  try {
+    const store = await getStore();
+    const key = vinDecodeKey(params.orgId, params.userId);
+    const count = await store.increment(key, VIN_DECODE_RATE_LIMIT.windowMs);
+    if (count > VIN_DECODE_RATE_LIMIT.maxPerUser) {
+      const state = await store.get(key);
+      return {
+        allowed: false,
+        retryAfterSeconds:
+          state.ttlSeconds || Math.ceil(VIN_DECODE_RATE_LIMIT.windowMs / 1000),
+      };
+    }
+    return { allowed: true, retryAfterSeconds: 0 };
+  } catch (error) {
+    console.warn(
+      "[rate-limit] Impossible de limiter le décodage NIV, poursuite de la requête:",
+      error instanceof Error ? error.message : error,
+    );
+    return { allowed: true, retryAfterSeconds: 0 };
   }
 }
 

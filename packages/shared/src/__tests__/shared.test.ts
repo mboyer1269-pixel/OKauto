@@ -1,29 +1,41 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   appendCarfaxMention,
+  CARFAX_MENTION_EN,
   CARFAX_MENTION_FR,
   carfaxMentionFr,
+  carfaxSourceUrlCheckboxState,
   ensureCarfaxMention,
   generateListingTitle,
   generateMarketplacePackage,
   generateMarketplaceTitle,
   generateTemplateDescription,
+  listingDescriptionForExtension,
   shouldIncludeCarfaxMention,
 } from "../description";
 import {
   createListingSchema,
+  createVehicleSchema,
   isFacebookMarketplaceItemUrl,
   loginSchema,
   registerSchema,
   updateMarketplaceDraftSchema,
 } from "../index";
 import {
+  VIN_DECODE_FETCH_TIMEOUT_MS,
+  VPIC_SUV_BODY_CLASS,
+  canAcceptPartialVinDecode,
+  decodeVin,
   emptyFieldsFromVinDecode,
   fillEmptyStringFieldsFromVinDecode,
   isRetryableVinDecodeError,
+  isRetryableVinDecodeFailure,
   isValidVinFormat,
+  mergeVinDecodeIntoForm,
   normalizeVin,
+  normalizeVinDecodeResult,
   vehicleNeedsVinDecode,
+  vinDecodeStampFromCreate,
 } from "../vin";
 
 describe("description", () => {
@@ -205,13 +217,191 @@ describe("vin", () => {
     expect(filled).toEqual(["make"]);
   });
 
-  it("retries only network and HTTP vPIC failures", () => {
+  it("retries fetch failed, timeouts, invalid JSON, 429 and 5xx — not check-digit", () => {
+    expect(isRetryableVinDecodeError("fetch failed")).toBe(true);
+    expect(isRetryableVinDecodeError("fetch failed (ENOTFOUND)")).toBe(true);
+    expect(
+      isRetryableVinDecodeError("The operation was aborted due to timeout"),
+    ).toBe(true);
+    expect(isRetryableVinDecodeError("Unexpected token '<'")).toBe(true);
+    expect(isRetryableVinDecodeError("NHTSA API error: 429")).toBe(true);
     expect(isRetryableVinDecodeError("NHTSA API error: 503")).toBe(true);
-    expect(isRetryableVinDecodeError("VIN decode failed")).toBe(true);
+    expect(isRetryableVinDecodeError("NHTSA API error: 404")).toBe(false);
     expect(isRetryableVinDecodeError("Invalid VIN format. Must be 17 characters.")).toBe(
       false,
     );
     expect(isRetryableVinDecodeError("1 - Check Digit")).toBe(false);
+    const fetchFailed = Object.assign(new TypeError("fetch failed"), {
+      cause: { code: "ECONNRESET" },
+    });
+    expect(isRetryableVinDecodeFailure(fetchFailed)).toBe(true);
+    expect(isRetryableVinDecodeFailure(new SyntaxError("Unexpected token '<'"))).toBe(
+      true,
+    );
+  });
+
+  it("normalizes vPIC SUV dumps into French dealer vocab within schema limits", () => {
+    const terrain = normalizeVinDecodeResult({
+      vin: "2GKALMEK1R6123456",
+      year: 2024,
+      make: "CHEVROLET",
+      model: "Terrain",
+      bodyStyle: VPIC_SUV_BODY_CLASS,
+      fuelType: "Gasoline",
+      transmission: "Automatic",
+      drivetrain: "AWD/All-Wheel Drive",
+    });
+    const equinox = normalizeVinDecodeResult({
+      vin: "2GNAXKEV0L6123456",
+      year: 2020,
+      make: "CHEVROLET",
+      model: "Equinox",
+      bodyStyle: VPIC_SUV_BODY_CLASS,
+      fuelType: "Gasoline",
+      transmission: "Automatic",
+      drivetrain: "FWD/Front-Wheel Drive",
+    });
+    expect(terrain.bodyStyle).toBe("VUS");
+    expect(terrain.fuelType).toBe("Essence");
+    expect(terrain.transmission).toBe("Auto.");
+    expect(terrain.drivetrain).toBe("Intégrale");
+    expect(terrain.make).toBe("Chevrolet");
+    expect(equinox.drivetrain).toBe("Traction avant");
+    expect(VPIC_SUV_BODY_CLASS.length).toBeGreaterThan(50);
+    expect(createVehicleSchema.safeParse(terrain).success).toBe(true);
+    expect(createVehicleSchema.safeParse(equinox).success).toBe(true);
+  });
+
+  it("accepts partial vPIC codes 8 and 14 when year, make and model are present", () => {
+    expect(canAcceptPartialVinDecode([8, 14], 2025, "CHEVROLET", "Trax")).toBe(
+      true,
+    );
+    expect(canAcceptPartialVinDecode([4, 14], 2025, "CHEVROLET", "Trax")).toBe(
+      true,
+    );
+    expect(canAcceptPartialVinDecode([1], 2025, "CHEVROLET", "Trax")).toBe(false);
+    expect(canAcceptPartialVinDecode([14], undefined, "CHEVROLET", "Trax")).toBe(
+      false,
+    );
+  });
+
+  it("rejects a stale decode when the NIV changed during the request", () => {
+    const stale = mergeVinDecodeIntoForm(
+      { vin: "1GNEVHKW0RJ123456", make: "", model: "Saisi" },
+      { vin: "1GKS2BKC1FR123456", make: "GMC", model: "Yukon" },
+    );
+    expect(stale.ignored).toBe(true);
+    expect(stale.next.model).toBe("Saisi");
+    const live = mergeVinDecodeIntoForm(
+      { vin: "1GKS2BKC1FR123456", make: "", model: "Saisi" },
+      { vin: "1GKS2BKC1FR123456", make: "GMC", model: "Yukon" },
+    );
+    expect(live.ignored).toBe(false);
+    expect(live.next.make).toBe("GMC");
+    expect(live.next.model).toBe("Saisi");
+  });
+
+  it("stamps vinDecodedAt on create only when the form already decoded the NIV", () => {
+    const stamped = vinDecodeStampFromCreate({
+      vin: "1GNEVHKW0RJ123456",
+      vinDecoded: true,
+    });
+    expect(stamped.vinDecodedVin).toBe("1GNEVHKW0RJ123456");
+    expect(stamped.vinDecodedAt).toBeInstanceOf(Date);
+    expect(
+      vinDecodeStampFromCreate({ vin: "1GNEVHKW0RJ123456", vinDecoded: false }),
+    ).toEqual({});
+  });
+});
+
+describe("decodeVin network failures", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("treats Node 22 fetch failed as retryable and never returns decoded fields", async () => {
+    const timeoutSpy = vi.spyOn(AbortSignal, "timeout");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw Object.assign(new TypeError("fetch failed"), {
+          cause: { code: "ENOTFOUND" },
+        });
+      }),
+    );
+    const result = await decodeVin("1GNEVHKW0RJ123456");
+    expect(result.error).toMatch(/fetch failed/i);
+    expect(result.retryable).toBe(true);
+    expect(result.make).toBeUndefined();
+    expect(result.model).toBeUndefined();
+    expect(timeoutSpy).toHaveBeenCalledWith(VIN_DECODE_FETCH_TIMEOUT_MS);
+  });
+
+  it("treats an HTML 200 page as retryable invalid JSON", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => {
+          throw new SyntaxError("Unexpected token '<'");
+        },
+      })),
+    );
+    const result = await decodeVin("1GNEVHKW0RJ123456");
+    expect(result.retryable).toBe(true);
+    expect(result.error).toMatch(/Unexpected token/i);
+    expect(result.bodyStyle).toBeUndefined();
+  });
+
+  it("maps a live Equinox-style vPIC payload through French limits", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({
+          Results: [
+            { Variable: "Error Code", Value: "0" },
+            { Variable: "Model Year", Value: "2020" },
+            { Variable: "Make", Value: "CHEVROLET" },
+            { Variable: "Model", Value: "Equinox" },
+            { Variable: "Body Class", Value: VPIC_SUV_BODY_CLASS },
+            { Variable: "Fuel Type - Primary", Value: "Gasoline" },
+            { Variable: "Transmission Style", Value: "Automatic" },
+            { Variable: "Drive Type", Value: "FWD/Front-Wheel Drive" },
+          ],
+        }),
+      })),
+    );
+    const result = await decodeVin("2GNAXKEV0L6123456");
+    expect(result.error).toBeUndefined();
+    expect(createVehicleSchema.safeParse(result).success).toBe(true);
+    expect(result.bodyStyle).toBe("VUS");
+    expect(result.make).toBe("Chevrolet");
+  });
+
+  it("keeps year/make/model on vPIC error codes 8 and 14", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({
+          Results: [
+            { Variable: "Error Code", Value: "4,14" },
+            { Variable: "Error Text", Value: "Unable to provide information" },
+            { Variable: "Model Year", Value: "2025" },
+            { Variable: "Make", Value: "CHEVROLET" },
+            { Variable: "Model", Value: "Trax" },
+            { Variable: "Body Class", Value: VPIC_SUV_BODY_CLASS },
+          ],
+        }),
+      })),
+    );
+    const result = await decodeVin("KL77LJE05SC123456");
+    expect(result.error).toBeUndefined();
+    expect(result.year).toBe(2025);
+    expect(result.model).toBe("Trax");
+    expect(result.bodyStyle).toBe("VUS");
   });
 });
 
@@ -258,6 +448,63 @@ describe("Carfax listing mention", () => {
         price: 28995,
       }),
     ).not.toMatch(/carfax/i);
+    expect(
+      shouldIncludeCarfaxMention({
+        condition: "New",
+        mileage: 12,
+        year: 2026,
+        make: "Chevrolet",
+        model: "Trax",
+      }),
+    ).toBe(false);
+  });
+
+  it("shows the effective org-or-vehicle Carfax link state on the checkbox", () => {
+    expect(carfaxSourceUrlCheckboxState(true, false)).toEqual({
+      checked: true,
+      lockedByOrganization: true,
+    });
+    expect(carfaxSourceUrlCheckboxState(false, true)).toEqual({
+      checked: true,
+      lockedByOrganization: false,
+    });
+    expect(carfaxSourceUrlCheckboxState(false, false)).toEqual({
+      checked: false,
+      lockedByOrganization: false,
+    });
+  });
+
+  it("applies ensureCarfaxMention to an existing Marketplace draft", () => {
+    const draft = "Voici mon GMC Terrain 2025 disponible chez nous.";
+    const withMention = listingDescriptionForExtension(draft, {
+      mileage: 12000,
+      year: 2025,
+      make: "GMC",
+      model: "Terrain",
+    });
+    expect(withMention).toContain(draft);
+    expect(withMention).toContain(CARFAX_MENTION_FR);
+    expect(
+      listingDescriptionForExtension(withMention, {
+        mileage: 12000,
+      }),
+    ).toBe(withMention);
+  });
+
+  it("keeps one French and one English Carfax line in bilingual copy", () => {
+    const bilingual = generateMarketplacePackage(
+      {
+        year: 2024,
+        make: "GMC",
+        model: "Terrain",
+        mileage: 20000,
+        price: 28995,
+        language: "fr_en",
+      },
+      "bilingual",
+    );
+    expect(bilingual.description).toContain(CARFAX_MENTION_FR);
+    expect(bilingual.description).toContain(CARFAX_MENTION_EN);
   });
 
   it("substitutes sourceUrl only when the option is on, and never duplicates", () => {

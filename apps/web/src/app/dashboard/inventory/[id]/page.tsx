@@ -12,6 +12,7 @@ import {
   formatDateTime,
 } from "@/lib/utils";
 import { PhotoManager } from "@/components/photo-manager";
+import { carfaxSourceUrlCheckboxState } from "@okauto/shared";
 import { ExternalLink, Sparkles, Search } from "lucide-react";
 
 export default function VehicleDetailPage() {
@@ -100,6 +101,13 @@ function VehicleDetail() {
   const marketplaceDraft = (
     vehicle.marketplaceDrafts as Array<{ description: string }> | undefined
   )?.[0];
+  const carfaxLink = carfaxSourceUrlCheckboxState(
+    Boolean(
+      (vehicle.organization as { includeCarfaxSourceUrl?: boolean } | undefined)
+        ?.includeCarfaxSourceUrl,
+    ),
+    Boolean(vehicle.includeCarfaxSourceUrl),
+  );
 
   return (
     <div>
@@ -173,14 +181,21 @@ function VehicleDetail() {
               <input
                 type="checkbox"
                 className="mt-0.5"
-                checked={Boolean(vehicle.includeCarfaxSourceUrl)}
-                disabled={carfaxSaving || !vehicle.sourceUrl}
+                checked={carfaxLink.checked}
+                disabled={
+                  carfaxSaving ||
+                  !vehicle.sourceUrl ||
+                  carfaxLink.lockedByOrganization
+                }
                 onChange={(e) => void handleCarfaxLinkToggle(e.target.checked)}
               />
               <span>
                 Inclure le lien de cette fiche dans la mention Carfax de
                 l’annonce (pour tester avant de l’activer partout). Sans URL par
                 défaut.
+                {carfaxLink.lockedByOrganization
+                  ? " Activé pour toute l’organisation (Paramètres) — la case reflète l’état effectif."
+                  : null}
               </span>
             </label>
             <div className="flex flex-wrap gap-2 mt-4">

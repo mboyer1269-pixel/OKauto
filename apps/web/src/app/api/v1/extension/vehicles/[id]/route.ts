@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@okauto/database";
 import {
   generateMarketplaceTitle,
-  generateTemplateDescription,
+  listingDescriptionForExtension,
   resolveIncludeCarfaxSourceUrl,
 } from "@okauto/shared";
 import { authenticateApiKey } from "@/lib/auth";
@@ -95,8 +95,10 @@ export async function GET(
         engine: vehicle.engine,
         features: vehicle.features,
         title: draft?.title || generateMarketplaceTitle(marketplaceData),
-        description:
-          draft?.description || generateTemplateDescription(marketplaceData),
+        description: listingDescriptionForExtension(
+          draft?.description,
+          marketplaceData,
+        ),
         contactName: auth.user.name,
         dealershipName: auth.organization.name,
         phone: auth.organization.phone,

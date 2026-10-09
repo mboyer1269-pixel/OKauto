@@ -135,9 +135,16 @@ export const CARFAX_MENTION_FR =
 export const CARFAX_MENTION_EN =
   "Free Carfax report available — message us!";
 
+export function isNewVehicleCondition(condition?: string | null): boolean {
+  const value = cleanValue(condition).toLocaleLowerCase("fr-CA");
+  return value === "new" || value === "neuf" || value.startsWith("neuf");
+}
+
 export function shouldIncludeCarfaxMention(vehicle: VehicleData): boolean {
   const kind = classifyInventoryKind(vehicle);
-  return kind === "used" || kind === "demo";
+  if (kind === "demo") return true;
+  if (isNewVehicleCondition(vehicle.condition)) return false;
+  return kind === "used";
 }
 
 export function resolveIncludeCarfaxSourceUrl(
@@ -145,6 +152,17 @@ export function resolveIncludeCarfaxSourceUrl(
   vehicleFlag?: boolean | null,
 ): boolean {
   return Boolean(vehicleFlag) || Boolean(organizationFlag);
+}
+
+export function carfaxSourceUrlCheckboxState(
+  organizationFlag?: boolean | null,
+  vehicleFlag?: boolean | null,
+): { checked: boolean; lockedByOrganization: boolean } {
+  const lockedByOrganization = Boolean(organizationFlag);
+  return {
+    checked: resolveIncludeCarfaxSourceUrl(organizationFlag, vehicleFlag),
+    lockedByOrganization,
+  };
 }
 
 export function listingHasCarfaxMention(text: string): boolean {
@@ -579,6 +597,15 @@ export function composeListingDescription(
   const english = generateTemplateDescriptionEn(vehicle);
   if (locale === "en") return english;
   return `${french}\n\n${ENGLISH_VERSION_SEPARATOR}\n\n${english}`;
+}
+
+export function listingDescriptionForExtension(
+  draftDescription: string | null | undefined,
+  vehicle: VehicleData,
+  locale: ListingLocale = "fr",
+): string {
+  const base = draftDescription || generateTemplateDescription(vehicle);
+  return ensureCarfaxMention(base, vehicle, locale);
 }
 
 export function generateCatalogDescription(vehicle: VehicleData): string {

@@ -13,6 +13,24 @@ export const DEGRADED_EVERY_MS = 15 * 60 * 1000;
 export const VIN_DECODE_EVERY_MS = 60 * 1000;
 export const VIN_DECODE_BATCH_SIZE = 50;
 export const VIN_DECODE_GAP_MS = 1_100;
+/** Give up after this many retryable vPIC failures and stamp the NIV. */
+export const VIN_DECODE_MAX_ATTEMPTS = 5;
+/** Stop the current batch so a network outage does not monopolize the queue. */
+export const VIN_DECODE_CONSECUTIVE_NETWORK_STOP = 3;
+
+export function vinDecodeRetryDelayMs(
+  attempts: number,
+  baseMs = VIN_DECODE_GAP_MS,
+): number {
+  if (attempts <= 0) return baseMs;
+  return baseMs * 2 ** Math.min(attempts, 4);
+}
+
+export function shouldLogVinDecodeJobComplete(result?: {
+  scanned?: number;
+} | null): boolean {
+  return Boolean(result && (result.scanned ?? 0) > 0);
+}
 
 export const DEFAULT_SYNC_FETCH_TIMEOUT_MS = 30_000;
 export const DEFAULT_SYNC_FETCH_MAX_BYTES = 8 * 1024 * 1024;

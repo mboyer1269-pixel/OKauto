@@ -1,5 +1,9 @@
 import { prisma } from "@okauto/database";
-import { vehicleQuerySchema, createVehicleSchema } from "@okauto/shared";
+import {
+  vehicleQuerySchema,
+  createVehicleSchema,
+  vinDecodeStampFromCreate,
+} from "@okauto/shared";
 import { withAuth, jsonResponse, parseBody } from "@/lib/api";
 import { createAuditLog } from "@/lib/auth";
 
@@ -104,7 +108,12 @@ export const GET = withAuth(async (request, { auth }) => {
 
 export const POST = withAuth(async (request, { auth }) => {
   const body = await parseBody<unknown>(request);
-  const data = createVehicleSchema.parse(body);
+  const parsed = createVehicleSchema.parse(body);
+  const { vinDecoded, ...data } = parsed;
+  const vinStamp = vinDecodeStampFromCreate({
+    vin: data.vin,
+    vinDecoded,
+  });
 
   const vehicle = await prisma.vehicle.create({
     data: {
@@ -134,6 +143,7 @@ export const POST = withAuth(async (request, { auth }) => {
       location: data.location,
       notes: data.notes,
       assignedToId: data.assignedToId,
+      ...vinStamp,
       photos: data.photos
         ? {
             create: data.photos.map((p, i) => ({
