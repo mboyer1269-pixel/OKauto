@@ -134,8 +134,10 @@ test.describe("Suivia Auto", () => {
     ).toBeVisible();
     await page.getByRole("tab", { name: /À préparer/ }).click();
     await page
-      .getByRole("button", { name: "Publier", exact: true })
+      .locator("article")
+      .filter({ has: page.locator("img") })
       .first()
+      .getByRole("button", { name: "Publier", exact: true })
       .click();
 
     const dialog = page.getByRole("dialog", { name: "Préparer l’annonce" });
