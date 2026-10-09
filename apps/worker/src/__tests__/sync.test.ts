@@ -96,9 +96,9 @@ describe("runSyncSource", () => {
             {
               vin: testVin,
               year: 2024,
-              make: null,
+              make: "",
               model: "SyncCar",
-              trim: null,
+              trim: "",
               price: 25000,
             },
           ]),
@@ -109,8 +109,8 @@ describe("runSyncSource", () => {
     const vehicle = await prisma.vehicle.findFirst({
       where: { vin: testVin, organizationId: orgId },
     });
-    expect(vehicle?.make).toBeNull();
-    expect(vehicle?.trim).toBeNull();
+    expect(vehicle?.make).toBe("");
+    expect(vehicle?.trim).toBe("");
     expect(vehicle?.model).toBe("SyncCar");
   });
 
