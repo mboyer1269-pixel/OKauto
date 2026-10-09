@@ -19,6 +19,7 @@ import { getTeamAccessLabel, getTeamMemberTitle } from "@/lib/team-members";
 interface Member {
   id: string;
   role: string;
+  passwordResetAllowed?: boolean;
   user: { id: string; name: string; email: string; isActive: boolean };
 }
 
@@ -264,9 +265,7 @@ function TeamContent() {
                 <p className="mt-1 text-sm text-signal">
                   {createdMember.action === "reset"
                     ? "Toutes les anciennes sessions ont été fermées. Copiez ce nouveau mot de passe temporaire et transmettez-le de façon sécuritaire."
-                    : createdMember.temporaryPassword
-                      ? `Son compte est rattaché à ${organization?.name ?? "votre concession"} et tout l’inventaire est prêt. Copiez les accès et transmettez-les de façon sécuritaire.`
-                      : `Ce courriel avait déjà un compte Suivia Auto. Son mot de passe actuel demeure valide; à sa prochaine connexion, ${organization?.name ?? "votre concession"} et son inventaire s’ouvriront automatiquement.`}
+                    : `Son compte est rattaché à ${organization?.name ?? "votre concession"} et tout l’inventaire est prêt. Copiez les accès et transmettez-les de façon sécuritaire.`}
                 </p>
                 <div className="mt-3 rounded-xl border border-signal/30 bg-card/80 px-4 py-3 font-mono text-sm text-foreground">
                   <p>{createdMember.email}</p>
@@ -588,7 +587,8 @@ function TeamContent() {
                     </td>
                     {canManage && (
                       <td className="px-5 py-4">
-                        {(member.role !== "OWNER" || role === "OWNER") && (
+                        {member.passwordResetAllowed !== false &&
+                          (member.role !== "OWNER" || role === "OWNER") && (
                           <button
                             type="button"
                             className="btn-secondary min-h-10 whitespace-nowrap px-3 py-2 text-xs"

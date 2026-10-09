@@ -2,7 +2,11 @@ import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { randomUUID } from "node:crypto";
 import { hasMinRole, isPlatformAdminUserId, type RoleType } from "@okauto/shared";
-import { getAuthFromRequest, type TokenPayload } from "./auth";
+import {
+  getAuthFromRequest,
+  isAccessTokenRevoked,
+  type TokenPayload,
+} from "./auth";
 import { ListingGuardError } from "./listing-guards";
 
 const GENERIC_INTERNAL_ERROR =
@@ -97,6 +101,9 @@ export function withAuth(
     try {
       const auth = await getAuthFromRequest(request as never);
       if (!auth) {
+        return errorResponse("Authentification requise", 401);
+      }
+      if (await isAccessTokenRevoked(auth)) {
         return errorResponse("Authentification requise", 401);
       }
 

@@ -2,6 +2,10 @@ import { prisma } from "@okauto/database";
 import { hasMinRole, updateMemberSchema } from "@okauto/shared";
 import { withAuth, jsonResponse, errorResponse, parseBody } from "@/lib/api";
 import { createAuditLog, hashPassword } from "@/lib/auth";
+import {
+  MEMBER_PASSWORD_RESET_FORBIDDEN_MESSAGE,
+  dealerMayResetMemberPassword,
+} from "@/lib/member-provisioning";
 
 export const PATCH = withAuth(
   async (request, { auth, params }) => {
@@ -10,6 +14,11 @@ export const PATCH = withAuth(
 
     const member = await prisma.organizationMember.findFirst({
       where: { id: params!.id, organizationId: auth.orgId },
+      include: {
+        user: {
+          select: { id: true, provisionedByOrganizationId: true },
+        },
+      },
     });
     if (!member) return errorResponse("Member not found", 404);
     if (member.role === "OWNER" && data.role && data.role !== "OWNER") {
@@ -31,10 +40,30 @@ export const PATCH = withAuth(
       : undefined;
 
     if (passwordHash) {
+      const memberships = await prisma.organizationMember.findMany({
+        where: { userId: member.userId },
+        select: { organizationId: true },
+      });
+      if (
+        !dealerMayResetMemberPassword({
+          organizationId: auth.orgId,
+          provisionedByOrganizationId: member.user.provisionedByOrganizationId,
+          membershipOrganizationIds: memberships.map(
+            (row) => row.organizationId,
+          ),
+        })
+      ) {
+        return errorResponse(MEMBER_PASSWORD_RESET_FORBIDDEN_MESSAGE, 403);
+      }
+
       await prisma.$transaction([
         prisma.user.update({
           where: { id: member.userId },
-          data: { passwordHash, isActive: true },
+          data: {
+            passwordHash,
+            isActive: true,
+            sessionInvalidatedAt: new Date(),
+          },
         }),
         prisma.refreshToken.deleteMany({ where: { userId: member.userId } }),
       ]);

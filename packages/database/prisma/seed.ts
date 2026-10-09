@@ -136,6 +136,11 @@ async function main() {
     });
   }
 
+  await prisma.user.updateMany({
+    where: { id: { in: [manager.id, sales.id] } },
+    data: { provisionedByOrganizationId: org.id },
+  });
+
   // Clear existing vehicles for clean re-seed
   await prisma.listingEvent.deleteMany({ where: { listing: { organizationId: org.id } } });
   await prisma.listing.deleteMany({ where: { organizationId: org.id } });

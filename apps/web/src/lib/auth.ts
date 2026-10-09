@@ -21,10 +21,14 @@ export interface TokenPayload {
   email: string;
   orgId: string;
   role: RoleType;
+  iat?: number;
+  exp?: number;
+  /** Millisecond clock, used to revoke tokens after a password reset. */
+  issuedAtMs?: number;
 }
 
 export async function signAccessToken(payload: TokenPayload): Promise<string> {
-  return new SignJWT({ ...payload })
+  return new SignJWT({ ...payload, issuedAtMs: Date.now() })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(process.env.JWT_ACCESS_EXPIRY ?? "15m")
@@ -84,6 +88,31 @@ export async function createRefreshToken(
 export async function revokeRefreshToken(token: string): Promise<void> {
   const tokenHash = hashToken(token);
   await prisma.refreshToken.deleteMany({ where: { tokenHash } });
+}
+
+export async function invalidateUserSessions(userId: string): Promise<void> {
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: userId },
+      data: { sessionInvalidatedAt: new Date() },
+    }),
+    prisma.refreshToken.deleteMany({ where: { userId } }),
+  ]);
+}
+
+export async function isAccessTokenRevoked(
+  auth: TokenPayload,
+): Promise<boolean> {
+  const user = await prisma.user.findUnique({
+    where: { id: auth.sub },
+    select: { isActive: true, sessionInvalidatedAt: true },
+  });
+  if (!user?.isActive) return true;
+  if (!user.sessionInvalidatedAt) return false;
+  const issuedAtMs =
+    auth.issuedAtMs ?? (auth.iat != null ? auth.iat * 1000 : null);
+  if (issuedAtMs == null) return true;
+  return issuedAtMs < user.sessionInvalidatedAt.getTime();
 }
 
 export async function validateRefreshToken(token: string) {
