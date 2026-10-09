@@ -112,8 +112,8 @@ function MapPin() {
 function HatchedS({ size }: { size: MarkSize }) {
   const uid = useId().replace(/:/g, "");
   const view = spec.mark.viewBox;
-  const pitch = size === "small" ? 4.2 : (spec.mark.hatchPitch ?? 3.2);
-  const bar = size === "small" ? 2.8 : (spec.mark.hatchBar ?? 2.05);
+  const pitch = size === "small" ? 6.4 : (spec.mark.hatchPitch ?? 4.6);
+  const bar = size === "small" ? 4.2 : (spec.mark.hatchBar ?? 3);
   const parts = [...layoutHatchedS(view), ...layoutHatchedArrow(view)];
   const from = spec.colors.gradientFrom ?? spec.colors.ink;
   const to = spec.colors.gradientTo ?? spec.colors.accent;

@@ -78,4 +78,11 @@ describe("marque — piste active D, A/B/C conservées", () => {
       ).toBeGreaterThanOrEqual(4.5);
     }
   });
+
+  it("place le marine et le cyan D au-dessus de 4,5:1 selon le thème", () => {
+    expect(contrastRatio("#FFFFFF", "#0B3A8A")).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio("#0B3A8A", "#F7F8FA")).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio("#1AD0EA", "#0A0C10")).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio("#1AD0EA", "#F7F8FA")).toBeLessThan(4.5);
+  });
 });

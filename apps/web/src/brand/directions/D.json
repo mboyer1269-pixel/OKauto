@@ -28,8 +28,8 @@
     "kind": "hatched-s",
     "viewBox": 40,
     "iconRadiusRatio": 0.22,
-    "hatchPitch": 3.2,
-    "hatchBar": 2.05
+    "hatchPitch": 4.6,
+    "hatchBar": 3.0
   },
   "wordmarkView": {
     "width": 1160,
@@ -39,8 +39,8 @@
     "pad": 24,
     "gap": 14,
     "space": 34,
-    "hatchPitch": 3.4,
-    "hatchBar": 2.15,
+    "hatchPitch": 11,
+    "hatchBar": 7,
     "sequence": ["S", "U", "I", "V", "I", "A", " ", "A", "U", "T", "O"],
     "arrow": true
   }

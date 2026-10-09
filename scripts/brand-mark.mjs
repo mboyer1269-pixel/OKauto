@@ -134,14 +134,24 @@ function scalePart(part, ox, oy, s) {
   };
 }
 
+function n(value) {
+  return Math.round(value * 100) / 100;
+}
+
 function roundedRectPath(x, y, w, h, r) {
-  const radius = Math.min(r, w / 2, h / 2);
-  return `M ${x + radius} ${y} H ${x + w - radius} A ${radius} ${radius} 0 0 1 ${x + w} ${y + radius} V ${y + h - radius} A ${radius} ${radius} 0 0 1 ${x + w - radius} ${y + h} H ${x + radius} A ${radius} ${radius} 0 0 1 ${x} ${y + h - radius} V ${y + radius} A ${radius} ${radius} 0 0 1 ${x + radius} ${y} Z`;
+  const radius = n(Math.min(r, w / 2, h / 2));
+  const x0 = n(x);
+  const y0 = n(y);
+  const x1 = n(x + w);
+  const y1 = n(y + h);
+  return `M ${n(x0 + radius)} ${y0} H ${n(x1 - radius)} A ${radius} ${radius} 0 0 1 ${x1} ${n(y0 + radius)} V ${n(y1 - radius)} A ${radius} ${radius} 0 0 1 ${n(x1 - radius)} ${y1} H ${n(x0 + radius)} A ${radius} ${radius} 0 0 1 ${x0} ${n(y1 - radius)} V ${n(y0 + radius)} A ${radius} ${radius} 0 0 1 ${n(x0 + radius)} ${y0} Z`;
 }
 
 function partToPath(part) {
   if (part.type === "rect") return roundedRectPath(part.x, part.y, part.w, part.h, 2.2);
-  if (part.type === "poly") return `M ${part.points.map((p) => p.join(" ")).join(" L ")} Z`;
+  if (part.type === "poly") {
+    return `M ${part.points.map((p) => `${n(p[0])} ${n(p[1])}`).join(" L ")} Z`;
+  }
   return `${roundedRectPath(part.x, part.y, part.w, part.h, part.rx)} ${roundedRectPath(part.ix, part.iy, part.iw, part.ih, part.irx)}`;
 }
 
@@ -170,13 +180,13 @@ export function layoutWordmark(spec) {
 }
 
 export function layoutHatchedIcon(viewBox = 40) {
-  const sS = (viewBox * 0.62) / letterforms.em;
-  const sA = (viewBox * 0.42) / letterforms.em;
+  const sS = (viewBox * 0.7) / letterforms.em;
+  const sA = (viewBox * 0.5) / letterforms.em;
   const sParts = letterforms.letters.S.parts.map((part) =>
-    scalePart(part, viewBox * 0.1, viewBox * 0.08, sS),
+    scalePart(part, viewBox * 0.08, viewBox * 0.06, sS),
   );
   const aParts = letterforms.arrow.parts.map((part) =>
-    scalePart(part, viewBox * 0.58, viewBox * 0.28, sA),
+    scalePart(part, viewBox * 0.54, viewBox * 0.24, sA),
   );
   return [...sParts, ...aParts];
 }
@@ -226,8 +236,8 @@ function hatchSvg({
 
 function svgHatchedS(spec, size) {
   const view = spec.mark.viewBox;
-  const pitch = size === "small" ? 4.2 : spec.mark.hatchPitch;
-  const bar = size === "small" ? 2.8 : spec.mark.hatchBar;
+  const pitch = size === "small" ? 6.4 : spec.mark.hatchPitch;
+  const bar = size === "small" ? 4.2 : spec.mark.hatchBar;
   return hatchSvg({
     width: view,
     height: view,

@@ -96,18 +96,18 @@ export function layoutWordmark(spec: BrandSpec): {
 }
 
 export function layoutHatchedS(viewBox = 40): HatchPart[] {
-  const s = (viewBox * 0.62) / letterforms.em;
-  const ox = viewBox * 0.1;
-  const oy = viewBox * 0.08;
+  const s = (viewBox * 0.7) / letterforms.em;
+  const ox = viewBox * 0.08;
+  const oy = viewBox * 0.06;
   return letterforms.letters.S.parts.map((part) =>
     scalePart(part as RawPart, ox, oy, s),
   );
 }
 
 export function layoutHatchedArrow(viewBox = 40): HatchPart[] {
-  const s = (viewBox * 0.42) / letterforms.em;
-  const ox = viewBox * 0.58;
-  const oy = viewBox * 0.28;
+  const s = (viewBox * 0.5) / letterforms.em;
+  const ox = viewBox * 0.54;
+  const oy = viewBox * 0.24;
   return letterforms.arrow.parts.map((part) =>
     scalePart(part as RawPart, ox, oy, s),
   );

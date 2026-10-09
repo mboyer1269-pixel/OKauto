@@ -1,5 +1,9 @@
 import type { HatchPart } from "./geometry";
 
+function n(value: number) {
+  return Math.round(value * 100) / 100;
+}
+
 function roundedRectPath(
   x: number,
   y: number,
@@ -7,8 +11,12 @@ function roundedRectPath(
   h: number,
   r: number,
 ) {
-  const radius = Math.min(r, w / 2, h / 2);
-  return `M ${x + radius} ${y} H ${x + w - radius} A ${radius} ${radius} 0 0 1 ${x + w} ${y + radius} V ${y + h - radius} A ${radius} ${radius} 0 0 1 ${x + w - radius} ${y + h} H ${x + radius} A ${radius} ${radius} 0 0 1 ${x} ${y + h - radius} V ${y + radius} A ${radius} ${radius} 0 0 1 ${x + radius} ${y} Z`;
+  const radius = n(Math.min(r, w / 2, h / 2));
+  const x0 = n(x);
+  const y0 = n(y);
+  const x1 = n(x + w);
+  const y1 = n(y + h);
+  return `M ${n(x0 + radius)} ${y0} H ${n(x1 - radius)} A ${radius} ${radius} 0 0 1 ${x1} ${n(y0 + radius)} V ${n(y1 - radius)} A ${radius} ${radius} 0 0 1 ${n(x1 - radius)} ${y1} H ${n(x0 + radius)} A ${radius} ${radius} 0 0 1 ${x0} ${n(y1 - radius)} V ${n(y0 + radius)} A ${radius} ${radius} 0 0 1 ${n(x0 + radius)} ${y0} Z`;
 }
 
 export function partToPath(part: HatchPart): string {
@@ -16,7 +24,7 @@ export function partToPath(part: HatchPart): string {
     return roundedRectPath(part.x, part.y, part.w, part.h, 2.2);
   }
   if (part.type === "poly") {
-    return `M ${part.points.map((p) => p.join(" ")).join(" L ")} Z`;
+    return `M ${part.points.map((p) => `${n(p[0])} ${n(p[1])}`).join(" L ")} Z`;
   }
   return `${roundedRectPath(part.x, part.y, part.w, part.h, part.rx)} ${roundedRectPath(part.ix, part.iy, part.iw, part.ih, part.irx)}`;
 }

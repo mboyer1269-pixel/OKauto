@@ -80,13 +80,18 @@ function setPixel(buf, w, x, y, color) {
 }
 
 function insideRoundedRect(px, py, x, y, w, h, r) {
-  const cx = Math.min(Math.max(px, x + r), x + w - r);
-  const cy = Math.min(Math.max(py, y + r), y + h - r);
-  if (px >= x + r && px <= x + w - r && py >= y && py <= y + h) return true;
-  if (py >= y + r && py <= y + h - r && px >= x && px <= x + w) return true;
+  const radius = Math.min(r, w / 2, h / 2);
+  const cx = Math.min(Math.max(px, x + radius), x + w - radius);
+  const cy = Math.min(Math.max(py, y + radius), y + h - radius);
+  if (px >= x + radius && px <= x + w - radius && py >= y && py <= y + h) {
+    return true;
+  }
+  if (py >= y + radius && py <= y + h - radius && px >= x && px <= x + w) {
+    return true;
+  }
   const dx = px - cx;
   const dy = py - cy;
-  return dx * dx + dy * dy <= r * r;
+  return dx * dx + dy * dy <= radius * radius;
 }
 
 function fillRoundedRect(buf, width, height, x, y, w, h, r, color) {
@@ -283,7 +288,15 @@ function pointInPoly(px, py, points) {
 
 function partContains(part, px, py) {
   if (part.type === "rect") {
-    return insideRoundedRect(px, py, part.x, part.y, part.w, part.h, 2.2);
+    return insideRoundedRect(
+      px,
+      py,
+      part.x,
+      part.y,
+      part.w,
+      part.h,
+      Math.min(2.2, part.w / 2, part.h / 2),
+    );
   }
   if (part.type === "poly") return pointInPoly(px, py, part.points);
   const inOuter = insideRoundedRect(
@@ -342,8 +355,9 @@ function paintHatched(buf, width, height, parts, from, to, pitch, bar) {
 function rasterHatchedS(size, sizeName) {
   const buf = Buffer.alloc(size * size * 4);
   paintBackground(buf, size);
-  const pitch = sizeName === "small" ? Math.max(2.2, size * 0.12) : size * 0.08;
-  const bar = pitch * 0.64;
+  const pitch =
+    size <= 24 ? Math.max(3.2, size * 0.22) : sizeName === "small" ? Math.max(3, size * 0.12) : size * 0.1;
+  const bar = pitch * 0.68;
   const scale = size / view;
   const parts = layoutHatchedIcon(view).map((part) => {
     if (part.type === "rect") {
@@ -542,7 +556,7 @@ writeFileSync(
 const popupPath = join(root, "apps/extension/src/popup/index.html");
 const popup = readFileSync(popupPath, "utf8");
 const inlineMark = mediumSvg
-  .replace('role="img" aria-label="Suivia"', 'aria-hidden="true"')
+  .replace(/ role="img" aria-label="[^"]*"/, ' aria-hidden="true"')
   .replace(/\n/g, "\n      ")
   .trim();
 if (!popup.includes("<!-- brand-mark -->")) {

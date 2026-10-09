@@ -15,6 +15,12 @@ export function LandingHomePage() {
           <ThemedBrandLockup />
           <div className="flex items-center gap-2 sm:gap-3">
             <ThemeToggle />
+            <Link
+              href="#acces"
+              className="hidden text-sm font-semibold text-primary hover:underline sm:inline"
+            >
+              {nav.request}
+            </Link>
             <Link href="/login" className="btn-secondary text-sm">
               {nav.login}
             </Link>
