@@ -76,7 +76,14 @@ describe("demande d’accès", () => {
     expect(envExample).toMatch(/PLATFORM_ADMIN_USER_IDS/);
     expect(envExample).not.toMatch(/PLATFORM_ADMIN_EMAILS/);
     expect(vpsReadme).toMatch(/PLATFORM_ADMIN_USER_IDS/);
-    expect(vpsReadme).toMatch(/SELECT id, email, name FROM users WHERE name = 'Michael Boyer'/);
+    expect(vpsReadme).toMatch(
+      /WHERE lower\(u\.email\) = lower\('<courriel>'\)/,
+    );
+    expect(vpsReadme).toMatch(/m\."organizationId"/);
+    expect(vpsReadme).toMatch(/Vérifier la concession/);
+    expect(envExample).toMatch(
+      /WHERE lower\(u\.email\) = lower\('<courriel>'\)/,
+    );
     expect(vpsReadme).not.toMatch(/PLATFORM_ADMIN_EMAILS/);
   });
 });

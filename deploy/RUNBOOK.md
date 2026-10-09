@@ -188,7 +188,15 @@ Logs toujours : `docker compose --env-file /opt/okauto/.env -f /opt/okauto/compo
    - `DATABASE_URL=…@postgres:5432/…` (**pas** `127.0.0.1:5433`)
    - `REDIS_URL=redis://redis:6379`
    - `ALLOW_PUBLIC_SIGNUP=false`, `TRUST_PROXY=true`
-   - `PLATFORM_ADMIN_USER_IDS=` (ids `users.id` admins plateforme, virgules ; vide = personne n’accède aux demandes d’accès ; `SELECT id, email, name FROM users WHERE name = 'Michael Boyer';`)
+   - `PLATFORM_ADMIN_USER_IDS=` (ids `users.id` admins plateforme, virgules ; vide = personne). Lookup lecture seule par courriel unique — vérifier la concession avant de coller `u.id` :
+
+```sql
+SELECT u.id, u.email, m."organizationId", o.name AS organization_name, o.slug, m.role
+FROM users u
+LEFT JOIN organization_members m ON m."userId" = u.id
+LEFT JOIN organizations o ON o.id = m."organizationId"
+WHERE lower(u.email) = lower('<courriel>');
+```
    - conserver `POSTGRES_*`, `JWT_SECRET`, AWS/OpenAI existants
 6. Copier `compose.prod.yml` + `scripts/` ; **arrêter** d’utiliser `docker-compose.yml` + build local `src/`.
    **Leçon cutover :** arrêter l’ancienne stack avec `docker compose stop` puis `docker compose rm -f`. **Pas** `down` (ça supprime le réseau `okauto` que le nouveau compose attend `external`). **Jamais** `down -v`.
@@ -207,3 +215,12 @@ Logs toujours : `docker compose --env-file /opt/okauto/.env -f /opt/okauto/compo
 11. Smoke métier (login, sync health, une page listings).
 12. Documenter le SHA dans `.deployed` ; tester rollback **image-only** (sans migration contract) via `workflow_dispatch` (SHA ancêtre de `main`).
 13. Ne supprimer `/opt/okauto/src` qu’après 48 h stables.
+
+## Prisma — rename `access_requests`
+
+Un environnement qui a déjà appliqué `20261009160000_add_access_requests` (table déjà créée) ne doit **pas** rejouer le SQL. Marquer le rename (dans `packages/database`, ou `/app/packages/database` dans l’image) :
+
+```bash
+npx prisma migrate resolve --rolled-back 20261009160000_add_access_requests
+npx prisma migrate resolve --applied 20261009170000_add_access_requests
+```

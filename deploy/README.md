@@ -78,15 +78,22 @@ Tout est **éteint** tant que la variable est vide (log « skipped », pas d’e
 | `SYNC_FETCH_TIMEOUT_MS` / `SYNC_FETCH_MAX_BYTES` | `.env` | Limites HTTP sync (défauts 30s / 8 Mio). |
 | `PLATFORM_ADMIN_USER_IDS` | `.env` | Identifiants immuables (`users.id`, jeton `sub`, virgules) des admins **plateforme**. Seuls eux voient et traitent les demandes d’accès. Vide ou absent = personne. Un courriel ne suffit pas (un OWNER pourrait inviter une adresse listée). OWNER d’une concession **n’est pas** admin plateforme. |
 
-Identifiant du compte de Michael (lecture seule, Postgres publié sur `127.0.0.1:5433`) :
+Identifiant d’un admin plateforme (lecture seule). Le courriel de connexion est unique ; remplacer `<courriel>` :
+
+```sql
+SELECT u.id, u.email, m."organizationId", o.name AS organization_name, o.slug, m.role
+FROM users u
+LEFT JOIN organization_members m ON m."userId" = u.id
+LEFT JOIN organizations o ON o.id = m."organizationId"
+WHERE lower(u.email) = lower('<courriel>');
+```
 
 ```bash
 docker compose --env-file /opt/okauto/.env -f /opt/okauto/compose.prod.yml exec -T postgres \
-  psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c \
-  "SELECT id, email, name FROM users WHERE name = 'Michael Boyer';"
+  psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"
 ```
 
-Coller le `id` dans `PLATFORM_ADMIN_USER_IDS`. Ne jamais y mettre un courriel.
+Vérifier la concession (`organization_name` / `slug`) avant de coller `u.id` dans `PLATFORM_ADMIN_USER_IDS`. Ne jamais y mettre un courriel.
 
 **GitHub Environment `backup-drill`** (branches de déploiement = `main` seulement). Secrets **d’environment**, pas repository :
 
