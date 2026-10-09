@@ -17,11 +17,14 @@ export function LandingHomePage() {
             <ThemeToggle />
             <Link
               href="#acces"
-              className="hidden text-sm font-semibold text-primary hover:underline sm:inline"
+              className="hidden text-sm font-semibold text-primary hover:underline sm:inline dark:text-brand-cyan"
             >
               {nav.request}
             </Link>
-            <Link href="/login" className="btn-secondary text-sm">
+            <Link
+              href="/login"
+              className="btn-secondary shrink-0 whitespace-nowrap text-sm"
+            >
               {nav.login}
             </Link>
           </div>
