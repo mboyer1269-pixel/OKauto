@@ -1,5 +1,5 @@
 import { prisma } from "@okauto/database";
-import { isPlatformAdminEmail } from "@okauto/shared";
+import { isPlatformAdminUserId } from "@okauto/shared";
 import { withAuth, jsonResponse, errorResponse } from "@/lib/api";
 
 export const GET = withAuth(async (_request, { auth }) => {
@@ -28,6 +28,6 @@ export const GET = withAuth(async (_request, { auth }) => {
     },
     organization: membership.organization,
     role: membership.role,
-    isPlatformAdmin: isPlatformAdminEmail(membership.user.email),
+    isPlatformAdmin: isPlatformAdminUserId(membership.user.id),
   });
 });

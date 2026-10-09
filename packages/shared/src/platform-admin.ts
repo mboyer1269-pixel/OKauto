@@ -1,21 +1,21 @@
 import { readEnv } from "./job-policy";
 
-export function parsePlatformAdminEmails(
+export function parsePlatformAdminUserIds(
   raw: string | undefined | null,
 ): string[] {
   if (!raw) return [];
   return raw
     .split(",")
-    .map((value) => value.trim().toLowerCase())
+    .map((value) => value.trim())
     .filter(Boolean);
 }
 
-export function isPlatformAdminEmail(
-  email: string | null | undefined,
-  raw: string | undefined | null = readEnv().PLATFORM_ADMIN_EMAILS,
+export function isPlatformAdminUserId(
+  userId: string | null | undefined,
+  raw: string | undefined | null = readEnv().PLATFORM_ADMIN_USER_IDS,
 ): boolean {
-  if (!email) return false;
-  const allowlist = parsePlatformAdminEmails(raw);
+  if (!userId) return false;
+  const allowlist = parsePlatformAdminUserIds(raw);
   if (allowlist.length === 0) return false;
-  return allowlist.includes(email.trim().toLowerCase());
+  return allowlist.includes(userId.trim());
 }

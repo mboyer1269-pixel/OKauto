@@ -64,7 +64,7 @@ describe("demande d’accès", () => {
     expect(layout).toMatch(/if \(item\.platformAdmin\) return isPlatformAdmin/);
   });
 
-  it("documente PLATFORM_ADMIN_EMAILS côté serveur", () => {
+  it("documente PLATFORM_ADMIN_USER_IDS côté serveur", () => {
     const envExample = readFileSync(
       join(here, "../../../../../.env.example"),
       "utf8",
@@ -73,7 +73,10 @@ describe("demande d’accès", () => {
       join(here, "../../../../../deploy/README.md"),
       "utf8",
     );
-    expect(envExample).toMatch(/PLATFORM_ADMIN_EMAILS/);
-    expect(vpsReadme).toMatch(/PLATFORM_ADMIN_EMAILS/);
+    expect(envExample).toMatch(/PLATFORM_ADMIN_USER_IDS/);
+    expect(envExample).not.toMatch(/PLATFORM_ADMIN_EMAILS/);
+    expect(vpsReadme).toMatch(/PLATFORM_ADMIN_USER_IDS/);
+    expect(vpsReadme).toMatch(/SELECT id, email, name FROM users WHERE name = 'Michael Boyer'/);
+    expect(vpsReadme).not.toMatch(/PLATFORM_ADMIN_EMAILS/);
   });
 });

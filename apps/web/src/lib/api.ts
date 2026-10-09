@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { randomUUID } from "node:crypto";
-import { hasMinRole, isPlatformAdminEmail, type RoleType } from "@okauto/shared";
+import { hasMinRole, isPlatformAdminUserId, type RoleType } from "@okauto/shared";
 import { getAuthFromRequest, type TokenPayload } from "./auth";
 import { ListingGuardError } from "./listing-guards";
 
@@ -104,7 +104,7 @@ export function withAuth(
         return errorResponse("Accès insuffisant", 403);
       }
 
-      if (options?.platformAdmin && !isPlatformAdminEmail(auth.email)) {
+      if (options?.platformAdmin && !isPlatformAdminUserId(auth.sub)) {
         return errorResponse("Accès insuffisant", 403);
       }
 

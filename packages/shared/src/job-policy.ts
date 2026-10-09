@@ -18,9 +18,26 @@ export function accessRequestIpCutoff(now: Date = new Date()): Date {
 }
 
 export function accessRequestRecordCutoff(now: Date = new Date()): Date {
-  const cutoff = new Date(now.getTime());
-  cutoff.setUTCMonth(cutoff.getUTCMonth() - ACCESS_REQUEST_RETENTION_MONTHS);
-  return cutoff;
+  const year = now.getUTCFullYear();
+  const month = now.getUTCMonth();
+  const day = now.getUTCDate();
+  const totalMonths = year * 12 + month - ACCESS_REQUEST_RETENTION_MONTHS;
+  const targetYear = Math.floor(totalMonths / 12);
+  const targetMonth = ((totalMonths % 12) + 12) % 12;
+  const lastDay = new Date(
+    Date.UTC(targetYear, targetMonth + 1, 0),
+  ).getUTCDate();
+  return new Date(
+    Date.UTC(
+      targetYear,
+      targetMonth,
+      Math.min(day, lastDay),
+      now.getUTCHours(),
+      now.getUTCMinutes(),
+      now.getUTCSeconds(),
+      now.getUTCMilliseconds(),
+    ),
+  );
 }
 
 export const SYNC_JOB_ATTEMPTS = 3;

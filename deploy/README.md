@@ -76,7 +76,17 @@ Tout est **éteint** tant que la variable est vide (log « skipped », pas d’e
 | `SYNC_DEGRADED_ALERTS` | `.env` | `1` pour activer l’alerte in-app. **Off par défaut.** |
 | `SYNC_ALERT_WEBHOOK_URL` | `.env` | POST JSON optionnel (uniquement si `SYNC_DEGRADED_ALERTS=1`). |
 | `SYNC_FETCH_TIMEOUT_MS` / `SYNC_FETCH_MAX_BYTES` | `.env` | Limites HTTP sync (défauts 30s / 8 Mio). |
-| `PLATFORM_ADMIN_EMAILS` | `.env` | Courriels (virgules) des admins **plateforme**. Seuls eux voient et traitent les demandes d’accès. Vide ou absent = personne. OWNER d’une concession **n’est pas** admin plateforme. |
+| `PLATFORM_ADMIN_USER_IDS` | `.env` | Identifiants immuables (`users.id`, jeton `sub`, virgules) des admins **plateforme**. Seuls eux voient et traitent les demandes d’accès. Vide ou absent = personne. Un courriel ne suffit pas (un OWNER pourrait inviter une adresse listée). OWNER d’une concession **n’est pas** admin plateforme. |
+
+Identifiant du compte de Michael (lecture seule, Postgres publié sur `127.0.0.1:5433`) :
+
+```bash
+docker compose --env-file /opt/okauto/.env -f /opt/okauto/compose.prod.yml exec -T postgres \
+  psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c \
+  "SELECT id, email, name FROM users WHERE name = 'Michael Boyer';"
+```
+
+Coller le `id` dans `PLATFORM_ADMIN_USER_IDS`. Ne jamais y mettre un courriel.
 
 **GitHub Environment `backup-drill`** (branches de déploiement = `main` seulement). Secrets **d’environment**, pas repository :
 

@@ -39,11 +39,13 @@ const validBody = {
 
 describe("demandes d’accès", () => {
   const previousTrustProxy = process.env.TRUST_PROXY;
-  const previousPlatformAdmins = process.env.PLATFORM_ADMIN_EMAILS;
+  const previousPlatformAdmins = process.env.PLATFORM_ADMIN_USER_IDS;
   let ownerToken: string;
   let salesToken: string;
   let otherOwnerToken: string;
   let platformAdminToken: string;
+  let platformAdminId: string;
+  let demoOrgId: string;
   let createdId: string | undefined;
   const createdEmails: string[] = [];
   const platformAdminEmail = `platform-admin-${Date.now()}@okauto.test`;
@@ -77,6 +79,7 @@ describe("demandes d’accès", () => {
       update: {},
       create: { name: "Demo Motors", slug: "demo-motors" },
     });
+    demoOrgId = org.id;
     await prisma.organizationMember.upsert({
       where: {
         organizationId_userId: { organizationId: org.id, userId: owner.id },
@@ -130,6 +133,7 @@ describe("demandes d’accès", () => {
         name: "Admin plateforme",
       },
     });
+    platformAdminId = platformAdmin.id;
     await prisma.organizationMember.create({
       data: {
         organizationId: adminOrg.id,
@@ -186,9 +190,9 @@ describe("demandes d’accès", () => {
     if (previousTrustProxy === undefined) delete process.env.TRUST_PROXY;
     else process.env.TRUST_PROXY = previousTrustProxy;
     if (previousPlatformAdmins === undefined) {
-      delete process.env.PLATFORM_ADMIN_EMAILS;
+      delete process.env.PLATFORM_ADMIN_USER_IDS;
     } else {
-      process.env.PLATFORM_ADMIN_EMAILS = previousPlatformAdmins;
+      process.env.PLATFORM_ADMIN_USER_IDS = previousPlatformAdmins;
     }
     setAuthRateLimitStoreForTests(new MemoryRateLimitStore());
     if (createdEmails.length > 0) {
@@ -261,7 +265,7 @@ describe("demandes d’accès", () => {
   });
 
   it("réserve la lecture aux admins plateforme", async () => {
-    process.env.PLATFORM_ADMIN_EMAILS = platformAdminEmail;
+    process.env.PLATFORM_ADMIN_USER_IDS = platformAdminId;
 
     const anonymous = await listAccessRequests(
       makeRequest("http://localhost/api/v1/access-requests"),
@@ -309,8 +313,8 @@ describe("demandes d’accès", () => {
     expect(row?.ipAddress).toBeUndefined();
   });
 
-  it("n’accorde l’accès à personne si PLATFORM_ADMIN_EMAILS est absente", async () => {
-    delete process.env.PLATFORM_ADMIN_EMAILS;
+  it("n’accorde l’accès à personne si PLATFORM_ADMIN_USER_IDS est absente", async () => {
+    delete process.env.PLATFORM_ADMIN_USER_IDS;
 
     const otherOwner = await listAccessRequests(
       makeRequest("http://localhost/api/v1/access-requests", {
@@ -349,7 +353,7 @@ describe("demandes d’accès", () => {
     const { id } = (await created.json()) as { id: string };
     expect(created.status).toBe(201);
 
-    process.env.PLATFORM_ADMIN_EMAILS = platformAdminEmail;
+    process.env.PLATFORM_ADMIN_USER_IDS = platformAdminId;
     const otherOwner = await deleteAccessRequest(
       makeRequest(`http://localhost/api/v1/access-requests/${id}`, {
         method: "DELETE",
@@ -362,7 +366,7 @@ describe("demandes d’accès", () => {
       await prisma.accessRequest.findUnique({ where: { id } }),
     ).not.toBeNull();
 
-    delete process.env.PLATFORM_ADMIN_EMAILS;
+    delete process.env.PLATFORM_ADMIN_USER_IDS;
     const unset = await deleteAccessRequest(
       makeRequest(`http://localhost/api/v1/access-requests/${id}`, {
         method: "DELETE",
@@ -372,7 +376,7 @@ describe("demandes d’accès", () => {
     );
     expect(unset.status).toBe(403);
 
-    process.env.PLATFORM_ADMIN_EMAILS = platformAdminEmail;
+    process.env.PLATFORM_ADMIN_USER_IDS = platformAdminId;
     const admin = await deleteAccessRequest(
       makeRequest(`http://localhost/api/v1/access-requests/${id}`, {
         method: "DELETE",
@@ -382,6 +386,46 @@ describe("demandes d’accès", () => {
     );
     expect(admin.status).toBe(200);
     expect(await prisma.accessRequest.findUnique({ where: { id } })).toBeNull();
+  });
+
+  it("refuse un membre créé par un OWNER avec un courriel autrefois listé", async () => {
+    const formerListedEmail = `michael-listed-${Date.now()}@suivia.ca`;
+    const passwordHash = await bcrypt.hash("Demo1234!", 12);
+    const spoof = await prisma.user.create({
+      data: {
+        email: formerListedEmail,
+        passwordHash,
+        name: "Membre au courriel listé",
+      },
+    });
+    await prisma.organizationMember.create({
+      data: {
+        organizationId: demoOrgId,
+        userId: spoof.id,
+        role: "SALESPERSON",
+      },
+    });
+
+    const login = await loginHandler(
+      makeRequest("http://localhost/api/v1/auth/login", {
+        method: "POST",
+        body: JSON.stringify({
+          email: formerListedEmail,
+          password: "Demo1234!",
+        }),
+      }) as never,
+    );
+    expect(login.status).toBe(200);
+    const spoofToken = (await login.json()).accessToken as string;
+
+    process.env.PLATFORM_ADMIN_USER_IDS = platformAdminId;
+    const listed = await listAccessRequests(
+      makeRequest("http://localhost/api/v1/access-requests", {
+        headers: { Authorization: `Bearer ${spoofToken}` },
+      }),
+      { params: Promise.resolve({}) },
+    );
+    expect(listed.status).toBe(403);
   });
 
   it("limite le débit par adresse IP", async () => {
