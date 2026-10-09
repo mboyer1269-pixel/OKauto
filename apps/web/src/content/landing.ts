@@ -1,83 +1,74 @@
 /**
- * Textes de la page d’accueil publique.
- * BUILDER remplacera ce fichier : ne pas disperser de copies ailleurs.
- * Aucune statistique, aucun témoignage, aucun chiffre inventé.
+ * Textes validés de la page d’accueil publique.
+ * Ne pas paraphraser : le propriétaire a figé chaque mot.
+ * L’inscription publique reste fermée : « Créer mon espace » mène à /register (demande d’accès).
  */
 export const landingCopy = {
   meta: {
-    title: "Suivia — Inventaire et publications automobiles",
+    title: "Suivia Auto",
     description:
-      "Suivez chaque véhicule : inventaire synchronisé, décodage NIV, préparation d’annonce Marketplace et mention Carfax.",
+      "Suivia Auto prépare vos annonces Facebook Marketplace à partir de votre inventaire, et suit chaque publication jusqu’à la vente.",
   },
   nav: {
     login: "Se connecter",
-    request: "Demander un accès",
+    create: "Créer mon espace",
   },
   hero: {
-    kicker: "Pour les concessions du Québec",
-    title: "Suivre l’auto, de l’arrivée à la vente.",
-    lede: "Suivia rassemble l’inventaire, le décodage NIV, les photos et la préparation des annonces Facebook Marketplace dans un seul espace d’équipe. L’inscription publique est fermée : l’accès se fait sur invitation.",
-    loginCta: "Se connecter",
-    requestCta: "Demander un accès",
+    kicker: "Centre de publication automobile",
+    title: "Du NIV à vendu, chaque véhicule suivi.",
+    lede: "Suivia Auto prépare vos annonces Facebook Marketplace à partir de votre inventaire, et suit chaque publication jusqu’à la vente.",
+    primary: "Créer mon espace",
+    secondary: "Voir comment ça marche",
   },
   journey: {
-    kicker: "Le parcours",
-    title: "Une unité, un fil.",
-    hint: "Faites défiler pour suivre le véhicule.",
     steps: [
       {
         id: "vin",
         title: "NIV décodé",
-        text: "Un NIV valide est lu avec le service public NHTSA vPIC. Les champs vides de la fiche peuvent être complétés ; une saisie déjà présente n’est pas écrasée.",
+        text: "Entrez le NIV ou laissez la synchronisation l’apporter. Suivia remplit les champs vides : marque, modèle, année, version, carrosserie, traction, moteur, transmission. Les données de votre site gardent toujours la priorité.",
       },
       {
         id: "fiche",
         title: "Fiche complète",
-        text: "Photos, prix tout inclus, version, moteur et description restent attachés au véhicule. L’inventaire se synchronise depuis le site de la concession.",
+        text: "Photos, prix et description prêts au même endroit. La description est générée à partir de la fiche, et vous la modifiez au besoin.",
       },
       {
         id: "annonce",
-        title: "Annonce Marketplace prête",
-        text: "L’extension Chrome préremplit l’annonce Facebook. Vous relisez, puis vous publiez. Suivia ne clique pas à votre place.",
+        title: "Annonce Marketplace",
+        text: "L’extension Chrome remplit le formulaire Facebook à votre place. Vous vérifiez, puis vous cliquez sur Publier : vous gardez le contrôle.",
       },
       {
         id: "sold",
         title: "Vendu",
-        text: "Le statut passe à vendu dans Suivia. L’équipe voit la même fiche, sans chercher le véhicule dans plusieurs outils.",
+        text: "Le statut de chaque annonce est suivi, avec le vendeur responsable. Quand un véhicule est marqué vendu, votre équipe est avertie.",
       },
     ],
   },
-  features: {
-    kicker: "Ce que fait l’app",
-    title: "Les fonctions réellement en service.",
-    items: [
-      {
-        title: "Synchronisation de l’inventaire",
-        text: "Les véhicules du site concessionnaire arrivent dans Suivia avec photos, prix et caractéristiques, pour travailler sur le lot réel.",
-      },
-      {
-        title: "Décodage NIV",
-        text: "Le NIV est décodé (NHTSA vPIC, sans frais). La fiche reprend année, marque, modèle, carrosserie, motorisation et rouage lorsqu’ils manquent.",
-      },
-      {
-        title: "Assistant Marketplace",
-        text: "L’extension Chrome ouvre Facebook Marketplace, recopie le titre, le prix, la description et tente d’ajouter la photo principale. Le clic Publier reste le vôtre.",
-      },
-      {
-        title: "Mention Carfax",
-        text: "Les descriptions d’occasion et de démonstrateurs peuvent inclure une mention Carfax. Par défaut, sans URL, pour éviter un signalement d’annonce.",
-      },
-    ],
+  team: {
+    title: "Toute l’équipe, un seul inventaire",
+    text: "Propriétaire, administrateur, directeur ou vendeur : chacun voit ce qu’il doit voir. L’historique des publications et le journal d’activité restent consultables.",
   },
-  access: {
-    kicker: "Accès",
-    title: "Connexion, ou invitation.",
-    text: "Les inscriptions publiques sont fermées. Si votre concession utilise déjà Suivia, connectez-vous. Sinon, demandez une invitation à un administrateur de votre équipe.",
-    loginCta: "Se connecter",
-    closedNote:
-      "Aucun compte ne se crée depuis cette page. Un administrateur ouvre l’accès.",
+  carfax: "Rapport Carfax gratuit disponible, écrivez-nous !",
+  cta: {
+    title: "Prêt à publier plus vite ?",
+    button: "Créer mon espace",
   },
   footer: {
-    note: "La publication finale sur Facebook demeure sous votre contrôle.",
+    copyright: "© Suivia Auto",
+    privacy: "Confidentialité",
+    terms: "Conditions d’utilisation",
+    contact: "Nous joindre",
   },
+  legal: {
+    preparing: "Page en préparation",
+  },
+} as const;
+
+export const landingHrefs = {
+  login: "/login",
+  createSpace: "/register",
+  journey: "#parcours",
+  privacy: "/confidentialite",
+  terms: "/conditions",
+  contact: "/nous-joindre",
 } as const;

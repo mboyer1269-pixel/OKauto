@@ -1,31 +1,31 @@
 import Link from "next/link";
-import { ArrowRight, Check } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { ThemedBrandLockup } from "@/components/themed-brand-mark";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { landingCopy } from "@/content/landing";
+import { landingCopy, landingHrefs } from "@/content/landing";
 import { LandingJourney } from "./journey";
 
 export function LandingHomePage() {
-  const { hero, features, access, footer, nav } = landingCopy;
+  const { hero, team, carfax, cta, footer, nav } = landingCopy;
 
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="border-b border-border bg-background/90 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-4 lg:px-8">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-5 py-4 lg:px-8">
           <ThemedBrandLockup />
           <div className="flex items-center gap-2 sm:gap-3">
             <ThemeToggle />
             <Link
-              href="#acces"
-              className="hidden text-sm font-semibold text-primary hover:underline sm:inline dark:text-brand-cyan"
-            >
-              {nav.request}
-            </Link>
-            <Link
-              href="/login"
-              className="btn-secondary shrink-0 whitespace-nowrap text-sm"
+              href={landingHrefs.login}
+              className="shrink-0 whitespace-nowrap text-sm font-semibold text-primary hover:underline dark:text-brand-cyan"
             >
               {nav.login}
+            </Link>
+            <Link
+              href={landingHrefs.createSpace}
+              className="btn-primary shrink-0 whitespace-nowrap px-3 py-2 text-sm sm:px-4"
+            >
+              {nav.create}
             </Link>
           </div>
         </div>
@@ -45,14 +45,17 @@ export function LandingHomePage() {
               {hero.lede}
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <Link href="/login" className="btn-primary px-6 py-3 text-base">
-                {hero.loginCta} <ArrowRight className="ml-2" size={18} />
+              <Link
+                href={landingHrefs.createSpace}
+                className="btn-primary px-6 py-3 text-base"
+              >
+                {hero.primary} <ArrowRight className="ml-2" size={18} />
               </Link>
               <Link
-                href="#acces"
+                href={landingHrefs.journey}
                 className="btn border border-white/15 bg-white/5 px-6 py-3 text-base text-sidebar-foreground hover:bg-white/10"
               >
-                {hero.requestCta}
+                {hero.secondary}
               </Link>
             </div>
           </div>
@@ -60,58 +63,59 @@ export function LandingHomePage() {
 
         <LandingJourney />
 
-        <section className="mx-auto max-w-6xl px-5 py-16 lg:px-8 lg:py-20">
-          <p className="brand-label text-xs font-bold uppercase tracking-[0.22em] text-primary">
-            {features.kicker}
-          </p>
-          <h2 className="brand-display mt-3 max-w-2xl text-3xl font-bold tracking-tight sm:text-4xl">
-            {features.title}
+        <section className="mx-auto max-w-3xl px-5 py-16 lg:px-8 lg:py-20">
+          <h2 className="brand-display text-3xl font-bold tracking-tight sm:text-4xl">
+            {team.title}
           </h2>
-          <div className="mt-10 grid gap-4 md:grid-cols-2">
-            {features.items.map((item) => (
-              <article key={item.title} className="card">
-                <h3 className="font-semibold">{item.title}</h3>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                  {item.text}
-                </p>
-              </article>
-            ))}
-          </div>
+          <p className="mt-4 text-base leading-7 text-muted-foreground">
+            {team.text}
+          </p>
+        </section>
+
+        <section className="border-y border-border bg-muted/40 px-5 py-10 lg:px-8">
+          <p className="mx-auto max-w-3xl text-base font-medium">
+            <Link
+              href={landingHrefs.contact}
+              className="text-foreground underline-offset-4 hover:underline"
+            >
+              {carfax}
+            </Link>
+          </p>
         </section>
 
         <section
           id="acces"
-          className="border-t border-border bg-muted/40 px-5 py-16 lg:px-8"
+          className="bg-sidebar px-5 py-16 text-sidebar-foreground lg:px-8 lg:py-20"
         >
           <div className="mx-auto max-w-3xl">
-            <p className="brand-label text-xs font-bold uppercase tracking-[0.22em] text-primary">
-              {access.kicker}
-            </p>
-            <h2 className="brand-display mt-3 text-3xl font-bold tracking-tight">
-              {access.title}
+            <h2 className="brand-display text-3xl font-bold tracking-tight sm:text-4xl">
+              {cta.title}
             </h2>
-            <p className="mt-4 text-base leading-7 text-muted-foreground">
-              {access.text}
-            </p>
-            <div className="mt-6 flex flex-wrap items-center gap-3">
-              <Link href="/login" className="btn-primary px-6 py-3">
-                {access.loginCta}
-              </Link>
-              <span className="inline-flex items-start gap-2 text-sm text-muted-foreground">
-                <Check size={16} className="mt-0.5 text-primary" />
-                {access.closedNote}
-              </span>
-            </div>
+            <Link
+              href={landingHrefs.createSpace}
+              className="btn-primary mt-8 inline-flex px-6 py-3 text-base"
+            >
+              {cta.button} <ArrowRight className="ml-2" size={18} />
+            </Link>
           </div>
         </section>
       </main>
 
       <footer className="border-t border-border px-5 py-8 text-sm text-muted-foreground">
-        <div className="mx-auto flex max-w-6xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between lg:px-3">
+        <div className="mx-auto flex max-w-6xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between lg:px-3">
           <ThemedBrandLockup className="opacity-90" />
-          <p>
-            © {new Date().getFullYear()} Suivia. {footer.note}
-          </p>
+          <p>{footer.copyright}</p>
+          <nav className="flex flex-wrap gap-x-5 gap-y-2">
+            <Link href={landingHrefs.privacy} className="hover:text-foreground">
+              {footer.privacy}
+            </Link>
+            <Link href={landingHrefs.terms} className="hover:text-foreground">
+              {footer.terms}
+            </Link>
+            <Link href={landingHrefs.contact} className="hover:text-foreground">
+              {footer.contact}
+            </Link>
+          </nav>
         </div>
       </footer>
     </div>

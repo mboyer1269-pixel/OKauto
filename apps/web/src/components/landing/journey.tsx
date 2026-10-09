@@ -22,12 +22,10 @@ export function LandingJourney() {
   });
   const distance = useTransform(scrollYProgress, [0, 1], ["0%", "100%"]);
   const [active, setActive] = useState(0);
-  const copy = landingCopy.journey;
+  const steps = landingCopy.journey.steps;
 
   useMotionValueEvent(scrollYProgress, "change", (value) => {
-    setActive(
-      Math.min(copy.steps.length - 1, Math.floor(value * copy.steps.length)),
-    );
+    setActive(Math.min(steps.length - 1, Math.floor(value * steps.length)));
   });
 
   if (reduce) {
@@ -36,27 +34,19 @@ export function LandingJourney() {
         id="parcours"
         className="border-y border-border bg-background px-5 py-16 lg:px-8 lg:py-24"
       >
-        <div className="mx-auto max-w-5xl">
-          <p className="brand-label text-xs font-bold uppercase tracking-[0.22em] text-primary">
-            {copy.kicker}
-          </p>
-          <h2 className="brand-display mt-3 text-3xl font-bold tracking-tight sm:text-4xl">
-            {copy.title}
-          </h2>
-          <ol className="mt-10 grid gap-4 sm:grid-cols-2">
-            {copy.steps.map((step, index) => (
-              <li key={step.id} className="card">
-                <p className="font-mono text-xs text-muted-foreground">
-                  {String(index + 1).padStart(2, "0")}
-                </p>
-                <h3 className="mt-2 font-semibold">{step.title}</h3>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                  {step.text}
-                </p>
-              </li>
-            ))}
-          </ol>
-        </div>
+        <ol className="mx-auto grid max-w-5xl gap-4 sm:grid-cols-2">
+          {steps.map((step, index) => (
+            <li key={step.id} className="card">
+              <p className="font-mono text-xs text-muted-foreground">
+                {String(index + 1).padStart(2, "0")}
+              </p>
+              <h2 className="mt-2 font-semibold">{step.title}</h2>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                {step.text}
+              </p>
+            </li>
+          ))}
+        </ol>
       </section>
     );
   }
@@ -64,18 +54,9 @@ export function LandingJourney() {
   return (
     <section ref={ref} id="parcours" className="relative h-[280vh] bg-sidebar">
       <div className="sticky top-0 flex h-svh flex-col justify-center overflow-hidden px-5 py-8 lg:px-8">
-        <div className="mx-auto w-full max-w-5xl">
-          <p className="brand-label text-xs font-bold uppercase tracking-[0.22em] text-brand-cyan">
-            {copy.kicker}
-          </p>
-          <h2 className="brand-display mt-3 text-3xl font-bold tracking-tight text-sidebar-foreground sm:text-4xl">
-            {copy.title}
-          </h2>
-          <p className="mt-2 text-sm text-sidebar-foreground/60">{copy.hint}</p>
-        </div>
         <svg
           viewBox="0 0 1000 300"
-          className="mx-auto mt-6 h-44 w-full max-w-5xl sm:h-56"
+          className="mx-auto h-36 w-full max-w-5xl sm:h-48"
           aria-hidden
         >
           <path
@@ -105,8 +86,8 @@ export function LandingJourney() {
             </g>
           </motion.g>
         </svg>
-        <div className="mx-auto mt-4 grid w-full max-w-5xl gap-3 sm:grid-cols-4">
-          {copy.steps.map((step, index) => (
+        <div className="mx-auto mt-4 grid w-full max-w-5xl gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {steps.map((step, index) => (
             <article
               key={step.id}
               className={`rounded-2xl border p-4 text-sidebar-foreground transition-opacity duration-200 ${
@@ -118,7 +99,7 @@ export function LandingJourney() {
               <p className="font-mono text-[11px] text-brand-cyan">
                 {String(index + 1).padStart(2, "0")}
               </p>
-              <h3 className="mt-1 text-sm font-semibold">{step.title}</h3>
+              <h2 className="mt-1 text-sm font-semibold">{step.title}</h2>
               <p className="mt-1 text-xs leading-5 text-sidebar-foreground/70">
                 {step.text}
               </p>
