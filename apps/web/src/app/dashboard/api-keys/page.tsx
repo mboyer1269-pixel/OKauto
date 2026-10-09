@@ -128,11 +128,11 @@ function ApiKeysContent() {
 
   return (
     <div className="space-y-5">
-      <header className="overflow-hidden rounded-[1.5rem] bg-[#071426] text-white shadow-[0_24px_60px_-42px_rgba(7,20,38,0.95)]">
-        <div className="h-1.5 bg-[linear-gradient(90deg,#0b66d8_0%,#0b66d8_72%,#0e9f6e_72%,#0e9f6e_100%)]" />
+      <header className="overflow-hidden rounded-2xl bg-sidebar text-sidebar-foreground shadow-sm">
+        <div className="h-1.5 bg-gradient-to-r from-primary via-primary to-signal" />
         <div className="grid gap-6 px-5 py-6 sm:px-7 lg:grid-cols-[1fr_auto] lg:items-end">
           <div>
-            <div className="flex items-center gap-2 text-[#79b7ff]">
+            <div className="flex items-center gap-2 text-sidebar-accent">
               <KeyRound size={17} />
               <p className="brand-label text-[11px] font-bold uppercase tracking-[0.18em]">
                 Accès extension Chrome
@@ -141,12 +141,12 @@ function ApiKeysContent() {
             <h1 className="brand-display mt-3 text-3xl font-black tracking-[-0.04em] sm:text-4xl">
               Connecter mon poste de vente
             </h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
               Une clé par ordinateur. Elle permet à l’extension de lire votre
               inventaire et d’enregistrer les annonces publiées.
             </p>
           </div>
-          <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3">
+          <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-card/[0.06] px-4 py-3">
             <ShieldCheck className="text-emerald-400" size={22} />
             <div>
               <p className="text-2xl font-black tabular-nums">{activeCount}</p>
@@ -207,7 +207,7 @@ function ApiKeysContent() {
             </button>
           </div>
           <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-            <code className="min-w-0 flex-1 select-all break-all rounded-xl border border-emerald-200 bg-white p-3 text-xs text-slate-900">
+            <code className="min-w-0 flex-1 select-all break-all rounded-xl border border-signal/30 bg-card p-3 text-xs text-foreground">
               {createdKey}
             </code>
             <button
@@ -227,7 +227,7 @@ function ApiKeysContent() {
       )}
 
       <section
-        className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5"
+        className="rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-5"
         aria-labelledby="new-key-title"
       >
         <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
@@ -238,7 +238,7 @@ function ApiKeysContent() {
             >
               Nom du nouvel ordinateur
             </span>
-            <span className="mb-2 mt-1 block text-xs text-slate-500">
+            <span className="mb-2 mt-1 block text-xs text-muted-foreground">
               Exemple : Chrome — bureau de Michael
             </span>
             <input
@@ -272,11 +272,11 @@ function ApiKeysContent() {
           <div>
             <h2
               id="key-list-title"
-              className="text-lg font-black text-[#071426]"
+              className="text-lg font-black text-foreground"
             >
               Mes postes autorisés
             </h2>
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="mt-1 text-sm text-muted-foreground">
               Révoquez une clé si un ordinateur change de propriétaire.
             </p>
           </div>
@@ -301,7 +301,7 @@ function ApiKeysContent() {
             ))}
           </div>
         ) : keys.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-slate-300 bg-white py-12 text-center text-sm text-slate-500">
+          <div className="rounded-2xl border border-dashed border-border bg-card py-12 text-center text-sm text-muted-foreground">
             Aucun poste autorisé pour le moment.
           </div>
         ) : (
@@ -309,11 +309,11 @@ function ApiKeysContent() {
             {keys.map((key) => (
               <article
                 key={key.id}
-                className="content-auto grid gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-[1fr_auto] sm:items-center sm:p-5"
+                className="content-auto grid gap-4 rounded-2xl border border-border bg-card p-4 shadow-sm sm:grid-cols-[1fr_auto] sm:items-center sm:p-5"
               >
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="truncate font-black text-[#071426]">
+                    <h3 className="truncate font-black text-foreground">
                       {key.name}
                     </h3>
                     <span
@@ -324,10 +324,10 @@ function ApiKeysContent() {
                       {key.isActive ? "Active" : "Révoquée"}
                     </span>
                   </div>
-                  <p className="brand-label mt-2 text-xs font-bold text-[#0b4da2]">
+                  <p className="brand-label mt-2 text-xs font-bold text-primary">
                     {key.keyPrefix}…
                   </p>
-                  <p className="mt-2 text-xs leading-5 text-slate-500">
+                  <p className="mt-2 text-xs leading-5 text-muted-foreground">
                     Créée par {key.user.name} · {formatDateTime(key.createdAt)}{" "}
                     · Dernière utilisation :{" "}
                     {key.lastUsedAt ? formatDateTime(key.lastUsedAt) : "jamais"}

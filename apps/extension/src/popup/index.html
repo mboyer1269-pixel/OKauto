@@ -3,8 +3,21 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Suivia Auto</title>
+    <title>Suivia</title>
     <style>
+      :root {
+        --bg: #0a0c10;
+        --surface: #11141a;
+        --elevated: #171b22;
+        --border: #232833;
+        --text: #e8ecf2;
+        --muted: #8a93a3;
+        --primary: #2556e0;
+        --primary-fg: #ffffff;
+        --signal: #2ee6a6;
+        --amber: #ffb020;
+        --graphite: #111318;
+      }
       * {
         box-sizing: border-box;
         margin: 0;
@@ -12,25 +25,45 @@
       }
       body {
         width: 400px;
-        font-family: Aptos, system-ui, sans-serif;
-        background: #f4f7fb;
-        color: #071426;
+        font-family:
+          ui-sans-serif,
+          system-ui,
+          sans-serif;
+        background: var(--bg);
+        color: var(--text);
       }
       .header {
-        background: #071426;
-        color: white;
-        padding: 18px;
-        border-bottom: 3px solid #d6b75a;
+        background: var(--graphite);
+        color: var(--text);
+        padding: 16px 18px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .header svg {
+        width: 36px;
+        height: 36px;
+        flex-shrink: 0;
       }
       .header h1 {
-        font-size: 19px;
-        font-weight: 800;
-        letter-spacing: -0.03em;
+        font-size: 15px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        font-family: ui-monospace, monospace;
+      }
+      .header .descriptor {
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: var(--amber);
+        margin-top: 3px;
       }
       .header p {
         font-size: 12px;
-        opacity: 0.8;
-        margin-top: 2px;
+        color: var(--muted);
+        margin-top: 4px;
       }
       .content {
         padding: 16px;
@@ -38,24 +71,22 @@
       .search {
         margin-bottom: 10px;
       }
-      .settings {
-        padding: 16px;
-        border-bottom: 1px solid #e2e8f0;
-      }
       label {
         display: block;
         font-size: 12px;
         font-weight: 600;
         margin-bottom: 4px;
-        color: #475569;
+        color: var(--muted);
       }
       input {
         width: 100%;
         padding: 9px 10px;
-        border: 1px solid #cbd5e1;
+        border: 1px solid var(--border);
         border-radius: 9px;
         font-size: 13px;
         margin-bottom: 10px;
+        background: var(--surface);
+        color: var(--text);
       }
       button {
         padding: 8px 16px;
@@ -66,48 +97,43 @@
         cursor: pointer;
       }
       .btn-primary {
-        background: #0b4da2;
-        color: white;
+        background: var(--primary);
+        color: var(--primary-fg);
         width: 100%;
       }
       .btn-primary:hover {
-        background: #083d82;
-      }
-      .btn-secondary {
-        background: white;
-        color: #475569;
-        border: 1px solid #cbd5e1;
+        filter: brightness(1.08);
       }
       .btn-assist {
-        background: #0b4da2;
-        color: white;
+        background: var(--primary);
+        color: var(--primary-fg);
         padding: 7px 12px;
         font-size: 12px;
       }
       .vehicle-card {
-        background: white;
-        border: 1px solid #dbe4ef;
+        background: var(--surface);
+        border: 1px solid var(--border);
         border-radius: 12px;
         padding: 10px;
         margin-bottom: 8px;
         display: flex;
         gap: 10px;
         align-items: center;
-        box-shadow: 0 6px 18px -16px #071426;
       }
       .vehicle-card img {
         width: 68px;
         height: 51px;
         object-fit: cover;
         border-radius: 8px;
-        background: #f1f5f9;
+        background: var(--elevated);
+        filter: brightness(0.92);
       }
       .vehicle-placeholder {
         width: 68px;
         height: 51px;
         flex: 0 0 auto;
         border-radius: 8px;
-        background: #f1f5f9;
+        background: var(--elevated);
       }
       .btn-assist:disabled {
         cursor: not-allowed;
@@ -123,7 +149,7 @@
       }
       .vehicle-info p {
         font-size: 11px;
-        color: #64748b;
+        color: var(--muted);
       }
       .badge {
         display: inline-block;
@@ -133,18 +159,18 @@
         font-weight: 600;
       }
       .badge-listed {
-        background: #dbeafe;
-        color: #1d4ed8;
+        background: color-mix(in srgb, var(--signal) 18%, transparent);
+        color: var(--signal);
       }
       .status {
         text-align: center;
         padding: 20px;
-        color: #64748b;
+        color: var(--muted);
         font-size: 13px;
       }
       .error {
-        background: #fef2f2;
-        color: #dc2626;
+        background: #3a1618;
+        color: #ff5a5f;
         padding: 8px;
         border-radius: 6px;
         font-size: 12px;
@@ -152,7 +178,8 @@
       }
       .tabs {
         display: flex;
-        border-bottom: 1px solid #e2e8f0;
+        border-bottom: 1px solid var(--border);
+        background: var(--surface);
       }
       .tab {
         flex: 1;
@@ -161,16 +188,16 @@
         font-size: 13px;
         font-weight: 600;
         cursor: pointer;
-        color: #64748b;
+        color: var(--muted);
         border-bottom: 2px solid transparent;
       }
       .tab.active {
-        color: #0b4da2;
-        border-bottom-color: #0b4da2;
+        color: var(--amber);
+        border-bottom-color: var(--amber);
       }
       .compliance {
         font-size: 10px;
-        color: #94a3b8;
+        color: var(--muted);
         text-align: center;
         padding: 8px;
       }
@@ -178,8 +205,17 @@
   </head>
   <body>
     <div class="header">
-      <h1>Suivia Auto</h1>
-      <p id="org-name">Assistant de publication</p>
+      <!-- brand-mark -->
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" fill="none" aria-hidden="true">
+        <rect width="40" height="40" rx="8.80" fill="#111318"/>
+        <rect x="7.000" y="2.06" width="2.453" height="9.88" rx="0.981" fill="#FFB020"/><rect x="10.925" y="3.282" width="2.453" height="10.92" rx="0.981" fill="#FFB020"/><rect x="14.849" y="7.659" width="2.453" height="11.681" rx="0.981" fill="#FFB020"/><rect x="18.774" y="14.02" width="2.453" height="11.96" rx="0.981" fill="#FFB020"/><rect x="22.698" y="20.659" width="2.453" height="11.681" rx="0.981" fill="#FFB020"/><rect x="26.623" y="25.798" width="2.453" height="10.92" rx="0.981" fill="#FFB020"/><rect x="30.547" y="28.06" width="2.453" height="9.88" rx="0.981" fill="#FFB020"/>
+      </svg>
+      <!-- /brand-mark -->
+      <div>
+        <h1>SUIVIA</h1>
+        <div class="descriptor">Auto</div>
+        <p id="org-name">Assistant de publication</p>
+      </div>
     </div>
     <div class="tabs">
       <div class="tab active" data-tab="inventory">Inventaire</div>

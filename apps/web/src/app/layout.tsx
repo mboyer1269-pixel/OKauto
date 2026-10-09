@@ -1,11 +1,18 @@
 import type { Metadata } from "next";
+import { GeistSans } from "geist/font/sans";
+import { GeistMono } from "geist/font/mono";
 import "./globals.css";
 import { AuthProvider } from "@/components/auth-provider";
+import { ThemeProvider } from "@/components/theme-provider";
+import { Toaster } from "@/components/ui/sonner";
 
 export const metadata: Metadata = {
-  title: "Suivia Auto — Inventaire et publications automobiles",
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_APP_URL ?? "https://suivia.ca",
+  ),
+  title: "Suivia — Inventaire et publications automobiles",
   description:
-    "Suivez votre inventaire, préparez vos publications et travaillez efficacement en équipe.",
+    "Suivez votre inventaire, préparez vos publications et travaillez efficacement en équipe. Auto.",
 };
 
 export default function RootLayout({
@@ -14,9 +21,18 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="fr-CA">
-      <body>
-        <AuthProvider>{children}</AuthProvider>
+    <html
+      lang="fr-CA"
+      className={`${GeistSans.variable} ${GeistMono.variable}`}
+      suppressHydrationWarning
+    >
+      <body className="font-sans">
+        <ThemeProvider>
+          <AuthProvider>
+            {children}
+            <Toaster />
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

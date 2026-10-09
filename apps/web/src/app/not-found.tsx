@@ -2,11 +2,13 @@ import Link from "next/link";
 
 export default function NotFound() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
+    <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="text-center">
-        <h1 className="text-6xl font-bold text-brand-700">404</h1>
-        <p className="text-xl text-slate-600 mt-4 mb-8">Page introuvable</p>
-        <div className="flex gap-4 justify-center">
+        <h1 className="font-mono text-6xl font-bold text-primary">404</h1>
+        <p className="mb-8 mt-4 text-xl text-muted-foreground">
+          Page introuvable
+        </p>
+        <div className="flex justify-center gap-4">
           <Link href="/" className="btn-primary">
             Accueil
           </Link>

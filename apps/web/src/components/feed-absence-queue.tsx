@@ -77,9 +77,9 @@ export function FeedAbsenceQueue({
   const allSelected = selected.length === vehicles.length;
 
   return (
-    <section className="card mb-6 border-amber-200 bg-amber-50/60">
+    <section className="card mb-6 border-warning/30 bg-warning/10/60">
       <div className="flex items-start gap-3">
-        <AlertTriangle className="mt-0.5 text-amber-700" />
+        <AlertTriangle className="mt-0.5 text-warning" />
         <div className="min-w-0 flex-1">
           <h2 className="text-lg font-bold text-amber-950">
             Véhicules absents du flux à confirmer
@@ -95,7 +95,7 @@ export function FeedAbsenceQueue({
         </div>
       </div>
 
-      {error && <p className="mt-3 text-sm text-red-700">{error}</p>}
+      {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
 
       {canManage && (
         <div className="mt-4 flex flex-wrap gap-2">
@@ -131,7 +131,7 @@ export function FeedAbsenceQueue({
         {vehicles.map((vehicle) => (
           <li
             key={vehicle.id}
-            className="flex items-center gap-3 rounded-xl border border-amber-200 bg-white p-3"
+            className="flex items-center gap-3 rounded-xl border border-warning/30 bg-card p-3"
           >
             {canManage && (
               <input
@@ -149,7 +149,7 @@ export function FeedAbsenceQueue({
             )}
             <div className="min-w-0 flex-1">
               <p className="font-semibold">{vehicleName(vehicle)}</p>
-              <p className="text-sm text-slate-500">
+              <p className="text-sm text-muted-foreground">
                 Stock {vehicle.stockNumber ?? "—"} · NIV {vehicle.vin ?? "—"} ·{" "}
                 {formatCurrency(
                   vehicle.price == null ? null : Number(vehicle.price),

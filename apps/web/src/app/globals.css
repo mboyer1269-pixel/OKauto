@@ -2,48 +2,117 @@
 @import "tailwindcss/components";
 @import "tailwindcss/utilities";
 
-:root {
-  --foreground: #071426;
-  --background: #f3f7fb;
-  --card: #ffffff;
-  --border: #e2e8f0;
-  --muted: #64748b;
-  --primary: #0b66d8;
-  --primary-foreground: #ffffff;
-  --destructive: #ef4444;
-  --success: #22c55e;
-  --warning: #f59e0b;
-}
+@layer base {
+  :root {
+    --background: 220 23% 97%;
+    --foreground: 223 47% 7%;
+    --card: 0 0% 100%;
+    --card-foreground: 223 47% 7%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 223 47% 7%;
+    --primary: 224 75% 51%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 16% 93%;
+    --secondary-foreground: 223 47% 7%;
+    --muted: 220 16% 93%;
+    --muted-foreground: 218 12% 41%;
+    --accent: 220 16% 93%;
+    --accent-foreground: 223 47% 7%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 218 17% 91%;
+    --input: 218 17% 91%;
+    --ring: 224 75% 51%;
+    --radius: 0.75rem;
+    --signal: 161 83% 26%;
+    --signal-foreground: 0 0% 100%;
+    --warning: 26 90% 37%;
+    --warning-foreground: 0 0% 100%;
+    --sidebar: 223 17% 8%;
+    --sidebar-foreground: 216 28% 93%;
+    --sidebar-accent: 39 100% 56%;
+    --sidebar-border: 221 19% 17%;
+    --brand-graphite: 223 17% 8%;
+    --brand-amber: 39 100% 56%;
+    --brand-ivory: 43 26% 95%;
+    --electric: 224 75% 51%;
+  }
 
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family:
-    Aptos,
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
-  text-rendering: optimizeLegibility;
-  min-width: 320px;
+  .dark {
+    --background: 220 23% 5%;
+    --foreground: 216 28% 93%;
+    --card: 220 21% 8%;
+    --card-foreground: 216 28% 93%;
+    --popover: 218 19% 11%;
+    --popover-foreground: 216 28% 93%;
+    --primary: 224 75% 51%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 218 19% 11%;
+    --secondary-foreground: 216 28% 93%;
+    --muted: 218 19% 11%;
+    --muted-foreground: 218 12% 59%;
+    --accent: 218 19% 11%;
+    --accent-foreground: 216 28% 93%;
+    --destructive: 358 100% 68%;
+    --destructive-foreground: 223 47% 7%;
+    --border: 221 19% 17%;
+    --input: 221 19% 17%;
+    --ring: 221 100% 62%;
+    --signal: 159 79% 54%;
+    --signal-foreground: 220 23% 5%;
+    --warning: 39 100% 56%;
+    --warning-foreground: 220 23% 5%;
+    --sidebar: 223 17% 8%;
+    --sidebar-foreground: 216 28% 93%;
+    --sidebar-accent: 39 100% 56%;
+    --sidebar-border: 221 19% 17%;
+    --electric: 221 100% 62%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    color-scheme: light;
+  }
+
+  html.dark {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply min-w-[320px] bg-background text-foreground antialiased;
+    font-family: var(--font-geist-sans), system-ui, sans-serif;
+    text-rendering: optimizeLegibility;
+  }
+
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
 }
 
 .brand-display {
-  font-family: "Aptos Display", Aptos, system-ui, sans-serif;
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  letter-spacing: -0.03em;
 }
 
 .brand-label {
-  font-family: ui-monospace, "Cascadia Code", monospace;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
 }
 
 ::selection {
-  background: #bce6ff;
-  color: #07182d;
+  background: hsl(var(--primary) / 0.22);
+  color: hsl(var(--foreground));
 }
 
-:focus-visible {
-  outline-color: #0b66d8;
+.dark img.photo-dim {
+  filter: brightness(0.92);
 }
 
 .content-auto {
@@ -58,44 +127,45 @@ body {
     scroll-behavior: auto !important;
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
 
 @layer components {
   .btn {
-    @apply inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-bold transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none;
+    @apply inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50;
   }
   .btn-primary {
-    @apply btn bg-[#0b66d8] text-white hover:bg-[#0957b8];
+    @apply btn bg-primary text-primary-foreground hover:bg-primary/90;
   }
   .btn-secondary {
-    @apply btn bg-white text-slate-700 border border-slate-300 hover:bg-slate-50;
+    @apply btn border border-border bg-card text-foreground hover:bg-muted;
   }
   .btn-danger {
-    @apply btn bg-red-600 text-white hover:bg-red-700;
+    @apply btn bg-destructive text-destructive-foreground hover:bg-destructive/90;
   }
   .input {
-    @apply w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-950 placeholder:text-slate-400 focus:border-[#0b66d8] focus:outline-none focus:ring-2 focus:ring-[#0b66d8]/15;
+    @apply w-full rounded-xl border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20;
   }
   .card {
-    @apply rounded-2xl border border-slate-200 bg-white p-5 shadow-sm;
+    @apply rounded-2xl border border-border bg-card p-5 text-card-foreground shadow-sm;
   }
   .badge {
     @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
   }
   .badge-success {
-    @apply badge bg-green-100 text-green-800;
+    @apply badge bg-signal/15 text-signal;
   }
   .badge-warning {
-    @apply badge bg-amber-100 text-amber-800;
+    @apply badge bg-warning/15 text-warning;
   }
   .badge-danger {
-    @apply badge bg-red-100 text-red-800;
+    @apply badge bg-destructive/15 text-destructive;
   }
   .badge-info {
-    @apply badge bg-blue-100 text-blue-800;
+    @apply badge bg-primary/10 text-primary;
   }
   .badge-neutral {
-    @apply badge bg-slate-100 text-slate-700;
+    @apply badge bg-muted text-muted-foreground;
   }
 }

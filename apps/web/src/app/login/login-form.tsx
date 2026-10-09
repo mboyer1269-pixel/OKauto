@@ -33,14 +33,14 @@ export function LoginForm({
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[radial-gradient(circle_at_top,#d9f0ff_0%,#f6faff_42%,#edf3f9_100%)] px-4">
+    <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="card w-full max-w-md rounded-2xl p-7 sm:p-8">
-        <div className="text-center mb-8">
+        <div className="mb-8 text-center">
           <BrandMark className="justify-center" />
-          <h1 className="brand-display mt-6 text-2xl font-black tracking-tight text-slate-950">
+          <h1 className="brand-display mt-6 text-2xl font-bold tracking-tight">
             Bon retour
           </h1>
-          <p className="text-slate-600 mt-2">
+          <p className="mt-2 text-muted-foreground">
             Connectez-vous à votre espace concessionnaire.
           </p>
         </div>
@@ -48,7 +48,7 @@ export function LoginForm({
           {error && (
             <div
               role="alert"
-              className="p-3 bg-red-50 text-red-700 rounded-lg text-sm"
+              className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive"
             >
               {error}
             </div>
@@ -95,23 +95,23 @@ export function LoginForm({
           </button>
         </form>
         {publicSignupEnabled ? (
-          <p className="text-center text-sm text-slate-600 mt-6">
-            Nouveau sur Suivia Auto?{" "}
+          <p className="text-center text-sm text-muted-foreground mt-6">
+            Nouveau sur Suivia?{" "}
             <Link
               href="/register"
-              className="font-semibold text-brand-600 hover:underline"
+              className="font-semibold text-primary hover:underline"
             >
               Créer un espace
             </Link>
           </p>
         ) : (
-          <p className="text-center text-sm text-slate-600 mt-6">
+          <p className="text-center text-sm text-muted-foreground mt-6">
             L’accès se fait sur invitation d’un administrateur de votre
             concession.
           </p>
         )}
         {process.env.NODE_ENV !== "production" && (
-          <div className="mt-6 p-3 bg-slate-50 rounded-lg text-xs text-slate-500">
+          <div className="mt-6 rounded-lg bg-muted p-3 text-xs text-muted-foreground">
             <p className="font-medium mb-1">Accès de démonstration locale :</p>
             <p>owner@demo.okauto.local / Demo1234!</p>
           </div>

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { ProtectedRoute } from "@/components/protected-route";
 import { useAuth } from "@/components/auth-provider";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export default function SettingsPage() {
   return (
@@ -137,7 +138,13 @@ function SettingsContent() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-6">Paramètres</h1>
+      <h1 className="mb-6 text-2xl font-bold">Paramètres</h1>
+      <div className="card mb-6 max-w-lg">
+        <ThemeToggle variant="list" />
+        <p className="mt-3 text-sm text-muted-foreground">
+          Clair le jour, sombre le soir — ou suivez le système.
+        </p>
+      </div>
       <form onSubmit={handleSave} className="card max-w-lg space-y-4">
         {Object.entries(profileFields).map(([field, label]) => (
           <div key={field}>
@@ -159,7 +166,7 @@ function SettingsContent() {
         ))}
 
         <h2 className="pt-2 font-semibold">Conformité et annonces</h2>
-        <p className="text-sm text-slate-600">
+        <p className="text-sm text-muted-foreground">
           Je confirme que les prix de l’inventaire synchronisé sont des{" "}
           <strong>prix tout inclus</strong> : transport, préparation, livraison,
           frais d’administration et taxe d’accise sur les climatiseurs compris.
@@ -175,7 +182,7 @@ function SettingsContent() {
           </a>
         </p>
         {allInConfirmedAt ? (
-          <p className="text-sm text-emerald-800">
+          <p className="text-sm text-signal">
             Confirmé le {new Date(allInConfirmedAt).toLocaleString("fr-CA")}.
           </p>
         ) : canEdit ? (
@@ -183,7 +190,7 @@ function SettingsContent() {
             Confirmer les prix tout inclus
           </button>
         ) : (
-          <p className="text-sm text-amber-800">
+          <p className="text-sm text-warning">
             En attente de confirmation par la direction.
           </p>
         )}
@@ -257,7 +264,7 @@ function SettingsContent() {
           <option value="fr">Français seulement</option>
           <option value="fr_en">Français puis anglais</option>
         </select>
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-muted-foreground">
           La version française apparaît en premier et reste au moins aussi
           complète (Charte de la langue française).
         </p>
@@ -306,14 +313,14 @@ function SettingsContent() {
         <h2 className="font-semibold mb-2">
           Catalogue Meta (publicités d’inventaire)
         </h2>
-        <p className="text-sm text-slate-600 mb-3">
+        <p className="mb-3 text-sm text-muted-foreground">
           Diffusez tout votre inventaire par la voie officielle de Meta. Suivia
           fournit le flux CSV ; vous gardez le contrôle des campagnes et du
           budget dans le Gestionnaire de publicités. Suivia ne crée aucune
           publicité et n’engage aucune dépense.
         </p>
         {catalog?.preview && (
-          <p className="text-sm text-slate-700 mb-3">
+          <p className="mb-3 text-sm text-foreground">
             <strong>{catalog.preview.included} véhicules inclus</strong> ·{" "}
             {catalog.preview.excluded.length} exclus ·{" "}
             {Array.isArray(catalog.preview.warnings)
@@ -323,12 +330,12 @@ function SettingsContent() {
           </p>
         )}
         {catalog?.feedUrl && (
-          <p className="mb-3 break-all rounded bg-slate-100 px-2 py-1 text-xs">
+          <p className="mb-3 break-all rounded bg-muted px-2 py-1 text-xs">
             {catalog.feedUrl}
           </p>
         )}
         {catalogMessage && (
-          <p className="mb-3 text-sm text-slate-700">{catalogMessage}</p>
+          <p className="mb-3 text-sm">{catalogMessage}</p>
         )}
         {canEdit && (
           <div className="flex flex-wrap gap-2">
@@ -358,7 +365,7 @@ function SettingsContent() {
             )}
           </div>
         )}
-        <ol className="mt-4 list-decimal space-y-1 pl-5 text-sm text-slate-600">
+        <ol className="mt-4 list-decimal space-y-1 pl-5 text-sm text-muted-foreground">
           <li>Commerce Manager &gt; Ajouter un catalogue &gt; Auto &gt; Véhicules.</li>
           <li>Sources de données &gt; Flux planifié &gt; collez le lien.</li>
           <li>Fréquence : toutes les heures ou quotidienne.</li>
@@ -373,16 +380,16 @@ function SettingsContent() {
         <h2 className="font-semibold mb-2">
           Assistant Chrome — parcours express
         </h2>
-        <p className="text-sm text-slate-600 mb-3">
+        <p className="mb-3 text-sm text-muted-foreground">
           Le Centre fonctionne sans extension. Avec l’assistant, le bouton «
           Publier sur Marketplace » ouvre Facebook, préremplit les champs et
           tente d’ajouter la photo principale. Vous gardez la vérification et le
           clic final « Publier ».
         </p>
-        <ol className="text-sm text-slate-600 list-decimal list-inside space-y-1">
+        <ol className="list-inside list-decimal space-y-1 text-sm text-muted-foreground">
           <li>
             Ouvrez{" "}
-            <code className="bg-slate-100 px-1 rounded">
+            <code className="rounded bg-muted px-1">
               chrome://extensions
             </code>
           </li>
@@ -392,7 +399,7 @@ function SettingsContent() {
           </li>
           <li>
             Choisissez{" "}
-            <code className="bg-slate-100 px-1 rounded">
+            <code className="rounded bg-muted px-1">
               apps/extension/dist
             </code>
           </li>

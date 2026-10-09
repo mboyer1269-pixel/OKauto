@@ -138,7 +138,7 @@ function SyncHealthContent() {
   };
 
   if (loading)
-    return <div className="animate-pulse h-32 bg-slate-200 rounded-xl" />;
+    return <div className="animate-pulse h-32 bg-muted rounded-xl" />;
   if (error || !data) {
     return (
       <div className="card mx-auto max-w-xl text-center">
@@ -146,7 +146,7 @@ function SyncHealthContent() {
         <h1 className="mt-3 text-xl font-bold">
           Impossible de charger la synchronisation
         </h1>
-        <p className="mt-2 text-sm text-slate-600">
+        <p className="mt-2 text-sm text-muted-foreground">
           {error || "Une erreur est survenue."}
         </p>
         <button
@@ -164,7 +164,7 @@ function SyncHealthContent() {
     healthy: <CheckCircle className="text-green-600" size={24} />,
     review: <AlertTriangle className="text-amber-600" size={24} />,
     degraded: <AlertTriangle className="text-amber-600" size={24} />,
-    no_sources: <RefreshCw className="text-slate-400" size={24} />,
+    no_sources: <RefreshCw className="text-muted-foreground" size={24} />,
   }[data.health.status] ?? <Activity size={24} />;
 
   return (
@@ -244,7 +244,7 @@ function SyncHealthContent() {
           <p className="font-semibold capitalize">
             {formatStatus(data.health.status)}
           </p>
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-muted-foreground">
             {data.health.activeSources} source(s) active(s) · Dernière
             synchronisation : {formatDateTime(data.health.lastSyncAt)}
           </p>
@@ -261,7 +261,7 @@ function SyncHealthContent() {
         <div className="card">
           <h2 className="font-semibold mb-4">Sources de synchronisation</h2>
           {data.sources.length === 0 ? (
-            <p className="text-sm text-slate-500">
+            <p className="text-sm text-muted-foreground">
               Aucune source configurée. Ajoutez-en une pour synchroniser
               l’inventaire depuis une URL.
             </p>
@@ -272,7 +272,7 @@ function SyncHealthContent() {
                   <div className="flex justify-between items-start">
                     <div>
                       <span className="font-medium">{s.name}</span>
-                      <span className="text-xs text-slate-400 ml-2">
+                      <span className="text-xs text-muted-foreground ml-2">
                         ({s.adapter})
                       </span>
                     </div>
@@ -304,7 +304,7 @@ function SyncHealthContent() {
                       </div>
                     )}
                   </div>
-                  <p className="text-xs text-slate-500 truncate">{s.url}</p>
+                  <p className="text-xs text-muted-foreground truncate">{s.url}</p>
                   <p className="text-xs mt-1">
                     Toutes les {s.intervalMinutes} min ·{" "}
                     {s.lastSyncStatus ? (
@@ -336,7 +336,7 @@ function SyncHealthContent() {
         <div className="card">
           <h2 className="font-semibold mb-4">Synchronisations récentes</h2>
           {data.recentRuns.length === 0 ? (
-            <p className="text-sm text-slate-500">
+            <p className="text-sm text-muted-foreground">
               Aucune synchronisation pour le moment.
             </p>
           ) : (
@@ -348,12 +348,12 @@ function SyncHealthContent() {
                 >
                   <div>
                     <span className="font-medium">{run.syncSource.name}</span>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-muted-foreground">
                       {run.successCount}/{run.receivedCount} véhicule(s) ·{" "}
                       {run.errorCount} erreur(s) · {run.soldCount} retiré(s)
                     </p>
                     {run.error && (
-                      <p className="mt-1 max-w-sm text-xs text-amber-700">
+                      <p className="mt-1 max-w-sm text-xs text-warning">
                         {run.error}
                       </p>
                     )}
@@ -362,7 +362,7 @@ function SyncHealthContent() {
                     <span className={getStatusBadgeClass(run.status)}>
                       {formatStatus(run.status)}
                     </span>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-muted-foreground">
                       {formatDateTime(run.startedAt)}
                     </p>
                   </div>

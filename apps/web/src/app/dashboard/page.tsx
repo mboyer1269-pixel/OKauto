@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { ProtectedRoute } from "@/components/protected-route";
 import { useAuth } from "@/components/auth-provider";
+import { FadeIn } from "@/components/fade-in";
 import { formatCurrency, formatDateTime, formatNumber } from "@/lib/utils";
 
 interface DashboardStats {
@@ -109,10 +110,10 @@ function DashboardContent() {
   if (loading) {
     return (
       <div className="animate-pulse space-y-4">
-        <div className="h-44 rounded-2xl bg-slate-200" />
+        <div className="h-44 rounded-2xl bg-muted" />
         <div className="grid gap-4 md:grid-cols-3">
           {[1, 2, 3].map((item) => (
-            <div key={item} className="h-28 rounded-xl bg-slate-200" />
+            <div key={item} className="h-28 rounded-xl bg-muted" />
           ))}
         </div>
       </div>
@@ -122,11 +123,11 @@ function DashboardContent() {
   if (error || !stats) {
     return (
       <div className="card mx-auto max-w-xl text-center">
-        <WifiOff className="mx-auto text-slate-400" />
+        <WifiOff className="mx-auto text-muted-foreground" />
         <h1 className="mt-3 text-xl font-bold">
           Impossible de charger le tableau de bord
         </h1>
-        <p className="mt-2 text-sm text-slate-600">{error}</p>
+        <p className="mt-2 text-sm text-muted-foreground">{error}</p>
         <button type="button" className="btn-primary mt-5" onClick={load}>
           Réessayer
         </button>
@@ -141,19 +142,20 @@ function DashboardContent() {
   const remaining = queue?.remainingThisMonth ?? 0;
   const monthlyLimit = queue?.monthlyLimit ?? 5;
   const pendingFeed = stats.pendingFeedReview ?? 0;
+  const ageBuckets = ageFromPicks(queue?.todayPicks ?? []);
 
   return (
-    <div className="space-y-7">
-      <section className="overflow-hidden rounded-2xl bg-[#0b1320] text-white shadow-sm">
+    <FadeIn className="space-y-7">
+      <section className="overflow-hidden rounded-2xl bg-sidebar text-sidebar-foreground shadow-sm">
         <div className="grid gap-6 px-6 py-7 lg:grid-cols-[1fr_auto] lg:items-end lg:px-8">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-300">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-sidebar-accent">
               Brief du matin
             </p>
             <h1 className="mt-2 text-3xl font-bold tracking-tight">
               Bonjour{firstName ? `, ${firstName}` : ""}.
             </h1>
-            <p className="mt-2 max-w-xl text-sm leading-6 text-slate-300">
+            <p className="mt-2 max-w-xl text-sm leading-6 text-sidebar-foreground/70">
               Limite indiquée : {queue?.usedThisMonth ?? 0} / {monthlyLimit}{" "}
               nouvelles annonces ce mois-ci ({remaining} restante
               {remaining > 1 ? "s" : ""}). Ce n’est pas une constante Meta
@@ -161,24 +163,26 @@ function DashboardContent() {
               par les retraits, puis les absents du flux, puis Aujourd’hui.
             </p>
           </div>
-          <Link
-            href="/dashboard/listings"
-            className="btn bg-blue-500 text-white hover:bg-blue-400"
-          >
+          <Link href="/dashboard/listings" className="btn-primary">
             Ouvrir le centre de publication{" "}
             <ArrowRight className="ml-2" size={16} />
           </Link>
         </div>
-        <div className="grid border-t border-white/10 sm:grid-cols-3">
+        <div className="grid border-t border-white/10 sm:grid-cols-4">
+          <HeroMetric label="Prêts à publier" value={stats.readyToList} />
           <HeroMetric
-            label="Inventaire disponible"
-            value={stats.availableVehicles}
+            label="Publications / quota"
+            value={queue?.usedThisMonth ?? 0}
+            suffix={`/ ${monthlyLimit}`}
           />
-          <HeroMetric label="Sans annonce active" value={stats.readyToList} />
           <HeroMetric
-            label="À retirer maintenant"
-            value={stats.staleListings}
-            alert={stats.staleListings > 0}
+            label="À renouveler"
+            value={queue?.dueForRenewalCount ?? 0}
+            alert={(queue?.dueForRenewalCount ?? 0) > 0}
+          />
+          <HeroMetric
+            label="Leads ouverts"
+            value={queue?.openLeadCount ?? 0}
           />
         </div>
       </section>
@@ -186,12 +190,12 @@ function DashboardContent() {
       <section aria-labelledby="priorities-heading">
         <div className="mb-3 flex items-end justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">
+            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
               Ordre recommandé
             </p>
             <h2
               id="priorities-heading"
-              className="mt-1 text-xl font-bold text-slate-950"
+              className="mt-1 text-xl font-bold text-foreground"
             >
               Priorités opérationnelles
             </h2>
@@ -236,16 +240,16 @@ function DashboardContent() {
       {pendingFeed > 0 && (
         <Link
           href="/dashboard/sync"
-          className="card flex items-start gap-4 border-amber-200 bg-amber-50 p-5 hover:border-amber-300"
+          className="card flex items-start gap-4 border-warning/30 bg-warning/10 p-5 hover:border-warning"
         >
-          <AlertTriangle className="mt-0.5 text-amber-700" />
+          <AlertTriangle className="mt-0.5 text-warning" />
           <div>
-            <h2 className="font-bold text-amber-950">
+            <h2 className="font-bold">
               {formatNumber(pendingFeed)} véhicule
               {pendingFeed > 1 ? "s" : ""} absent
               {pendingFeed > 1 ? "s" : ""} du flux à confirmer
             </h2>
-            <p className="mt-1 text-sm text-amber-800">
+            <p className="mt-1 text-sm text-muted-foreground">
               Le garde-fou n’a marqué aucun vendu. Confirmez vendu ou garder
               dans Synchronisation.
             </p>
@@ -257,14 +261,12 @@ function DashboardContent() {
         <section className="card p-5 sm:p-6">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">
+              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                 Selon l’âge en stock
               </p>
-              <h2 className="mt-1 text-lg font-bold text-slate-950">
-                File du jour
-              </h2>
+              <h2 className="mt-1 text-lg font-bold">File du jour</h2>
             </div>
-            <p className="text-sm text-slate-500">
+            <p className="text-sm text-muted-foreground">
               {queue.usedThisMonth}/{monthlyLimit} ce mois-ci
             </p>
           </div>
@@ -272,26 +274,24 @@ function DashboardContent() {
             {queue.todayPicks.map((pick) => (
               <div
                 key={pick.id}
-                className="flex flex-col gap-3 rounded-xl border border-slate-200 p-3 sm:flex-row sm:items-center"
+                className="flex flex-col gap-3 rounded-xl border border-border p-3 sm:flex-row sm:items-center"
               >
-                <div className="h-16 w-full overflow-hidden rounded-lg bg-slate-100 sm:w-24">
+                <div className="h-20 w-full overflow-hidden rounded-lg bg-muted sm:w-32">
                   {pick.photoUrl && (
                     <img
                       src={pick.photoUrl}
                       alt=""
-                      className="h-full w-full object-cover"
+                      className="photo-dim h-full w-full object-cover"
                     />
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="font-bold text-slate-950">
-                    {vehicleLabel(pick)}
-                  </p>
-                  <p className="text-sm text-slate-500">
+                  <p className="font-bold">{vehicleLabel(pick)}</p>
+                  <p className="text-sm text-muted-foreground">
                     Stock {pick.stockNumber ?? "—"} · {pick.daysInStock} j en
                     stock · {formatCurrency(pick.advertisedPrice)}
                   </p>
-                  <p className="mt-1 text-xs text-slate-500">
+                  <p className="mt-1 text-xs text-muted-foreground">
                     {pick.reasons[0]}
                   </p>
                 </div>
@@ -308,19 +308,45 @@ function DashboardContent() {
       )}
 
       <section className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
-        <div className="card p-5 sm:p-6">
-          <div className="flex items-start justify-between gap-4">
+        <div className="card space-y-5 p-5 sm:p-6">
+          <div>
+            <h2 className="font-bold">Âge de l’inventaire (file du jour)</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Répartition des unités déjà dans Aujourd’hui. Une carte complète
+              du lot suivra quand l’API exposera les buckets d’âge.
+            </p>
+            <div className="mt-3 flex h-3 overflow-hidden rounded-full bg-muted">
+              <span
+                className="bg-signal"
+                style={{ width: `${ageBuckets.fresh}%` }}
+              />
+              <span
+                className="bg-warning"
+                style={{ width: `${ageBuckets.aging}%` }}
+              />
+              <span
+                className="bg-destructive"
+                style={{ width: `${ageBuckets.old}%` }}
+              />
+            </div>
+            <ul className="mt-2 flex flex-wrap gap-4 text-xs text-muted-foreground">
+              <li>&lt; 30 j · vert</li>
+              <li>30–60 j · ambre</li>
+              <li>&gt; 60 j · rouge</li>
+            </ul>
+          </div>
+          <div className="flex items-start justify-between gap-4 border-t border-border pt-4">
             <div className="flex items-start gap-3">
               <div
-                className={`rounded-lg p-2 ${syncHealthy ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}
+                className={`rounded-lg p-2 ${syncHealthy ? "bg-signal/15 text-signal" : "bg-destructive/15 text-destructive"}`}
               >
                 <RefreshCw size={20} />
               </div>
               <div>
-                <h2 className="font-bold text-slate-950">
+                <h2 className="font-bold">
                   Synchronisation {organizationName}
                 </h2>
-                <p className="mt-1 text-sm text-slate-600">
+                <p className="mt-1 text-sm text-muted-foreground">
                   {syncHealthy
                     ? "Connectée et à jour"
                     : "Une vérification est requise"}
@@ -331,14 +357,14 @@ function DashboardContent() {
               {syncHealthy ? "Opérationnelle" : "À vérifier"}
             </span>
           </div>
-          <div className="mt-5 flex flex-col gap-3 border-t pt-4 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
             <span className="flex items-center gap-2">
               <Clock3 size={16} /> Dernière réussite :{" "}
               {formatDateTime(sync?.lastSyncAt)}
             </span>
             <Link
               href="/dashboard/sync"
-              className="font-semibold text-brand-700 hover:underline"
+              className="font-semibold text-primary hover:underline"
             >
               Voir la synchronisation
             </Link>
@@ -347,32 +373,32 @@ function DashboardContent() {
 
         <div className="grid gap-4">
           <div className="card flex items-center gap-4 p-5 sm:p-6">
-            <div className="rounded-xl bg-slate-100 p-3 text-slate-700">
+            <div className="rounded-xl bg-muted p-3 text-foreground">
               <Car size={24} />
             </div>
             <div>
-              <p className="text-sm text-slate-500">Inventaire total</p>
-              <p className="text-2xl font-bold tabular-nums text-slate-950">
+              <p className="text-sm text-muted-foreground">Inventaire total</p>
+              <p className="font-mono text-2xl font-bold tabular-nums">
                 {formatNumber(stats.totalVehicles)}
               </p>
               <Link
                 href="/dashboard/inventory"
-                className="mt-1 inline-block text-sm font-semibold text-brand-700 hover:underline"
+                className="mt-1 inline-block text-sm font-semibold text-primary hover:underline"
               >
                 Parcourir les véhicules
               </Link>
             </div>
           </div>
           <div className="card flex items-center gap-4 p-5">
-            <MessageSquare className="text-slate-600" />
+            <MessageSquare className="text-muted-foreground" />
             <div>
-              <p className="text-sm text-slate-500">Leads ouverts</p>
+              <p className="text-sm text-muted-foreground">Leads ouverts</p>
               <p className="text-xl font-bold">
                 {formatNumber(queue?.openLeadCount ?? 0)}
               </p>
               <Link
                 href="/dashboard/leads"
-                className="text-sm font-semibold text-brand-700 hover:underline"
+                className="text-sm font-semibold text-primary hover:underline"
               >
                 Ouvrir le carnet
               </Link>
@@ -391,34 +417,59 @@ function DashboardContent() {
               link.click();
               URL.revokeObjectURL(url);
             }}
-            className="card flex items-center gap-3 p-5 text-left text-sm font-semibold text-brand-700"
+            className="card flex items-center gap-3 p-5 text-left text-sm font-semibold text-primary"
           >
             <Download size={18} /> Exporter le catalogue Meta
           </button>
         </div>
       </section>
-    </div>
+    </FadeIn>
   );
+}
+
+function ageFromPicks(picks: TodayPick[]) {
+  if (picks.length === 0) return { fresh: 0, aging: 0, old: 0 };
+  let fresh = 0;
+  let aging = 0;
+  let old = 0;
+  for (const pick of picks) {
+    if (pick.daysInStock < 30) fresh += 1;
+    else if (pick.daysInStock <= 60) aging += 1;
+    else old += 1;
+  }
+  const total = picks.length;
+  return {
+    fresh: Math.round((fresh / total) * 100),
+    aging: Math.round((aging / total) * 100),
+    old: Math.round((old / total) * 100),
+  };
 }
 
 function HeroMetric({
   label,
   value,
   alert = false,
+  suffix,
 }: {
   label: string;
   value: number;
   alert?: boolean;
+  suffix?: string;
 }) {
   return (
     <div className="border-b border-white/10 px-6 py-4 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0 lg:px-8">
-      <p className="text-xs font-medium uppercase tracking-wider text-slate-400">
+      <p className="text-xs font-medium uppercase tracking-wider text-sidebar-foreground/50">
         {label}
       </p>
       <p
-        className={`mt-1 text-2xl font-bold tabular-nums ${alert ? "text-amber-300" : "text-white"}`}
+        className={`mt-1 font-mono text-2xl font-bold tabular-nums ${alert ? "text-warning" : "text-sidebar-foreground"}`}
       >
         {formatNumber(value)}
+        {suffix ? (
+          <span className="ml-1 text-sm font-medium text-sidebar-foreground/50">
+            {suffix}
+          </span>
+        ) : null}
       </p>
     </div>
   );
@@ -442,18 +493,18 @@ function PriorityCard({
   tone: "amber" | "green" | "blue" | "slate";
 }) {
   const tones = {
-    amber: "bg-amber-100 text-amber-800",
-    green: "bg-emerald-100 text-emerald-800",
-    blue: "bg-blue-100 text-blue-800",
-    slate: "bg-slate-100 text-slate-700",
+    amber: "bg-warning/15 text-warning",
+    green: "bg-signal/15 text-signal",
+    blue: "bg-primary/10 text-primary",
+    slate: "bg-muted text-muted-foreground",
   };
   return (
     <Link
       href={href}
-      className="card group block p-5 transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
+      className="card group block p-5 transition hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md"
     >
       <div className="flex items-start justify-between">
-        <span className="font-mono text-xs font-bold tracking-widest text-slate-400">
+        <span className="font-mono text-xs font-bold tracking-widest text-muted-foreground">
           {step}
         </span>
         <span className={`rounded-lg p-2 ${tones[tone]}`}>
@@ -462,10 +513,12 @@ function PriorityCard({
       </div>
       <div className="mt-5 flex items-end justify-between gap-3">
         <div>
-          <h3 className="font-bold text-slate-950">{title}</h3>
-          <p className="mt-1 text-sm leading-5 text-slate-500">{detail}</p>
+          <h3 className="font-bold">{title}</h3>
+          <p className="mt-1 text-sm leading-5 text-muted-foreground">
+            {detail}
+          </p>
         </div>
-        <span className="text-3xl font-bold tabular-nums text-slate-950">
+        <span className="font-mono text-3xl font-bold tabular-nums">
           {formatNumber(value)}
         </span>
       </div>

@@ -96,7 +96,7 @@ export function PhotoManager({ vehicleId, photos, onUpdate }: PhotoManagerProps)
 
   return (
     <div className="card">
-      <h2 className="font-semibold mb-3">Photos</h2>
+      <h2 className="mb-3 font-semibold">Photos</h2>
 
       {photos.length > 0 ? (
         <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-4">
@@ -104,7 +104,9 @@ export function PhotoManager({ vehicleId, photos, onUpdate }: PhotoManagerProps)
             <div key={p.id} className="relative group">
               <img src={p.url} alt="" className="w-full h-24 object-cover rounded-lg" />
               {p.isPrimary && (
-                <span className="absolute top-1 left-1 text-[10px] bg-brand-600 text-white px-1 rounded">Primary</span>
+                <span className="absolute left-1 top-1 rounded bg-primary px-1 text-[10px] text-primary-foreground">
+                  Principale
+                </span>
               )}
               <button
                 onClick={() => handleDelete(p.id)}
@@ -116,7 +118,7 @@ export function PhotoManager({ vehicleId, photos, onUpdate }: PhotoManagerProps)
           ))}
         </div>
       ) : (
-        <p className="text-sm text-slate-500 mb-4">No photos yet.</p>
+        <p className="mb-4 text-sm text-muted-foreground">Aucune photo pour le moment.</p>
       )}
 
       <div className="flex flex-wrap gap-2">
@@ -136,7 +138,7 @@ export function PhotoManager({ vehicleId, photos, onUpdate }: PhotoManagerProps)
         </div>
       </div>
       {storageConfigured === false && (
-        <p className="text-xs text-amber-600 mt-2">
+        <p className="mt-2 text-xs text-warning">
           <ImagePlus size={12} className="inline mr-1" />
           S3 not configured — use URL input or set AWS_S3_* env vars.
         </p>

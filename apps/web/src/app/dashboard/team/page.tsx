@@ -224,11 +224,11 @@ function TeamContent() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
             Accès et responsabilités
           </p>
-          <h1 className="mt-1 text-2xl font-bold text-slate-950">Équipe</h1>
-          <p className="mt-1 text-sm text-slate-600">
+          <h1 className="mt-1 text-2xl font-bold text-foreground">Équipe</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
             {members.length} membre{members.length === 1 ? "" : "s"}{" "}
             {members.length === 1 ? "peut" : "peuvent"} accéder à Suivia Auto.
           </p>
@@ -246,13 +246,13 @@ function TeamContent() {
 
       {createdMember && (
         <section
-          className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5"
+          className="rounded-2xl border border-signal/30 bg-signal/10 p-5"
           aria-live="polite"
         >
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="flex gap-3">
               <CheckCircle2
-                className="mt-0.5 shrink-0 text-emerald-700"
+                className="mt-0.5 shrink-0 text-signal"
                 size={22}
               />
               <div>
@@ -261,14 +261,14 @@ function TeamContent() {
                     ? `Nouvel accès prêt pour ${createdMember.name}`
                     : `${createdMember.name} a été ajouté à l’équipe`}
                 </h2>
-                <p className="mt-1 text-sm text-emerald-800">
+                <p className="mt-1 text-sm text-signal">
                   {createdMember.action === "reset"
                     ? "Toutes les anciennes sessions ont été fermées. Copiez ce nouveau mot de passe temporaire et transmettez-le de façon sécuritaire."
                     : createdMember.temporaryPassword
                       ? `Son compte est rattaché à ${organization?.name ?? "votre concession"} et tout l’inventaire est prêt. Copiez les accès et transmettez-les de façon sécuritaire.`
                       : `Ce courriel avait déjà un compte Suivia Auto. Son mot de passe actuel demeure valide; à sa prochaine connexion, ${organization?.name ?? "votre concession"} et son inventaire s’ouvriront automatiquement.`}
                 </p>
-                <div className="mt-3 rounded-xl border border-emerald-200 bg-white/80 px-4 py-3 font-mono text-sm text-slate-800">
+                <div className="mt-3 rounded-xl border border-signal/30 bg-card/80 px-4 py-3 font-mono text-sm text-foreground">
                   <p>{createdMember.email}</p>
                   {createdMember.temporaryPassword && (
                     <p className="mt-1">{createdMember.temporaryPassword}</p>
@@ -297,7 +297,7 @@ function TeamContent() {
         </section>
       )}
 
-      <section className="overflow-hidden rounded-2xl border border-blue-200 bg-white shadow-sm">
+      <section className="overflow-hidden rounded-2xl border border-blue-200 bg-card shadow-sm">
         <div className="flex flex-col gap-4 border-l-4 border-blue-700 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <div className="flex items-start gap-3">
             <div className="rounded-xl bg-blue-50 p-2.5 text-blue-700">
@@ -307,10 +307,10 @@ function TeamContent() {
               <p className="text-xs font-bold uppercase tracking-[0.14em] text-blue-700">
                 Inventaire partagé
               </p>
-              <h2 className="mt-1 font-bold text-slate-950">
+              <h2 className="mt-1 font-bold text-foreground">
                 Une équipe, un seul inventaire Buckingham
               </h2>
-              <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600">
+              <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
                 Chaque personne ajoutée ici est automatiquement rattachée à{" "}
                 {organization?.name ?? "la concession"}. Elle voit tout
                 l’inventaire synchronisé dès sa prochaine connexion, avec son
@@ -320,7 +320,7 @@ function TeamContent() {
           </div>
           <div className="shrink-0 rounded-xl bg-slate-950 px-4 py-3 text-sm text-white">
             <p className="font-semibold">Accès automatique</p>
-            <p className="mt-0.5 text-xs text-slate-300">
+            <p className="mt-0.5 text-xs text-sidebar-foreground/70">
               Inventaire · Publications · Photos
             </p>
           </div>
@@ -334,10 +334,10 @@ function TeamContent() {
               <Users size={20} />
             </div>
             <div>
-              <h2 className="font-bold text-slate-950">
+              <h2 className="font-bold text-foreground">
                 Créer un accès pour un membre
               </h2>
-              <p className="mt-1 text-sm leading-5 text-slate-600">
+              <p className="mt-1 text-sm leading-5 text-muted-foreground">
                 La personne sera ajoutée à{" "}
                 {organization?.name ?? "votre concession"} et verra tout
                 l’inventaire dès sa connexion avec les accès ci-dessous.
@@ -346,13 +346,13 @@ function TeamContent() {
           </div>
 
           {formError && (
-            <div className="mt-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">
+            <div className="mt-4 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
               {formError}
             </div>
           )}
 
           <div className="mt-5 grid gap-4 sm:grid-cols-2">
-            <label className="text-sm font-semibold text-slate-700">
+            <label className="text-sm font-semibold text-foreground">
               Nom complet
               <input
                 className="input mt-1.5"
@@ -365,7 +365,7 @@ function TeamContent() {
                 required
               />
             </label>
-            <label className="text-sm font-semibold text-slate-700">
+            <label className="text-sm font-semibold text-foreground">
               Courriel professionnel
               <input
                 className="input mt-1.5"
@@ -379,12 +379,12 @@ function TeamContent() {
                 required
               />
             </label>
-            <label className="text-sm font-semibold text-slate-700 sm:col-span-2">
+            <label className="text-sm font-semibold text-foreground sm:col-span-2">
               Mot de passe temporaire
               <div className="mt-1.5 flex flex-col gap-2 sm:flex-row">
                 <div className="relative flex-1">
                   <KeyRound
-                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
                     size={17}
                   />
                   <input
@@ -400,7 +400,7 @@ function TeamContent() {
                   />
                   <button
                     type="button"
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-800"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                     onClick={() => setShowPassword(!showPassword)}
                     aria-label={
                       showPassword
@@ -424,12 +424,12 @@ function TeamContent() {
                   <RefreshCw className="mr-2" size={16} /> Régénérer
                 </button>
               </div>
-              <span className="mt-1.5 block text-xs font-normal text-slate-500">
+              <span className="mt-1.5 block text-xs font-normal text-muted-foreground">
                 Au moins 8 caractères. Un mot de passe sécuritaire est déjà
                 généré.
               </span>
             </label>
-            <label className="text-sm font-semibold text-slate-700 sm:col-span-2">
+            <label className="text-sm font-semibold text-foreground sm:col-span-2">
               Fonction et niveau d’accès
               <select
                 className="input mt-1.5"
@@ -468,7 +468,7 @@ function TeamContent() {
       )}
 
       {pageError && (
-        <div className="card flex items-center justify-between gap-4 border-red-200 bg-red-50 text-sm text-red-700">
+        <div className="card flex items-center justify-between gap-4 border-destructive/30 bg-destructive/10 text-sm text-destructive">
           <span>{pageError}</span>
           <button
             type="button"
@@ -536,19 +536,19 @@ function TeamContent() {
             {[1, 2, 3].map((item) => (
               <div
                 key={item}
-                className="h-12 animate-pulse rounded-lg bg-slate-100"
+                className="h-12 animate-pulse rounded-lg bg-muted"
               />
             ))}
           </div>
         ) : members.length === 0 ? (
-          <div className="p-8 text-center text-sm text-slate-600">
+          <div className="p-8 text-center text-sm text-muted-foreground">
             Aucun membre n’est encore associé à cette organisation.
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[680px] text-sm">
-              <thead className="bg-slate-50">
-                <tr className="border-b text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+              <thead className="bg-muted">
+                <tr className="border-b text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   <th className="px-5 py-3">Membre</th>
                   <th className="px-5 py-3">Fonction</th>
                   <th className="px-5 py-3">Accès</th>
@@ -560,10 +560,10 @@ function TeamContent() {
                 {members.map((member) => (
                   <tr key={member.id} className="border-b last:border-0">
                     <td className="px-5 py-4">
-                      <p className="font-semibold text-slate-950">
+                      <p className="font-semibold text-foreground">
                         {member.user.name}
                       </p>
-                      <p className="mt-0.5 text-xs text-slate-500">
+                      <p className="mt-0.5 text-xs text-muted-foreground">
                         {member.user.email}
                       </p>
                     </td>
@@ -572,7 +572,7 @@ function TeamContent() {
                         {getTeamMemberTitle(member.role, member.user)}
                       </span>
                     </td>
-                    <td className="px-5 py-4 text-slate-600">
+                    <td className="px-5 py-4 text-muted-foreground">
                       {getTeamAccessLabel(member.role)}
                     </td>
                     <td className="px-5 py-4">

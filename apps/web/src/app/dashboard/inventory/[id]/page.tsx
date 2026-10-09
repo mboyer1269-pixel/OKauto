@@ -92,7 +92,7 @@ function VehicleDetail() {
   };
 
   if (loading)
-    return <div className="animate-pulse h-64 bg-slate-200 rounded-xl" />;
+    return <div className="h-64 animate-pulse rounded-xl bg-muted" />;
   if (!vehicle) return <div className="card">Véhicule introuvable.</div>;
 
   const photos =
@@ -127,7 +127,7 @@ function VehicleDetail() {
   const VinBadge = ({ field }: { field: VinDecodeField }) =>
     fromVin(field) ? (
       <span
-        className="ml-1.5 rounded bg-slate-100 px-1 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500"
+        className="ml-1.5 rounded bg-primary/10 px-1 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary"
         title="Complété depuis le NIV (NHTSA vPIC)"
       >
         NIV
@@ -140,79 +140,134 @@ function VehicleDetail() {
     ),
     Boolean(vehicle.includeCarfaxSourceUrl),
   );
+  const features = (vehicle.features as string[] | undefined) ?? [];
+  const title = [vehicle.year, vehicle.make, vehicle.model, vehicle.trim]
+    .filter((part) => part != null && String(part).length > 0)
+    .join(" ");
+  const description =
+    marketplaceDraft?.description ??
+    (vehicle.description as string) ??
+    "Aucune description pour le moment.";
+  const factoryRows: Array<[string, string, VinDecodeField | null]> = [
+    ["Version", String(vehicle.trim ?? "—"), "trim"],
+    ["Moteur", String(vehicle.engine ?? "—"), "engine"],
+    ["Boîte", String(vehicle.transmission ?? "—"), "transmission"],
+    ["Rouage", String(vehicle.drivetrain ?? "—"), "drivetrain"],
+    ["Carburant", String(vehicle.fuelType ?? "—"), "fuelType"],
+    ["Carrosserie", String(vehicle.bodyStyle ?? "—"), "bodyStyle"],
+    ["Portes", vehicle.doors != null ? String(vehicle.doors) : "—", "doors"],
+    [
+      "Cylindres",
+      vehicle.cylinders != null ? String(vehicle.cylinders) : "—",
+      "cylinders",
+    ],
+    ["Couleur ext.", String(vehicle.exteriorColor ?? "—"), null],
+    ["Couleur int.", String(vehicle.interiorColor ?? "—"), null],
+  ];
 
   return (
-    <div>
+    <div className="space-y-6">
       <button
         onClick={() => router.back()}
-        className="text-sm text-brand-600 mb-4 hover:underline"
+        className="text-sm text-primary hover:underline"
       >
         ← Retour à l’inventaire
       </button>
-      <div className="flex flex-col lg:flex-row gap-6">
-        <div className="lg:w-1/3">
-          <div className="card">
-            {photos[0] ? (
-              <img
-                src={photos[0].url}
-                alt=""
-                className="w-full rounded-lg mb-4"
-              />
-            ) : (
-              <div className="w-full h-48 bg-slate-100 rounded-lg mb-4" />
-            )}
-            <h1 className="text-xl font-bold">
-              {String(vehicle.year)} {String(vehicle.make)}{" "}
-              {String(vehicle.model)} {String(vehicle.trim ?? "")}
-            </h1>
-            <p className="text-2xl font-bold text-brand-600 mt-2">
-              {formatCurrency(vehicle.price as number)}
-            </p>
+
+      <section className="overflow-hidden rounded-2xl border border-border bg-card">
+        <div className="relative h-56 bg-muted sm:h-72">
+          {photos[0] ? (
+            <img
+              src={photos[0].url}
+              alt=""
+              className="photo-dim h-full w-full object-cover"
+            />
+          ) : null}
+          <div className="absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent" />
+          <div className="absolute bottom-0 left-0 right-0 p-5 sm:p-7">
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div>
+                <p className="brand-label text-[11px] font-bold uppercase tracking-[0.18em] text-primary">
+                  Stock {String(vehicle.stockNumber ?? "—")}
+                </p>
+                <h1 className="brand-display mt-1 text-3xl font-bold tracking-tight sm:text-4xl">
+                  {title}
+                </h1>
+              </div>
+              <p className="font-mono text-2xl font-semibold tabular-nums">
+                {formatCurrency(vehicle.price as number)}
+              </p>
+            </div>
             <span
-              className={`${getStatusBadgeClass(vehicle.status as string)} mt-2`}
+              className={`${getStatusBadgeClass(vehicle.status as string)} mt-3`}
             >
               {formatStatus(vehicle.status as string)}
             </span>
-            <div className="mt-4 space-y-2 text-sm">
-              <p>
-                <strong>Stock :</strong>{" "}
-                {(vehicle.stockNumber as string) ?? "—"}
-              </p>
-              <p>
-                <strong>VIN:</strong> {(vehicle.vin as string) ?? "—"}
-              </p>
-              <p>
-                <strong>Kilométrage :</strong>{" "}
-                {formatNumber(vehicle.mileage as number)} km
-              </p>
-              <p>
-                <strong>État :</strong> {(vehicle.condition as string) ?? "—"}
-              </p>
-              <p>
-                <strong>Couleur :</strong>{" "}
-                {(vehicle.exteriorColor as string) ?? "—"}
-              </p>
-              <p>
-                <strong>Transmission :</strong>{" "}
-                {(vehicle.transmission as string) ?? "—"}
-                <VinBadge field="transmission" />
-              </p>
-              <p>
-                <strong>Rouage :</strong>{" "}
-                {(vehicle.drivetrain as string) ?? "—"}
-                <VinBadge field="drivetrain" />
-              </p>
-              <p>
-                <strong>Moteur :</strong> {(vehicle.engine as string) ?? "—"}
-                <VinBadge field="engine" />
-              </p>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2 border-t border-border p-4">
+          {Boolean(vehicle.vin) && (
+            <button onClick={handleDecodeVin} className="btn-secondary text-xs">
+              <Search size={14} className="mr-1" /> Décoder le NIV
+            </button>
+          )}
+          <button onClick={handleGenerateDesc} className="btn-secondary text-xs">
+            <Sparkles size={14} className="mr-1" /> Générer la description
+          </button>
+          {Boolean(vehicle.sourceUrl) && (
+            <a
+              href={vehicle.sourceUrl as string}
+              target="_blank"
+              rel="noreferrer"
+              className="btn-secondary text-xs"
+            >
+              <ExternalLink size={14} className="mr-1" /> Page du
+              concessionnaire
+            </a>
+          )}
+          {vehicle.status !== "SOLD" && (
+            <button onClick={handleMarkSold} className="btn-danger text-xs">
+              Marquer vendu
+            </button>
+          )}
+        </div>
+      </section>
+
+      <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+        <div className="space-y-6">
+          <div className="card">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold tracking-tight">
+                  Build d’usine
+                </h2>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Données actuellement en fiche (saisie, synchro ou décodage
+                  NIV). Un fournisseur de build data arrivera en phase 2.
+                </p>
+              </div>
+              <span className="badge-info">Fiche actuelle</span>
             </div>
+            <p className="mb-4 font-mono text-xs tabular-nums text-muted-foreground">
+              NIV {String(vehicle.vin ?? "—")}
+            </p>
+            <dl className="grid gap-3 sm:grid-cols-2">
+              {factoryRows.map(([label, value, field]) => (
+                <div key={label} className="rounded-xl bg-muted/60 px-3 py-2">
+                  <dt className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    {label}
+                    {field ? <VinBadge field={field} /> : null}
+                  </dt>
+                  <dd className="mt-0.5 text-sm font-medium">{value}</dd>
+                </div>
+              ))}
+            </dl>
             {decodeError && (
-              <p className="mt-3 p-2 bg-red-50 text-red-700 rounded-lg text-xs">
+              <p className="mt-3 rounded-lg bg-destructive/10 p-2 text-xs text-destructive">
                 {decodeError}
               </p>
             )}
-            <label className="mt-4 flex items-start gap-2 text-xs text-slate-700">
+            <label className="mt-4 flex items-start gap-2 text-xs text-muted-foreground">
               <input
                 type="checkbox"
                 className="mt-0.5"
@@ -233,75 +288,99 @@ function VehicleDetail() {
                   : null}
               </span>
             </label>
-            <div className="flex flex-wrap gap-2 mt-4">
-              {Boolean(vehicle.vin) && (
-                <button
-                  onClick={handleDecodeVin}
-                  className="btn-secondary text-xs"
-                >
-                  <Search size={14} className="mr-1" /> Décoder le NIV
-                </button>
-              )}
-              <button
-                onClick={handleGenerateDesc}
-                className="btn-secondary text-xs"
-              >
-                <Sparkles size={14} className="mr-1" /> Générer la description
-              </button>
-              {Boolean(vehicle.sourceUrl) && (
-                <a
-                  href={vehicle.sourceUrl as string}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="btn-secondary text-xs"
-                >
-                  <ExternalLink size={14} className="mr-1" /> Page du
-                  concessionnaire
-                </a>
-              )}
-              {vehicle.status !== "SOLD" && (
-                <button onClick={handleMarkSold} className="btn-danger text-xs">
-                  Marquer vendu
-                </button>
-              )}
+            <div className="mt-4 flex flex-wrap gap-4 border-t border-border pt-4 text-sm">
+              <p>
+                <span className="text-muted-foreground">PDSF / MSRP : </span>
+                <span className="font-mono tabular-nums">
+                  {formatCurrency(vehicle.msrp as number)}
+                </span>
+              </p>
+              <p>
+                <span className="text-muted-foreground">Prix affiché : </span>
+                <span className="font-mono tabular-nums">
+                  {formatCurrency(vehicle.price as number)}
+                </span>
+              </p>
+              <p>
+                <span className="text-muted-foreground">Kilométrage : </span>
+                <span className="font-mono tabular-nums">
+                  {formatNumber(vehicle.mileage as number)} km
+                </span>
+              </p>
             </div>
           </div>
-        </div>
-        <div className="lg:w-2/3 space-y-6">
+
           <PhotoManager vehicleId={id} photos={photos} onUpdate={load} />
+
           <div className="card">
-            <h2 className="font-semibold mb-3">Description</h2>
-            <p className="text-sm whitespace-pre-wrap">
-              {marketplaceDraft?.description ??
-                (vehicle.description as string) ??
-                "Aucune description pour le moment."}
-            </p>
+            <h2 className="mb-3 font-semibold">Description</h2>
+            <p className="whitespace-pre-wrap text-sm">{description}</p>
           </div>
+        </div>
+
+        <div className="space-y-6">
           <div className="card">
-            <h2 className="font-semibold mb-3">Historique des publications</h2>
+            <h2 className="mb-3 font-semibold">Aperçu Marketplace</h2>
+            <div className="mx-auto w-[17rem] rounded-[1.75rem] border border-border bg-background p-3 shadow-inner">
+              <div className="overflow-hidden rounded-2xl border border-border bg-card">
+                {photos[0] ? (
+                  <img
+                    src={photos[0].url}
+                    alt=""
+                    className="photo-dim h-36 w-full object-cover"
+                  />
+                ) : (
+                  <div className="h-36 bg-muted" />
+                )}
+                <div className="space-y-2 p-3">
+                  <p className="text-sm font-semibold leading-5">{title}</p>
+                  <p className="font-mono text-base font-semibold tabular-nums">
+                    {formatCurrency(vehicle.price as number)}
+                  </p>
+                  <ul className="space-y-1 text-xs text-muted-foreground">
+                    {(features.length > 0
+                      ? features.slice(0, 8)
+                      : description
+                          .split("\n")
+                          .map((line) => line.replace(/^[-•]\s*/, "").trim())
+                          .filter(Boolean)
+                          .slice(0, 8)
+                    ).map((item) => (
+                      <li key={item}>• {item}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="card">
+            <h2 className="mb-3 font-semibold">Historique des publications</h2>
             {listings.length === 0 ? (
-              <p className="text-sm text-slate-500">
+              <p className="text-sm text-muted-foreground">
                 Aucune publication pour le moment.
               </p>
             ) : (
-              <div className="space-y-2">
-                {listings.map((l) => (
-                  <div
-                    key={l.id as string}
-                    className="flex justify-between text-sm border-b pb-2"
-                  >
+              <ol className="relative space-y-3 border-l border-border pl-4">
+                {listings.map((listing) => (
+                  <li key={listing.id as string} className="text-sm">
+                    <span className="absolute -left-1.5 mt-1.5 h-3 w-3 rounded-full bg-primary" />
                     <span>
-                      {(l.user as { name: string })?.name} ·{" "}
-                      <span className={getStatusBadgeClass(l.status as string)}>
-                        {formatStatus(l.status as string)}
+                      {(listing.user as { name: string })?.name} ·{" "}
+                      <span
+                        className={getStatusBadgeClass(
+                          listing.status as string,
+                        )}
+                      >
+                        {formatStatus(listing.status as string)}
                       </span>
                     </span>
-                    <span className="text-slate-500">
-                      {formatDateTime(l.listedAt as string)}
-                    </span>
-                  </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {formatDateTime(listing.listedAt as string)}
+                    </p>
+                  </li>
                 ))}
-              </div>
+              </ol>
             )}
           </div>
         </div>
