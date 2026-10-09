@@ -4,6 +4,8 @@ import { describe, expect, it } from "vitest";
 
 const src = (...parts: string[]) =>
   readFileSync(join(__dirname, "..", ...parts), "utf8");
+const webRoot = (...parts: string[]) =>
+  readFileSync(join(__dirname, "..", "..", ...parts), "utf8");
 
 describe("Cockpit — logo D et thème", () => {
   it("affiche le mot-symbole D dans la barre latérale et l’en-tête mobile", () => {
@@ -36,6 +38,14 @@ describe("Cockpit — logo D et thème", () => {
     const provider = src("components", "theme-provider.tsx");
     expect(provider).toContain('defaultTheme="dark"');
     expect(provider).toContain("enableSystem");
+  });
+
+  it("utilise le cyan pour le texte primaire en sombre (AA)", () => {
+    const css = src("app", "globals.css");
+    const dark = css.split(".dark {")[1]?.split("html.dark")[0] ?? "";
+    expect(dark).toMatch(/--primary:\s*188 83% 51%/);
+    expect(dark).toMatch(/--primary-foreground:\s*223 24% 5%/);
+    expect(webRoot("next.config.ts")).toContain("devIndicators: false");
   });
 
   it("respecte prefers-reduced-motion et le verre dépoli", () => {

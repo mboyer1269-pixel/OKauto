@@ -83,6 +83,8 @@ describe("marque — piste active D, A/B/C conservées", () => {
     expect(contrastRatio("#FFFFFF", "#0B3A8A")).toBeGreaterThanOrEqual(4.5);
     expect(contrastRatio("#0B3A8A", "#F7F8FA")).toBeGreaterThanOrEqual(4.5);
     expect(contrastRatio("#1AD0EA", "#0A0C10")).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio("#1AD0EA", "#11141A")).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio("#0A0C10", "#1AD0EA")).toBeGreaterThanOrEqual(4.5);
     expect(contrastRatio("#1AD0EA", "#F7F8FA")).toBeLessThan(4.5);
   });
 });

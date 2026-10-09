@@ -27,6 +27,8 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // The Next.js “N” badge is a local-only overlay; never ship it.
+  devIndicators: false,
   // Windows developer machines often cannot create the symlinks used by the
   // standalone copier. Docker/Linux production builds keep the standalone output.
   output: process.platform === 'win32' ? undefined : 'standalone',
