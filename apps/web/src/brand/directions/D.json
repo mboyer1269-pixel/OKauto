@@ -1,0 +1,47 @@
+{
+  "id": "D",
+  "name": "Le NIV",
+  "wordmark": "SUIVIA",
+  "descriptor": "AUTO",
+  "lockup": "SUIVIA AUTO",
+  "ariaLabel": "Suivia Auto",
+  "note": "Piste D, choisie par le propriétaire : mot-symbole hachuré (barres type NIV), dégradé marine → cyan, flèche. Copier vers ../spec.json puis pnpm brand:assets.",
+  "typography": {
+    "wordmarkFont": "sans",
+    "wordmarkTracking": "0.12em",
+    "wordmarkWeight": "700"
+  },
+  "colors": {
+    "ink": "#0B3A8A",
+    "paper": "#F5F3EE",
+    "accent": "#1AD0EA",
+    "markBg": "#082A66",
+    "markFg": "#1AD0EA",
+    "navy": "#0B3A8A",
+    "cyan": "#1AD0EA",
+    "gradientFrom": "#0B3A8A",
+    "gradientTo": "#1AD0EA",
+    "gradientFromOnDark": "#4DB6E8",
+    "gradientToOnDark": "#B8F4FF"
+  },
+  "mark": {
+    "kind": "hatched-s",
+    "viewBox": 40,
+    "iconRadiusRatio": 0.22,
+    "hatchPitch": 4.6,
+    "hatchBar": 3.0
+  },
+  "wordmarkView": {
+    "width": 1160,
+    "height": 176,
+    "letterHeight": 120,
+    "y": 28,
+    "pad": 24,
+    "gap": 14,
+    "space": 34,
+    "hatchPitch": 11,
+    "hatchBar": 7,
+    "sequence": ["S", "U", "I", "V", "I", "A", " ", "A", "U", "T", "O"],
+    "arrow": true
+  }
+}

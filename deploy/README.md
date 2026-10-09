@@ -76,6 +76,24 @@ Tout est **éteint** tant que la variable est vide (log « skipped », pas d’e
 | `SYNC_DEGRADED_ALERTS` | `.env` | `1` pour activer l’alerte in-app. **Off par défaut.** |
 | `SYNC_ALERT_WEBHOOK_URL` | `.env` | POST JSON optionnel (uniquement si `SYNC_DEGRADED_ALERTS=1`). |
 | `SYNC_FETCH_TIMEOUT_MS` / `SYNC_FETCH_MAX_BYTES` | `.env` | Limites HTTP sync (défauts 30s / 8 Mio). |
+| `PLATFORM_ADMIN_USER_IDS` | `.env` | Identifiants immuables (`users.id`, jeton `sub`, virgules) des admins **plateforme**. Seuls eux voient et traitent les demandes d’accès. Vide ou absent = personne. Un courriel ne suffit pas (un OWNER pourrait inviter une adresse listée). OWNER d’une concession **n’est pas** admin plateforme. |
+
+Identifiant d’un admin plateforme (lecture seule). Le courriel de connexion est unique ; remplacer `<courriel>` :
+
+```sql
+SELECT u.id, u.email, m."organizationId", o.name AS organization_name, o.slug, m.role
+FROM users u
+LEFT JOIN organization_members m ON m."userId" = u.id
+LEFT JOIN organizations o ON o.id = m."organizationId"
+WHERE lower(u.email) = lower('<courriel>');
+```
+
+```bash
+docker compose --env-file /opt/okauto/.env -f /opt/okauto/compose.prod.yml exec -T postgres \
+  psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+```
+
+Vérifier la concession (`organization_name` / `slug`) avant de coller `u.id` dans `PLATFORM_ADMIN_USER_IDS`. Ne jamais y mettre un courriel.
 
 **GitHub Environment `backup-drill`** (branches de déploiement = `main` seulement). Secrets **d’environment**, pas repository :
 
@@ -156,5 +174,5 @@ Migrations expand/contract uniquement. CI : `scripts/check-destructive-migration
 
 - `GET /api/health` — liveness + SHA. Reste 200 si le worker est mort.
 - `GET /api/health/ready` — db / redis / worker.
-- Worker : schedulers BullMQ (`tick` 5 min, `reminders` 1 h, `degraded` 15 min), pas de `setInterval` métier. Les schedulers suffisent au démarrage (pas d’appel direct en double).
+- Worker : schedulers BullMQ (`tick` 5 min, `reminders` 1 h, `degraded` 15 min, `access-request-retention` 1 j), pas de `setInterval` métier. Les schedulers suffisent au démarrage (pas d’appel direct en double). Purge Loi 25 : IP nulle après 30 j, demandes supprimées après 12 mois.
 - Sync DÉGRADÉE : **off** sans `SYNC_DEGRADED_ALERTS=1`. Quand activé : sources **actives** seulement, notif SYSTEM 1×/jour/org + webhook optionnel.

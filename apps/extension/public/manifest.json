@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Suivia Auto — Assistant Marketplace",
+  "name": "Suivia — Assistant Marketplace auto",
   "version": "0.3.0",
   "description": "Assistant de publication Facebook Marketplace pour les équipes automobiles",
   "permissions": ["storage", "activeTab"],
@@ -12,7 +12,7 @@
   ],
   "action": {
     "default_popup": "popup/index.html",
-    "default_title": "Suivia Auto",
+    "default_title": "Suivia",
     "default_icon": {
       "16": "icons/icon16.png",
       "48": "icons/icon48.png",

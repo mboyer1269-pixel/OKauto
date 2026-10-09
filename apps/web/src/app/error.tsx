@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 export default function Error({
   error,
@@ -8,11 +8,17 @@ export default function Error({
   reset: () => void;
 }) {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
+    <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="card max-w-md text-center">
-        <h2 className="text-xl font-bold text-red-600 mb-2">Something went wrong</h2>
-        <p className="text-sm text-slate-600 mb-4">{error.message || 'An unexpected error occurred.'}</p>
-        <button onClick={reset} className="btn-primary">Try again</button>
+        <h2 className="mb-2 text-xl font-bold text-destructive">
+          Une erreur est survenue
+        </h2>
+        <p className="mb-4 text-sm text-muted-foreground">
+          {error.message || "Erreur inattendue."}
+        </p>
+        <button onClick={reset} className="btn-primary">
+          Réessayer
+        </button>
       </div>
     </div>
   );

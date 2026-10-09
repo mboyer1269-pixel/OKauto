@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { randomUUID } from "node:crypto";
-import { hasMinRole, type RoleType } from "@okauto/shared";
+import { hasMinRole, isPlatformAdminUserId, type RoleType } from "@okauto/shared";
 import { getAuthFromRequest, type TokenPayload } from "./auth";
 import { ListingGuardError } from "./listing-guards";
 
@@ -60,6 +60,9 @@ export function handleApiError(err: unknown) {
       { status: err.status },
     );
   }
+  if (err instanceof InvalidJsonError) {
+    return errorResponse(err.message, 400);
+  }
   if (err instanceof ZodError) {
     return errorResponse(
       "Les données envoyées sont invalides",
@@ -85,7 +88,7 @@ export type AuthenticatedHandler = (
 
 export function withAuth(
   handler: AuthenticatedHandler,
-  options?: { minRole?: RoleType },
+  options?: { minRole?: RoleType; platformAdmin?: boolean },
 ) {
   return async (
     request: Request,
@@ -101,6 +104,10 @@ export function withAuth(
         return errorResponse("Accès insuffisant", 403);
       }
 
+      if (options?.platformAdmin && !isPlatformAdminUserId(auth.sub)) {
+        return errorResponse("Accès insuffisant", 403);
+      }
+
       const params = await segmentData.params;
       return await handler(request, { auth, params });
     } catch (err) {
@@ -109,6 +116,20 @@ export function withAuth(
   };
 }
 
-export function parseBody<T>(request: Request): Promise<T> {
-  return request.json() as Promise<T>;
+export class InvalidJsonError extends Error {
+  constructor(message = "Le corps de la requête n’est pas un JSON valide") {
+    super(message);
+    this.name = "InvalidJsonError";
+  }
+}
+
+export async function parseBody<T>(request: Request): Promise<T> {
+  try {
+    return (await request.json()) as T;
+  } catch (err) {
+    if (err instanceof SyntaxError) {
+      throw new InvalidJsonError();
+    }
+    throw err;
+  }
 }

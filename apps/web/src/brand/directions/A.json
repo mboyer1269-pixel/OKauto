@@ -1,0 +1,28 @@
+{
+  "id": "A",
+  "name": "Le Tracé",
+  "wordmark": "suivia",
+  "descriptor": "Auto",
+  "ariaLabel": "Suivia",
+  "note": "Direction A du rapport : S-route et nœud Signal. Copier vers ../spec.json puis pnpm brand:assets.",
+  "typography": {
+    "wordmarkFont": "sans",
+    "wordmarkTracking": "-0.02em",
+    "wordmarkWeight": "600"
+  },
+  "colors": {
+    "ink": "#0A0F1C",
+    "paper": "#FFFFFF",
+    "accent": "#2EE6A6",
+    "markBg": "#2556E0",
+    "markFg": "#FFFFFF"
+  },
+  "mark": {
+    "kind": "stroke-s",
+    "viewBox": 40,
+    "iconRadiusRatio": 0.22,
+    "strokeWidth": 3.2,
+    "path": "M 28 11 C 28 7 24 6 20 6 C 14 6 11 10 11 13.5 C 11 18 16 19.5 22 21.5 C 28 23.5 30 26 30 29.5 C 30 34 26 36 20 36 C 14 36 11 33 11 30",
+    "node": { "cx": 28, "cy": 11, "r": 2.3 }
+  }
+}

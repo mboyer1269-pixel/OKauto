@@ -1,15 +1,31 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import Link from "next/link";
 import { ProtectedRoute } from "@/components/protected-route";
 import { useAuth } from "@/components/auth-provider";
+import { CompletenessRing } from "@/components/completeness-ring";
 import {
+  cn,
   formatCurrency,
   formatNumber,
   formatStatus,
   getStatusBadgeClass,
 } from "@/lib/utils";
+import {
+  completeness,
+  daysInStock,
+  daysTone,
+  isInventoryShortcutTarget,
+  MARKETPLACE_LABEL,
+  marketplaceStatus,
+  matchesSavedView,
+  SAVED_VIEWS,
+  type MarketplaceStatus,
+  type SavedView,
+} from "@/lib/inventory-ui";
+import { FadeIn } from "@/components/fade-in";
+import { CockpitSkeleton } from "@/components/cockpit-skeleton";
 import {
   Search,
   Plus,
@@ -19,24 +35,38 @@ import {
   ChevronRight,
   RefreshCw,
   X,
+  Copy,
+  Check,
+  ArrowUpDown,
 } from "lucide-react";
 
 interface Vehicle {
   id: string;
-  year: number;
-  make: string;
-  model: string;
-  trim: string;
-  mileage: number;
-  price: number;
+  year: number | null;
+  make: string | null;
+  model: string | null;
+  trim: string | null;
+  mileage: number | null;
+  price: number | null;
   status: string;
-  stockNumber: string;
-  vin: string;
-  sourceUrl: string | null;
+  stockNumber: string | null;
+  vin: string | null;
+  createdAt?: string;
+  engine?: string | null;
+  transmission?: string | null;
+  drivetrain?: string | null;
+  description?: string | null;
   photos: Array<{ url: string; isPrimary: boolean }>;
   assignedTo: { name: string } | null;
+  listings?: Array<{
+    status: string;
+    listedAt?: string | null;
+    lastRenewedAt?: string | null;
+  }>;
   _count: { listings: number };
 }
+
+type SortKey = "year" | "price" | "mileage" | "days" | "completeness" | "name";
 
 export default function InventoryPage() {
   return (
@@ -65,7 +95,16 @@ function InventoryContent() {
     type: "success" | "error";
     text: string;
   } | null>(null);
+  const [view, setView] = useState<SavedView>("all");
+  const [sortKey, setSortKey] = useState<SortKey>("days");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [density, setDensity] = useState<"comfortable" | "compact">(
+    "comfortable",
+  );
+  const [cursor, setCursor] = useState(0);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const hasLoaded = useRef(false);
+  const tableRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
     if (hasLoaded.current) setRefreshing(true);
@@ -99,7 +138,7 @@ function InventoryContent() {
       setVehicles([]);
       setPagination({ total: 0, totalPages: 1 });
       setLoadError(
-        "Impossible de charger l’inventaire. Réessayez; si le problème persiste, redémarrez Suivia Auto.",
+        "Impossible de charger l’inventaire. Réessayez; si le problème persiste, redémarrez Suivia.",
       );
     } finally {
       hasLoaded.current = true;
@@ -119,6 +158,54 @@ function InventoryContent() {
     return () => window.clearTimeout(timer);
   }, [search]);
   useEffect(() => setPage(1), [debouncedSearch, inventoryType, status]);
+
+  const filtered = useMemo(() => {
+    const rows = vehicles.filter((vehicle) => matchesSavedView(vehicle, view));
+    const dir = sortDir === "asc" ? 1 : -1;
+    return [...rows].sort((a, b) => {
+      const name = (v: Vehicle) =>
+        `${v.year ?? ""} ${v.make ?? ""} ${v.model ?? ""} ${v.trim ?? ""}`;
+      switch (sortKey) {
+        case "year":
+          return ((a.year ?? 0) - (b.year ?? 0)) * dir;
+        case "price":
+          return ((Number(a.price) || 0) - (Number(b.price) || 0)) * dir;
+        case "mileage":
+          return ((a.mileage ?? 0) - (b.mileage ?? 0)) * dir;
+        case "days":
+          return (daysInStock(a.createdAt) - daysInStock(b.createdAt)) * dir;
+        case "completeness":
+          return (
+            (completeness(a).percent - completeness(b).percent) * dir
+          );
+        default:
+          return name(a).localeCompare(name(b), "fr") * dir;
+      }
+    });
+  }, [vehicles, view, sortKey, sortDir]);
+
+  useEffect(() => {
+    setCursor(0);
+  }, [filtered.length, view, page]);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (isInventoryShortcutTarget(event.target)) return;
+      if (filtered.length === 0) return;
+      if (event.key === "j" || event.key === "J") {
+        event.preventDefault();
+        setCursor((current) => Math.min(filtered.length - 1, current + 1));
+      } else if (event.key === "k" || event.key === "K") {
+        event.preventDefault();
+        setCursor((current) => Math.max(0, current - 1));
+      } else if (event.key === "Enter") {
+        const row = filtered[cursor];
+        if (row) window.location.assign(`/dashboard/inventory/${row.id}`);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [filtered, cursor]);
 
   const handleImport = async () => {
     setImporting(true);
@@ -173,29 +260,60 @@ function InventoryContent() {
     await load();
   };
 
+  const copyVin = async (vin: string, id: string) => {
+    try {
+      await navigator.clipboard.writeText(vin);
+      setCopiedId(id);
+      window.setTimeout(() => setCopiedId(null), 1500);
+    } catch {
+      setNotice({ type: "error", text: "Impossible de copier le NIV." });
+    }
+  };
+
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) setSortDir((current) => (current === "asc" ? "desc" : "asc"));
+    else {
+      setSortKey(key);
+      setSortDir(key === "name" ? "asc" : "desc");
+    }
+  };
+
+  const compact = density === "compact";
+
   return (
-    <div className="space-y-5">
-      <header className="overflow-hidden rounded-[1.5rem] border border-[#dce5ef] bg-white shadow-[0_18px_50px_-38px_rgba(7,20,38,0.65)]">
-        <div className="h-1.5 bg-[linear-gradient(90deg,#0b66d8_0%,#0b66d8_68%,#0e9f6e_68%,#0e9f6e_100%)]" />
+    <FadeIn className="space-y-5">
+      <header className="cockpit-scan card overflow-hidden p-0">
+        <div className="h-1.5 bg-gradient-to-r from-primary via-[hsl(var(--brand-cyan))] to-signal" />
         <div className="flex flex-col gap-5 px-5 py-5 sm:flex-row sm:items-end sm:justify-between sm:px-7 sm:py-6">
           <div>
-            <p className="brand-label text-[11px] font-bold uppercase tracking-[0.18em] text-[#0b66d8]">
+            <p className="brand-label text-[11px] font-bold uppercase tracking-[0.18em] text-primary">
               Lot en direct
             </p>
             <div className="mt-2 flex items-end gap-3">
-              <h1 className="brand-display text-3xl font-black tracking-[-0.04em] text-[#071426] sm:text-4xl">
+              <h1 className="brand-display text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
                 Inventaire
               </h1>
-              <span className="mb-1 font-mono text-sm font-bold tabular-nums text-slate-500">
+              <span className="mb-1 font-mono text-lg font-semibold tabular-nums text-foreground">
                 {formatNumber(pagination.total)} unités
               </span>
             </div>
-            <p className="mt-2 max-w-xl text-sm leading-6 text-slate-500">
-              Recherchez, vérifiez et préparez un véhicule sans attendre le
-              chargement complet des photos.
+            <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
+              Tableau dense : jours en stock, Marketplace, complétude. J/K pour
+              naviguer, Entrée pour ouvrir.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() =>
+                setDensity((current) =>
+                  current === "compact" ? "comfortable" : "compact",
+                )
+              }
+              className="btn-secondary"
+            >
+              {compact ? "Confortable" : "Compact"}
+            </button>
             <button
               type="button"
               onClick={() => setShowImport(!showImport)}
@@ -214,13 +332,13 @@ function InventoryContent() {
       {notice && (
         <div
           role={notice.type === "error" ? "alert" : "status"}
-          className={`flex items-center justify-between rounded-xl border px-4 py-3 text-sm ${notice.type === "error" ? "border-red-200 bg-red-50 text-red-800" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}
+          className={`flex items-center justify-between rounded-xl border px-4 py-3 text-sm ${notice.type === "error" ? "border-destructive/30 bg-destructive/10 text-destructive" : "border-signal/30 bg-signal/10 text-signal"}`}
         >
           <span>{notice.text}</span>
           <button
             type="button"
             onClick={() => setNotice(null)}
-            className="rounded-md p-1 hover:bg-black/5"
+            className="rounded-md p-1 hover:bg-black/5 dark:hover:bg-white/10"
             aria-label="Fermer le message"
           >
             <X size={16} />
@@ -230,8 +348,8 @@ function InventoryContent() {
 
       {showImport && (
         <div className="card">
-          <h3 className="font-semibold mb-2">Importer un fichier CSV</h3>
-          <p className="text-sm text-slate-500 mb-3">
+          <h3 className="mb-2 font-semibold">Importer un fichier CSV</h3>
+          <p className="mb-3 text-sm text-muted-foreground">
             Colonnes : vin, stockNumber, year, make, model, trim, mileage,
             price, exteriorColor, transmission, fuelType, description
           </p>
@@ -251,10 +369,37 @@ function InventoryContent() {
         </div>
       )}
 
-      <div className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:grid-cols-2 xl:grid-cols-[1fr_13rem_13rem]">
+      <div
+        role="tablist"
+        aria-label="Vues enregistrées"
+        className="cockpit-panel flex flex-wrap gap-1 p-1"
+      >
+        {SAVED_VIEWS.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            role="tab"
+            aria-selected={view === item.id}
+            onClick={() => setView(item.id)}
+            className={cn(
+              "rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors",
+              view === item.id
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground",
+            )}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="cockpit-panel grid gap-3 p-3 sm:grid-cols-2 xl:grid-cols-[1fr_13rem_13rem]">
         <label className="relative flex-1">
           <span className="sr-only">Rechercher dans l’inventaire</span>
-          <Search className="absolute left-3 top-3 text-slate-400" size={16} />
+          <Search
+            className="absolute left-3 top-3 text-muted-foreground"
+            size={16}
+          />
           <input
             type="search"
             className="input min-h-11 pl-9 pr-9"
@@ -264,7 +409,7 @@ function InventoryContent() {
           />
           {refreshing && (
             <RefreshCw
-              className="absolute right-3 top-3 animate-spin text-[#0b66d8]"
+              className="absolute right-3 top-3 animate-spin text-primary"
               size={16}
               aria-label="Mise à jour"
             />
@@ -301,10 +446,13 @@ function InventoryContent() {
 
       {!loading && (
         <div
-          className="flex items-center justify-between text-sm text-slate-500"
+          className="flex items-center justify-between text-sm text-muted-foreground"
           aria-live="polite"
         >
-          <span>{formatNumber(pagination.total)} véhicule(s)</span>
+          <span>
+            {formatNumber(filtered.length)} affiché(s) sur{" "}
+            {formatNumber(pagination.total)}
+          </span>
           {pagination.totalPages > 1 && (
             <span>
               Page {page} sur {pagination.totalPages}
@@ -314,91 +462,208 @@ function InventoryContent() {
       )}
 
       {loading ? (
-        <div className="animate-pulse space-y-3">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="h-20 bg-slate-200 rounded-xl" />
-          ))}
-        </div>
+        <CockpitSkeleton rows={6} />
       ) : loadError ? (
         <div
-          className="card border border-red-200 bg-red-50 text-center py-10"
+          className="card border border-destructive/30 bg-destructive/10 py-10 text-center"
           role="alert"
         >
-          <p className="font-semibold text-red-800">
+          <p className="font-semibold text-destructive">
             Inventaire temporairement indisponible
           </p>
-          <p className="mt-1 text-sm text-red-700">{loadError}</p>
+          <p className="mt-1 text-sm text-destructive/80">{loadError}</p>
           <button type="button" onClick={load} className="btn-secondary mt-4">
             Réessayer
           </button>
         </div>
-      ) : vehicles.length === 0 ? (
-        <div className="card text-center py-12 text-slate-500">
+      ) : filtered.length === 0 ? (
+        <div className="card py-12 text-center text-muted-foreground">
           Aucun véhicule trouvé. Ajoutez votre premier véhicule ou importez un
           fichier CSV.
         </div>
       ) : (
-        <div
-          className={`space-y-3 ${refreshing ? "opacity-70" : "opacity-100"}`}
-          aria-busy={refreshing}
-        >
-          {vehicles.map((v) => (
-            <article
-              key={v.id}
-              className="content-auto group flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm transition-colors hover:border-[#8eb9e8] sm:flex-row sm:items-center"
-            >
-              <div className="h-32 w-full flex-shrink-0 overflow-hidden rounded-xl bg-slate-100 sm:h-20 sm:w-28">
-                {v.photos?.[0] && (
-                  <img
-                    src={v.photos[0].url}
-                    alt=""
-                    width={224}
-                    height={160}
-                    loading="lazy"
-                    className="h-full w-full object-cover"
+        <>
+          <div className="md:hidden space-y-3" aria-busy={refreshing}>
+            {filtered.map((vehicle) => (
+              <VehicleCard
+                key={vehicle.id}
+                vehicle={vehicle}
+                copied={copiedId === vehicle.id}
+                onCopyVin={copyVin}
+                onGenerate={() => handleGenerateDesc(vehicle.id)}
+              />
+            ))}
+          </div>
+
+          <div
+            ref={tableRef}
+            className={cn(
+              "cockpit-panel hidden overflow-x-auto md:block",
+              refreshing && "opacity-70",
+            )}
+            aria-busy={refreshing}
+          >
+            <table className="w-full min-w-[64rem] text-left text-sm">
+              <thead className="border-b border-border bg-muted/40 font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
+                <tr>
+                  <th className="px-2 py-2">Photo</th>
+                  <SortHeader
+                    label="Véhicule"
+                    active={sortKey === "name"}
+                    dir={sortDir}
+                    onClick={() => toggleSort("name")}
                   />
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <span className="brand-label inline-flex rounded-md bg-[#edf6ff] px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-[#0b4da2]">
-                  Stock {v.stockNumber ?? "—"}
-                </span>
-                <Link
-                  href={`/dashboard/inventory/${v.id}`}
-                  className="mt-2 block truncate text-base font-black tracking-tight text-[#071426] hover:text-[#0b66d8]"
-                >
-                  {v.year} {v.make} {v.model} {v.trim}
-                </Link>
-                <p className="mt-1 text-sm text-slate-500">
-                  {formatNumber(v.mileage)} km · {v._count.listings}{" "}
-                  publication(s)
-                </p>
-              </div>
-              <div className="flex items-center justify-between gap-4 sm:block sm:min-w-32 sm:text-right">
-                <p className="text-lg font-black tabular-nums text-[#071426]">
-                  {formatCurrency(v.price)}
-                </p>
-                <span className={getStatusBadgeClass(v.status)}>
-                  {formatStatus(v.status)}
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => handleGenerateDesc(v.id)}
-                className="btn-secondary min-h-11 text-xs"
-                title="Générer la description"
-                aria-label={`Générer la description de ${v.year} ${v.make} ${v.model}`}
-              >
-                <Sparkles size={14} className="sm:mr-0" />
-                <span className="ml-2 sm:sr-only">Générer la description</span>
-              </button>
-            </article>
-          ))}
-        </div>
+                  <th className="px-2 py-2 font-mono">Stock</th>
+                  <th className="px-2 py-2 font-mono">NIV</th>
+                  <SortHeader
+                    label="Km"
+                    active={sortKey === "mileage"}
+                    dir={sortDir}
+                    onClick={() => toggleSort("mileage")}
+                  />
+                  <SortHeader
+                    label="Prix"
+                    active={sortKey === "price"}
+                    dir={sortDir}
+                    onClick={() => toggleSort("price")}
+                  />
+                  <SortHeader
+                    label="Jours"
+                    active={sortKey === "days"}
+                    dir={sortDir}
+                    onClick={() => toggleSort("days")}
+                  />
+                  <th className="px-2 py-2">Marketplace</th>
+                  <SortHeader
+                    label="Fiche"
+                    active={sortKey === "completeness"}
+                    dir={sortDir}
+                    onClick={() => toggleSort("completeness")}
+                  />
+                  <th className="px-2 py-2">
+                    <span className="sr-only">Actions</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((vehicle, index) => {
+                  const days = daysInStock(vehicle.createdAt);
+                  const tone = daysTone(days);
+                  const market = marketplaceStatus(vehicle);
+                  const complete = completeness(vehicle);
+                  const title = [vehicle.year, vehicle.make, vehicle.model]
+                    .filter(Boolean)
+                    .join(" ");
+                  return (
+                    <tr
+                      key={vehicle.id}
+                      className={cn(
+                        "border-b border-border last:border-0 transition-colors",
+                        compact ? "h-12" : "h-16",
+                        index === cursor
+                          ? "bg-primary/10"
+                          : "hover:bg-muted/60",
+                      )}
+                    >
+                      <td className="px-2">
+                        <div
+                          className={cn(
+                            "overflow-hidden rounded-lg bg-muted",
+                            compact ? "h-10 w-14" : "h-14 w-[4.5rem]",
+                          )}
+                        >
+                          {vehicle.photos?.[0] && (
+                            <img
+                              src={vehicle.photos[0].url}
+                              alt=""
+                              width={72}
+                              height={56}
+                              loading="lazy"
+                              className="photo-dim h-full w-full object-cover"
+                            />
+                          )}
+                        </div>
+                      </td>
+                      <td className="max-w-[16rem] px-2 py-2">
+                        <Link
+                          href={`/dashboard/inventory/${vehicle.id}`}
+                          className="block truncate font-semibold tracking-tight text-foreground hover:text-primary"
+                        >
+                          {title}
+                          {vehicle.trim ? (
+                            <span className="ml-1 font-medium text-muted-foreground">
+                              {vehicle.trim}
+                            </span>
+                          ) : null}
+                        </Link>
+                        <span
+                          className={cn(
+                            getStatusBadgeClass(vehicle.status),
+                            "mt-1",
+                          )}
+                        >
+                          {formatStatus(vehicle.status)}
+                        </span>
+                      </td>
+                      <td className="px-2 font-mono text-xs tabular-nums">
+                        {vehicle.stockNumber ?? "—"}
+                      </td>
+                      <td className="px-2">
+                        {vehicle.vin ? (
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-1 font-mono text-xs tabular-nums text-muted-foreground hover:text-foreground"
+                            onClick={() => copyVin(vehicle.vin!, vehicle.id)}
+                            title="Copier le NIV"
+                          >
+                            {vehicle.vin.slice(0, 8)}…
+                            {copiedId === vehicle.id ? (
+                              <Check size={12} className="text-signal" />
+                            ) : (
+                              <Copy size={12} />
+                            )}
+                          </button>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                      <td className="px-2 font-mono text-xs tabular-nums">
+                        {formatNumber(vehicle.mileage)}
+                      </td>
+                      <td className="px-2 font-mono text-sm font-semibold tabular-nums">
+                        {formatCurrency(vehicle.price)}
+                      </td>
+                      <td className="px-2">
+                        <DaysBar days={days} tone={tone} />
+                      </td>
+                      <td className="px-2">
+                        <MarketDot status={market} />
+                      </td>
+                      <td className="px-2">
+                        <CompletenessRing percent={complete.percent} />
+                      </td>
+                      <td className="px-2">
+                        <button
+                          type="button"
+                          onClick={() => handleGenerateDesc(vehicle.id)}
+                          className="btn-secondary h-9 px-2 text-xs"
+                          title="Générer la description"
+                          aria-label={`Générer la description de ${title}`}
+                        >
+                          <Sparkles size={14} />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
       {!loading && pagination.totalPages > 1 && (
-        <div className="flex items-center justify-center gap-3 mt-6">
+        <div className="mt-6 flex items-center justify-center gap-3">
           <button
             className="btn-secondary"
             onClick={() => setPage((current) => Math.max(1, current - 1))}
@@ -406,7 +671,7 @@ function InventoryContent() {
           >
             <ChevronLeft size={16} className="mr-1" /> Précédente
           </button>
-          <span className="text-sm text-slate-500">
+          <span className="text-sm text-muted-foreground">
             Page {page} sur {pagination.totalPages}
           </span>
           <button
@@ -420,6 +685,158 @@ function InventoryContent() {
           </button>
         </div>
       )}
-    </div>
+    </FadeIn>
+  );
+}
+
+function SortHeader({
+  label,
+  active,
+  dir,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  dir: "asc" | "desc";
+  onClick: () => void;
+}) {
+  return (
+    <th
+      className="px-2 py-2"
+      aria-sort={active ? (dir === "asc" ? "ascending" : "descending") : "none"}
+    >
+      <button
+        type="button"
+        onClick={onClick}
+        className="inline-flex items-center gap-1 font-semibold uppercase tracking-wide"
+      >
+        {label}
+        <ArrowUpDown
+          size={12}
+          className={active ? "text-primary" : "text-muted-foreground"}
+        />
+      </button>
+    </th>
+  );
+}
+
+function DaysBar({
+  days,
+  tone,
+}: {
+  days: number;
+  tone: "signal" | "warning" | "danger";
+}) {
+  const width = Math.min(100, Math.round((days / 90) * 100));
+  return (
+    <span className="flex min-w-[4.5rem] flex-col gap-1">
+      <span className="font-mono text-xs tabular-nums">{days} j</span>
+      <span className="h-1.5 overflow-hidden rounded-full bg-muted">
+        <span
+          className={cn(
+            "block h-full rounded-full",
+            tone === "signal" && "bg-signal shadow-[0_0_8px_hsl(var(--signal))]",
+            tone === "warning" &&
+              "bg-warning shadow-[0_0_8px_hsl(var(--warning))]",
+            tone === "danger" &&
+              "bg-destructive shadow-[0_0_8px_hsl(var(--destructive))]",
+          )}
+          style={{ width: `${Math.max(8, width)}%` }}
+        />
+      </span>
+    </span>
+  );
+}
+
+function MarketDot({ status }: { status: MarketplaceStatus }) {
+  const tone = {
+    never: "bg-muted-foreground/40",
+    active: "bg-signal shadow-[0_0_10px_hsl(var(--signal))]",
+    renew: "bg-warning shadow-[0_0_10px_hsl(var(--warning))]",
+    sold: "bg-destructive shadow-[0_0_10px_hsl(var(--destructive))]",
+  }[status];
+  return (
+    <span className="inline-flex items-center gap-1.5 text-xs">
+      <span className={cn("h-2 w-2 rounded-full", tone)} aria-hidden />
+      {MARKETPLACE_LABEL[status]}
+    </span>
+  );
+}
+
+function VehicleCard({
+  vehicle,
+  copied,
+  onCopyVin,
+  onGenerate,
+}: {
+  vehicle: Vehicle;
+  copied: boolean;
+  onCopyVin: (vin: string, id: string) => void;
+  onGenerate: () => void;
+}) {
+  const days = daysInStock(vehicle.createdAt);
+  const market = marketplaceStatus(vehicle);
+  const complete = completeness(vehicle);
+  const title = [vehicle.year, vehicle.make, vehicle.model]
+    .filter(Boolean)
+    .join(" ");
+  return (
+    <article className="card content-auto flex flex-col gap-3 p-3">
+      <div className="h-32 w-full overflow-hidden rounded-xl bg-muted">
+        {vehicle.photos?.[0] && (
+          <img
+            src={vehicle.photos[0].url}
+            alt=""
+            width={224}
+            height={160}
+            loading="lazy"
+            className="photo-dim h-full w-full object-cover"
+          />
+        )}
+      </div>
+      <div>
+        <span className="brand-label inline-flex rounded-md bg-primary/10 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-primary">
+          Stock {vehicle.stockNumber ?? "—"}
+        </span>
+        <Link
+          href={`/dashboard/inventory/${vehicle.id}`}
+          className="mt-2 block truncate text-base font-bold tracking-tight hover:text-primary"
+        >
+          {title} {vehicle.trim}
+        </Link>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {formatNumber(vehicle.mileage)} km · {days} j ·{" "}
+          {MARKETPLACE_LABEL[market]}
+        </p>
+      </div>
+      <div className="flex items-center justify-between gap-3">
+        <p className="font-mono text-lg font-semibold tabular-nums">
+          {formatCurrency(vehicle.price)}
+        </p>
+        <CompletenessRing percent={complete.percent} />
+      </div>
+      <div className="flex items-center justify-between">
+        {vehicle.vin ? (
+          <button
+            type="button"
+            className="inline-flex items-center gap-1 font-mono text-xs text-muted-foreground"
+            onClick={() => onCopyVin(vehicle.vin!, vehicle.id)}
+          >
+            {vehicle.vin.slice(0, 11)}…{copied ? <Check size={12} /> : <Copy size={12} />}
+          </button>
+        ) : (
+          <span />
+        )}
+        <button
+          type="button"
+          onClick={onGenerate}
+          className="btn-secondary min-h-11 text-xs"
+          aria-label={`Générer la description de ${title}`}
+        >
+          <Sparkles size={14} />
+          <span className="ml-2">Description</span>
+        </button>
+      </div>
+    </article>
   );
 }

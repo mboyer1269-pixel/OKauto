@@ -19,7 +19,8 @@
     "db:studio": "pnpm --filter @okauto/database studio",
     "pretest": "pnpm db:generate",
     "start:local": "node scripts/start-local.mjs",
-    "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\""
+    "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\"",
+    "brand:assets": "node scripts/generate-brand-assets.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",

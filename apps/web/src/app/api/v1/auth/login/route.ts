@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { loginSchema } from "@okauto/shared";
+import { isPlatformAdminUserId, loginSchema } from "@okauto/shared";
 import { prisma } from "@okauto/database";
 import {
   verifyPassword,
@@ -85,6 +85,7 @@ export async function POST(request: NextRequest) {
         slug: membership.organization.slug,
       },
       role: membership.role,
+      isPlatformAdmin: isPlatformAdminUserId(user.id),
       accessToken,
       refreshToken,
     });

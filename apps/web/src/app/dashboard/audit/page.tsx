@@ -38,7 +38,7 @@ function AuditContent() {
       <div className="card overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b text-left text-slate-500">
+            <tr className="border-b text-left text-muted-foreground">
               <th className="pb-3 pr-4">Date</th>
               <th className="pb-3 pr-4">Utilisateur</th>
               <th className="pb-3 pr-4">Action</th>
@@ -48,7 +48,7 @@ function AuditContent() {
           <tbody>
             {logs.map((l) => (
               <tr key={l.id} className="border-b last:border-0">
-                <td className="py-3 pr-4 text-slate-500">
+                <td className="py-3 pr-4 text-muted-foreground">
                   {formatDateTime(l.createdAt)}
                 </td>
                 <td className="py-3 pr-4">{l.user?.name ?? "Système"}</td>
@@ -64,7 +64,7 @@ function AuditContent() {
           </tbody>
         </table>
         {logs.length === 0 && (
-          <p className="text-center py-8 text-slate-500">
+          <p className="text-center py-8 text-muted-foreground">
             Aucune activité enregistrée.
           </p>
         )}

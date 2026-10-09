@@ -67,7 +67,7 @@ function NotificationsContent() {
       </div>
 
       {notifications.length === 0 ? (
-        <div className="card text-center py-12 text-slate-500">
+        <div className="card text-center py-12 text-muted-foreground">
           Aucune notification.
         </div>
       ) : (
@@ -80,11 +80,11 @@ function NotificationsContent() {
             >
               <div className="flex justify-between">
                 <h3 className="font-semibold">{n.title}</h3>
-                <span className="text-xs text-slate-500">
+                <span className="text-xs text-muted-foreground">
                   {formatDateTime(n.createdAt)}
                 </span>
               </div>
-              <p className="text-sm text-slate-600 mt-1">{n.message}</p>
+              <p className="text-sm text-muted-foreground mt-1">{n.message}</p>
               <span className="badge-neutral mt-2">{n.type}</span>
             </div>
           ))}

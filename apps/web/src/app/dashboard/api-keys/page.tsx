@@ -128,11 +128,11 @@ function ApiKeysContent() {
 
   return (
     <div className="space-y-5">
-      <header className="overflow-hidden rounded-[1.5rem] bg-[#071426] text-white shadow-[0_24px_60px_-42px_rgba(7,20,38,0.95)]">
-        <div className="h-1.5 bg-[linear-gradient(90deg,#0b66d8_0%,#0b66d8_72%,#0e9f6e_72%,#0e9f6e_100%)]" />
+      <header className="overflow-hidden rounded-2xl bg-sidebar text-sidebar-foreground shadow-sm">
+        <div className="h-1.5 bg-gradient-to-r from-primary via-primary to-signal" />
         <div className="grid gap-6 px-5 py-6 sm:px-7 lg:grid-cols-[1fr_auto] lg:items-end">
           <div>
-            <div className="flex items-center gap-2 text-[#79b7ff]">
+            <div className="flex items-center gap-2 text-sidebar-accent">
               <KeyRound size={17} />
               <p className="brand-label text-[11px] font-bold uppercase tracking-[0.18em]">
                 Accès extension Chrome
@@ -141,16 +141,16 @@ function ApiKeysContent() {
             <h1 className="brand-display mt-3 text-3xl font-black tracking-[-0.04em] sm:text-4xl">
               Connecter mon poste de vente
             </h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
               Une clé par ordinateur. Elle permet à l’extension de lire votre
               inventaire et d’enregistrer les annonces publiées.
             </p>
           </div>
-          <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3">
-            <ShieldCheck className="text-emerald-400" size={22} />
+          <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-card/[0.06] px-4 py-3">
+            <ShieldCheck className="text-signal" size={22} />
             <div>
               <p className="text-2xl font-black tabular-nums">{activeCount}</p>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-muted-foreground">
                 poste{activeCount === 1 ? "" : "s"} actif
                 {activeCount === 1 ? "" : "s"}
               </p>
@@ -162,7 +162,7 @@ function ApiKeysContent() {
       {error && (
         <div
           role="alert"
-          className="flex items-center justify-between rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+          className="flex items-center justify-between rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive"
         >
           <span className="flex items-center gap-2">
             <AlertCircle size={17} />
@@ -171,7 +171,7 @@ function ApiKeysContent() {
           <button
             type="button"
             onClick={() => setError("")}
-            className="rounded p-1 hover:bg-red-100"
+            className="rounded p-1 hover:bg-destructive/15"
             aria-label="Fermer le message"
           >
             <X size={16} />
@@ -181,18 +181,18 @@ function ApiKeysContent() {
 
       {createdKey && (
         <section
-          className="rounded-2xl border-2 border-emerald-300 bg-emerald-50 p-5"
+          className="rounded-2xl border-2 border-signal/40 bg-signal/10 p-5"
           aria-labelledby="created-key-title"
         >
           <div className="flex items-start justify-between gap-4">
             <div>
               <h2
                 id="created-key-title"
-                className="font-black text-emerald-950"
+                className="font-black text-foreground"
               >
                 Clé prête à installer
               </h2>
-              <p className="mt-1 text-sm text-emerald-800">
+              <p className="mt-1 text-sm text-muted-foreground">
                 Copiez-la maintenant : elle ne sera plus affichée après avoir
                 fermé ce bloc.
               </p>
@@ -200,14 +200,14 @@ function ApiKeysContent() {
             <button
               type="button"
               onClick={() => setCreatedKey(null)}
-              className="rounded-lg p-2 text-emerald-800 hover:bg-emerald-100"
+              className="rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
               aria-label="Fermer la nouvelle clé"
             >
               <X size={18} />
             </button>
           </div>
           <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-            <code className="min-w-0 flex-1 select-all break-all rounded-xl border border-emerald-200 bg-white p-3 text-xs text-slate-900">
+            <code className="min-w-0 flex-1 select-all break-all rounded-xl border border-signal/30 bg-card p-3 text-xs text-foreground">
               {createdKey}
             </code>
             <button
@@ -227,18 +227,18 @@ function ApiKeysContent() {
       )}
 
       <section
-        className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5"
+        className="rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-5"
         aria-labelledby="new-key-title"
       >
         <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
           <label>
             <span
               id="new-key-title"
-              className="block text-sm font-black text-slate-950"
+              className="block text-sm font-black text-foreground"
             >
               Nom du nouvel ordinateur
             </span>
-            <span className="mb-2 mt-1 block text-xs text-slate-500">
+            <span className="mb-2 mt-1 block text-xs text-muted-foreground">
               Exemple : Chrome — bureau de Michael
             </span>
             <input
@@ -272,11 +272,11 @@ function ApiKeysContent() {
           <div>
             <h2
               id="key-list-title"
-              className="text-lg font-black text-[#071426]"
+              className="text-lg font-black text-foreground"
             >
               Mes postes autorisés
             </h2>
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="mt-1 text-sm text-muted-foreground">
               Révoquez une clé si un ordinateur change de propriétaire.
             </p>
           </div>
@@ -296,12 +296,12 @@ function ApiKeysContent() {
             {[1, 2, 3].map((item) => (
               <div
                 key={item}
-                className="h-24 animate-pulse rounded-2xl bg-slate-200"
+                className="h-24 animate-pulse rounded-2xl bg-muted"
               />
             ))}
           </div>
         ) : keys.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-slate-300 bg-white py-12 text-center text-sm text-slate-500">
+          <div className="rounded-2xl border border-dashed border-border bg-card py-12 text-center text-sm text-muted-foreground">
             Aucun poste autorisé pour le moment.
           </div>
         ) : (
@@ -309,11 +309,11 @@ function ApiKeysContent() {
             {keys.map((key) => (
               <article
                 key={key.id}
-                className="content-auto grid gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-[1fr_auto] sm:items-center sm:p-5"
+                className="content-auto grid gap-4 rounded-2xl border border-border bg-card p-4 shadow-sm sm:grid-cols-[1fr_auto] sm:items-center sm:p-5"
               >
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="truncate font-black text-[#071426]">
+                    <h3 className="truncate font-black text-foreground">
                       {key.name}
                     </h3>
                     <span
@@ -324,10 +324,10 @@ function ApiKeysContent() {
                       {key.isActive ? "Active" : "Révoquée"}
                     </span>
                   </div>
-                  <p className="brand-label mt-2 text-xs font-bold text-[#0b4da2]">
+                  <p className="brand-label mt-2 text-xs font-bold text-primary">
                     {key.keyPrefix}…
                   </p>
-                  <p className="mt-2 text-xs leading-5 text-slate-500">
+                  <p className="mt-2 text-xs leading-5 text-muted-foreground">
                     Créée par {key.user.name} · {formatDateTime(key.createdAt)}{" "}
                     · Dernière utilisation :{" "}
                     {key.lastUsedAt ? formatDateTime(key.lastUsedAt) : "jamais"}
@@ -335,8 +335,8 @@ function ApiKeysContent() {
                 </div>
                 {key.isActive &&
                   (revokeId === key.id ? (
-                    <div className="flex flex-wrap items-center gap-2 rounded-xl bg-red-50 p-2">
-                      <span className="px-1 text-xs font-bold text-red-800">
+                    <div className="flex flex-wrap items-center gap-2 rounded-xl bg-destructive/10 p-2">
+                      <span className="px-1 text-xs font-bold text-destructive">
                         Confirmer?
                       </span>
                       <button
@@ -359,7 +359,7 @@ function ApiKeysContent() {
                     <button
                       type="button"
                       onClick={() => setRevokeId(key.id)}
-                      className="btn-secondary min-h-11 text-red-700 hover:bg-red-50"
+                      className="btn-secondary min-h-11 text-destructive hover:bg-destructive/10"
                       aria-label={`Révoquer la clé ${key.name}`}
                     >
                       <Trash2 size={16} className="mr-2" /> Révoquer

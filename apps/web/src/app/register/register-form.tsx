@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth-provider";
-import { BrandMark } from "@/components/brand-mark";
+import { ThemedBrandLockup } from "@/components/themed-brand-mark";
 
 export function RegisterForm() {
   const { register } = useAuth();
@@ -35,14 +35,14 @@ export function RegisterForm() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[radial-gradient(circle_at_top,#d9f0ff_0%,#f6faff_42%,#edf3f9_100%)] px-4 py-8">
+    <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
       <div className="card w-full max-w-md rounded-2xl p-7 sm:p-8">
-        <div className="text-center mb-8">
-          <BrandMark className="justify-center" />
-          <h1 className="brand-display mt-6 text-2xl font-black tracking-tight text-slate-950">
+        <div className="mb-8 text-center">
+          <ThemedBrandLockup className="justify-center" />
+          <h1 className="brand-display mt-6 text-2xl font-bold tracking-tight">
             Créez votre espace
           </h1>
-          <p className="text-slate-600 mt-2">
+          <p className="mt-2 text-muted-foreground">
             Invitez ensuite votre équipe de vente.
           </p>
         </div>
@@ -50,7 +50,7 @@ export function RegisterForm() {
           {error && (
             <div
               role="alert"
-              className="p-3 bg-red-50 text-red-700 rounded-lg text-sm"
+              className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive"
             >
               {error}
             </div>
@@ -134,9 +134,9 @@ export function RegisterForm() {
             {loading ? "Création…" : "Créer le compte"}
           </button>
         </form>
-        <p className="text-center text-sm text-slate-600 mt-6">
+        <p className="mt-6 text-center text-sm text-muted-foreground">
           Vous avez déjà un compte?{" "}
-          <Link href="/login" className="text-brand-600 hover:underline">
+          <Link href="/login" className="text-primary hover:underline">
             Se connecter
           </Link>
         </p>

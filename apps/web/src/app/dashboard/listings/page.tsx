@@ -41,6 +41,8 @@ import {
 } from "@okauto/shared";
 import { ProtectedRoute } from "@/components/protected-route";
 import { useAuth } from "@/components/auth-provider";
+import { CockpitSkeleton } from "@/components/cockpit-skeleton";
+import { FadeIn } from "@/components/fade-in";
 import { cn, formatCurrency, formatDateTime, formatNumber } from "@/lib/utils";
 
 interface Vehicle {
@@ -202,9 +204,7 @@ export default function ListingsPage() {
   return (
     <ProtectedRoute>
       <Suspense
-        fallback={
-          <div className="h-24 animate-pulse rounded-xl bg-slate-200" />
-        }
+        fallback={<CockpitSkeleton rows={2} />}
       >
         <ListingsContent />
       </Suspense>
@@ -1066,23 +1066,26 @@ function ListingsContent() {
   }, [prepareId, loading]);
 
   return (
-    <div className="min-w-0 space-y-4">
-      <header className="relative overflow-hidden rounded-[1.35rem] bg-[#071426] px-5 py-4 text-white shadow-[0_22px_55px_-35px_rgba(7,20,38,0.9)] sm:px-6 sm:py-5">
+    <>
+    <FadeIn className="min-w-0 space-y-4">
+      <header className="cockpit-scan relative overflow-hidden rounded-2xl border border-sidebar-accent/20 bg-sidebar px-5 py-4 text-sidebar-foreground shadow-[0_0_40px_hsl(var(--sidebar-accent)/0.08)] sm:px-6 sm:py-5">
         <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-2/5 border-l border-white/10 lg:block">
-          <div className="absolute left-12 top-0 h-full w-px bg-white/10" />
-          <div className="absolute left-24 top-0 h-full w-px bg-white/5" />
+          <div className="absolute left-12 top-0 h-full w-px bg-card/10" />
+          <div className="absolute left-24 top-0 h-full w-px bg-card/5" />
         </div>
         <div className="relative grid gap-4 lg:grid-cols-[1fr_18rem] lg:items-center">
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full border border-[#d6b75a]/50 bg-[#d6b75a]/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-[#f1d77f]">
+              <span className="rounded-full border border-sidebar-accent/50 bg-sidebar-accent/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-sidebar-accent">
                 {organization.name} · voie de publication
               </span>
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 px-3 py-1 text-xs text-slate-300">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 px-3 py-1 text-xs text-sidebar-foreground/70">
                 <Radio
                   size={12}
                   className={
-                    extensionConnected ? "text-emerald-400" : "text-slate-400"
+                    extensionConnected
+                      ? "text-signal shadow-[0_0_10px_hsl(var(--signal))]"
+                      : "text-sidebar-foreground/50"
                   }
                 />
                 {extensionConnected
@@ -1093,29 +1096,31 @@ function ListingsContent() {
             <h1 className="mt-3 max-w-3xl text-2xl font-black leading-tight tracking-[-0.035em] sm:text-3xl">
               Centre de publication Marketplace
             </h1>
-            <p className="mt-2 max-w-2xl text-sm leading-5 text-slate-300">
+            <p className="mt-2 max-w-2xl text-sm leading-5 text-sidebar-foreground/70">
               Choisissez une auto, laissez Suivia remplir l’annonce, puis
               vérifiez et publiez dans Facebook.
             </p>
           </div>
 
-          <div className="rounded-2xl border border-white/10 bg-white/[0.06] p-4 backdrop-blur-sm">
+          <div className="rounded-2xl border border-white/10 bg-card/[0.06] p-4 backdrop-blur-sm">
             <div className="flex items-center justify-between border-b border-white/10 pb-3">
-              <span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
+              <span className="font-mono text-xs font-bold uppercase tracking-[0.16em] text-sidebar-accent">
                 Lot prêt
               </span>
-              <Gauge size={18} className="text-[#79b7ff]" />
+              <Gauge size={18} className="text-sidebar-accent" />
             </div>
             <div className="mt-2 flex items-end justify-between gap-4">
               <div>
-                <p className="text-3xl font-black tabular-nums">
+                <p className="font-mono text-3xl font-black tabular-nums">
                   {formatNumber(counts.prepare)}
                 </p>
-                <p className="text-xs text-slate-400">véhicules publiables</p>
+                <p className="text-xs text-sidebar-foreground/60">
+                  véhicules publiables
+                </p>
               </div>
               <Link
                 href="/dashboard/inventory"
-                className="inline-flex items-center text-sm font-bold text-white hover:text-[#79b7ff]"
+                className="inline-flex items-center text-sm font-bold text-sidebar-foreground hover:text-sidebar-accent"
               >
                 Inventaire <ArrowUpRight className="ml-1.5" size={15} />
               </Link>
@@ -1124,9 +1129,9 @@ function ListingsContent() {
         </div>
       </header>
 
-      <div className="rounded-2xl border border-[#b9d5f5] bg-[#edf6ff] px-4 py-3 text-sm text-[#0b315c]">
+      <div className="rounded-2xl border border-primary/20 bg-primary/10 px-4 py-3 text-sm text-foreground">
         <div className="flex items-start gap-3">
-          <ShieldCheck className="mt-0.5 shrink-0 text-[#0b4da2]" size={19} />
+          <ShieldCheck className="mt-0.5 shrink-0 text-primary" size={19} />
           <div className="min-w-0 leading-6">
             {quota && quota.remainingThisMonth <= 0 ? (
               <p>
@@ -1146,7 +1151,7 @@ function ListingsContent() {
                   : null}
               </p>
             )}
-            <p className="mt-1 text-xs text-[#24527e]">
+            <p className="mt-1 text-xs text-muted-foreground">
               Compté par Suivia à partir de vos publications enregistrées. Les
               annonces supprimées peuvent aussi compter pour Meta. Fiez-vous à
               la limite affichée dans votre compte Facebook. Ne supprimez pas
@@ -1162,8 +1167,8 @@ function ListingsContent() {
           className={cn(
             "flex items-center justify-between rounded-lg border px-4 py-3 text-sm",
             error
-              ? "border-red-200 bg-red-50 text-red-800"
-              : "border-emerald-200 bg-emerald-50 text-emerald-800",
+              ? "border-destructive/30 bg-destructive/10 text-destructive"
+              : "border-signal/30 bg-signal/10 text-signal",
           )}
         >
           <span>{error || message}</span>
@@ -1181,7 +1186,7 @@ function ListingsContent() {
         </div>
       )}
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm">
+      <div className="cockpit-panel p-1.5">
         <div
           className="flex gap-1 overflow-x-auto"
           role="tablist"
@@ -1200,8 +1205,8 @@ function ListingsContent() {
                 className={cn(
                   "flex min-h-11 shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-sm font-bold transition-colors",
                   active
-                    ? "bg-[#071426] text-white shadow-sm"
-                    : "text-slate-500 hover:bg-slate-100 hover:text-slate-900",
+                    ? "bg-sidebar text-sidebar-foreground shadow-sm"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
                 )}
               >
                 <Icon size={16} />
@@ -1209,7 +1214,7 @@ function ListingsContent() {
                 <span
                   className={cn(
                     "rounded-full px-2 py-0.5 text-xs",
-                    active ? "bg-white/15 text-white" : "bg-slate-100",
+                    active ? "bg-white/15 text-white" : "bg-muted",
                   )}
                 >
                   {formatNumber(counts[item.id])}
@@ -1221,20 +1226,13 @@ function ListingsContent() {
       </div>
 
       {loading ? (
-        <div className="grid gap-3">
-          {[1, 2, 3].map((item) => (
-            <div
-              key={item}
-              className="h-24 animate-pulse rounded-xl bg-slate-200"
-            />
-          ))}
-        </div>
+        <CockpitSkeleton rows={4} />
       ) : queue === "today" ? (
         <section aria-labelledby="today-heading">
-          <h2 id="today-heading" className="text-lg font-bold text-slate-950">
+          <h2 id="today-heading" className="text-lg font-bold text-foreground">
             File du jour
           </h2>
-          <p className="mb-4 mt-1 text-sm text-slate-500">
+          <p className="mb-4 mt-1 text-sm text-muted-foreground">
             Priorisés selon l’âge en stock, la priorité du directeur et les
             baisses de prix. Âge calculé depuis l’arrivée du véhicule dans
             Suivia. Évitez une deuxième annonce pour un véhicule déjà en ligne
@@ -1252,7 +1250,7 @@ function ListingsContent() {
                   key={item.vehicle.id}
                   className="card flex min-w-0 w-full flex-col gap-4 p-4 sm:flex-row sm:items-center"
                 >
-                  <div className="h-20 w-full shrink-0 overflow-hidden rounded-lg bg-slate-100 sm:w-28">
+                  <div className="h-20 w-full shrink-0 overflow-hidden rounded-lg bg-muted sm:w-28">
                     {item.vehicle.photoUrl || item.vehicle.photos?.[0]?.url ? (
                       <img
                         src={item.vehicle.photoUrl || item.vehicle.photos[0].url}
@@ -1262,19 +1260,19 @@ function ListingsContent() {
                     ) : null}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs font-bold uppercase tracking-wide text-[#0b66d8]">
+                    <p className="text-xs font-bold uppercase tracking-wide text-primary">
                       Priorité n° {index + 1}
                     </p>
-                    <h3 className="font-bold text-slate-950">
+                    <h3 className="font-bold text-foreground">
                       {vehicleName(item.vehicle)}
                     </h3>
-                    <ul className="mt-1 text-sm text-slate-600">
+                    <ul className="mt-1 text-sm text-muted-foreground">
                       {item.reasons.map((reason) => (
                         <li key={reason}>• {reason}</li>
                       ))}
                     </ul>
                     {item.alreadyListedBy.length > 0 && (
-                      <p className="mt-2 text-sm font-semibold text-amber-800">
+                      <p className="mt-2 text-sm font-semibold text-warning">
                         Déjà en ligne chez{" "}
                         {item.alreadyListedBy.map((person) => person.name).join(", ")}{" "}
                         : évitez une deuxième annonce pour le même véhicule.
@@ -1301,26 +1299,26 @@ function ListingsContent() {
               <div className="flex items-center gap-2">
                 <h2
                   id="prepare-heading"
-                  className="text-lg font-bold text-slate-950"
+                  className="text-lg font-bold text-foreground"
                 >
                   Véhicules prêts à préparer
                 </h2>
                 {refreshing && (
                   <RefreshCw
                     size={14}
-                    className="animate-spin text-[#0b66d8]"
+                    className="animate-spin text-primary"
                     aria-label="Mise à jour des résultats"
                   />
                 )}
               </div>
-              <p className="mt-1 text-sm text-slate-500" aria-live="polite">
+              <p className="mt-1 text-sm text-muted-foreground" aria-live="polite">
                 {formatNumber(readyTotal)} disponibles sans annonce active.
               </p>
             </div>
             <label className="relative block w-full sm:w-80">
               <span className="sr-only">Rechercher un véhicule</span>
               <Search
-                className="absolute left-3 top-3 text-slate-400"
+                className="absolute left-3 top-3 text-muted-foreground"
                 size={16}
               />
               <input
@@ -1334,7 +1332,7 @@ function ListingsContent() {
           </div>
 
           <div
-            className="mb-4 flex gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm"
+            className="cockpit-panel mb-4 flex gap-1 overflow-x-auto p-1.5"
             role="group"
             aria-label="Type d’inventaire"
           >
@@ -1347,8 +1345,8 @@ function ListingsContent() {
                 className={cn(
                   "min-h-10 shrink-0 rounded-xl px-3 text-sm font-bold transition-colors",
                   inventoryType === type.id
-                    ? "bg-[#0b66d8] text-white"
-                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-950",
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
                 )}
               >
                 {type.label}
@@ -1378,17 +1376,17 @@ function ListingsContent() {
                 ))}
               </div>
               {vehicles.length < readyTotal && (
-                <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4 text-center shadow-sm">
+                <div className="cockpit-panel mt-5 p-4 text-center">
                   <p
-                    className="text-sm font-semibold text-slate-700"
+                    className="text-sm font-semibold text-foreground"
                     aria-live="polite"
                   >
                     {formatNumber(vehicles.length)} affichés sur{" "}
                     {formatNumber(readyTotal)}
                   </p>
-                  <div className="mx-auto mt-3 h-1.5 max-w-md overflow-hidden rounded-full bg-slate-100">
+                  <div className="mx-auto mt-3 h-1.5 max-w-md overflow-hidden rounded-full bg-muted">
                     <div
-                      className="h-full rounded-full bg-[#0b66d8] transition-[width] motion-reduce:transition-none"
+                      className="h-full rounded-full bg-primary transition-[width] motion-reduce:transition-none"
                       style={{
                         width: `${Math.min(100, (vehicles.length / readyTotal) * 100)}%`,
                       }}
@@ -1448,23 +1446,24 @@ function ListingsContent() {
         />
       )}
 
+    </FadeIn>
       {selected && listingPackage && (
         <section
-          className="fixed inset-0 z-50 !mt-0 overflow-y-auto bg-slate-950/55 p-3 sm:p-6"
+          className="fixed inset-0 z-50 overflow-y-auto bg-background/80 p-3 backdrop-blur-md sm:p-6"
           role="dialog"
           aria-modal="true"
           aria-label="Préparer l’annonce"
         >
-          <div className="ml-auto min-h-full w-full max-w-3xl overflow-hidden rounded-[1.75rem] bg-white shadow-2xl">
-            <div className="sticky top-0 z-10 flex items-start justify-between border-b border-white/10 bg-[#071426] px-5 py-5 text-white sm:px-7">
+          <div className="ml-auto min-h-full w-full max-w-3xl overflow-hidden rounded-[1.75rem] bg-card shadow-2xl">
+            <div className="sticky top-0 z-10 flex items-start justify-between border-b border-white/10 bg-sidebar px-5 py-5 text-white sm:px-7">
               <div>
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#79b7ff]">
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-sidebar-accent">
                   Prête au départ
                 </p>
                 <h2 className="mt-1 text-xl font-black tracking-tight text-white">
                   {vehicleName(selected)}
                 </h2>
-                <p className="mt-1 text-sm text-slate-300">
+                <p className="mt-1 text-sm text-muted-foreground">
                   Stock {selected.stockNumber ?? "—"} ·{" "}
                   {formatCurrency(selected.price)} ·{" "}
                   {formatNumber(selected.mileage)} km
@@ -1472,7 +1471,7 @@ function ListingsContent() {
               </div>
               <button
                 type="button"
-                className="rounded-lg p-2 text-slate-300 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#79b7ff]"
+                className="rounded-lg p-2 text-muted-foreground hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-accent"
                 onClick={() => {
                   setSelected(null);
                   setExternalUrl("");
@@ -1492,12 +1491,12 @@ function ListingsContent() {
                   alt={vehicleName(selected)}
                   width={960}
                   height={540}
-                  className="aspect-video w-full rounded-xl bg-slate-100 object-cover"
+                  className="aspect-video w-full rounded-xl bg-muted object-cover"
                 />
               )}
 
               {!marketplaceReady && (
-                <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-900">
+                <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
                   <p className="font-semibold">Publication bloquée</p>
                   <ul className="mt-2 list-disc space-y-1 pl-5">
                     {listingPackage.blockers.map((blocker) => (
@@ -1538,21 +1537,21 @@ function ListingsContent() {
                 />
               </div>
 
-              <div className="overflow-hidden rounded-2xl border border-[#0b4da2]/20 bg-[#f2f7fc]">
+              <div className="overflow-hidden rounded-2xl border border-primary/20 bg-muted">
                 <div className="grid gap-5 p-5 sm:p-6 lg:grid-cols-[1fr_auto] lg:items-center">
                   <div>
-                    <div className="flex items-center gap-2 text-[#0b4da2]">
+                    <div className="flex items-center gap-2 text-primary">
                       <Zap size={17} fill="currentColor" />
                       <p className="text-xs font-black uppercase tracking-[0.16em]">
                         {extensionConnected ? "Assistant prêt" : "Mode rapide"}
                       </p>
                     </div>
-                    <h3 className="mt-2 text-2xl font-black tracking-tight text-[#071426]">
+                    <h3 className="mt-2 text-2xl font-black tracking-tight text-foreground">
                       {extensionConnected
                         ? "Ouvrir et remplir Facebook"
                         : "Préparer et ouvrir Facebook"}
                     </h3>
-                    <p className="mt-1 max-w-xl text-sm leading-6 text-slate-600">
+                    <p className="mt-1 max-w-xl text-sm leading-6 text-muted-foreground">
                       {extensionConnected
                         ? "Suivia Auto ouvre Marketplace, remplit les champs et ajoute automatiquement jusqu’à 20 photos. Il ne vous reste qu’à vérifier et publier."
                         : "Suivia Auto copie le texte, télécharge la photo et ouvre Marketplace. Ajoutez la photo, collez le contenu, puis publiez."}
@@ -1560,7 +1559,7 @@ function ListingsContent() {
                   </div>
                   <a
                     className={cn(
-                      "inline-flex min-h-14 w-full items-center justify-center rounded-xl bg-[#0b4da2] px-5 text-sm font-black text-white shadow-[0_12px_24px_-14px_rgba(11,77,162,0.9)] transition hover:bg-[#083d82] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0b4da2] focus-visible:ring-offset-2 lg:w-auto",
+                      "inline-flex min-h-14 w-full items-center justify-center rounded-xl bg-primary px-5 text-sm font-black text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 lg:w-auto",
                       (!marketplaceReady || launchingMarketplace) &&
                         "pointer-events-none opacity-50",
                     )}
@@ -1595,7 +1594,7 @@ function ListingsContent() {
                     )}
                   </a>
                 </div>
-                <div className="grid border-t border-[#0b4da2]/10 bg-white/70 sm:grid-cols-3">
+                <div className="grid border-t border-primary/10 bg-card/70 sm:grid-cols-3">
                   {[
                     ["1", "Fiche prête"],
                     [
@@ -1608,9 +1607,9 @@ function ListingsContent() {
                   ].map(([number, label]) => (
                     <div
                       key={number}
-                      className="flex items-center gap-2 border-b border-[#0b4da2]/10 px-4 py-3 text-sm font-bold text-slate-700 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0"
+                      className="flex items-center gap-2 border-b border-primary/10 px-4 py-3 text-sm font-bold text-foreground last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0"
                     >
-                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#071426] font-mono text-[11px] text-white">
+                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-sidebar font-mono text-[11px] text-sidebar-foreground">
                         {number}
                       </span>
                       {label}
@@ -1619,17 +1618,17 @@ function ListingsContent() {
                 </div>
               </div>
 
-              <details className="group rounded-2xl border border-slate-200 bg-white">
-                <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-4 text-sm font-bold text-slate-900 marker:content-none">
+              <details className="group rounded-2xl border border-border bg-card">
+                <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-4 text-sm font-bold text-foreground marker:content-none">
                   Voir ou copier le contenu de l’annonce
-                  <span className="text-xs font-semibold text-[#0b4da2] group-open:hidden">
+                  <span className="text-xs font-semibold text-primary group-open:hidden">
                     Afficher
                   </span>
-                  <span className="hidden text-xs font-semibold text-[#0b4da2] group-open:inline">
+                  <span className="hidden text-xs font-semibold text-primary group-open:inline">
                     Masquer
                   </span>
                 </summary>
-                <div className="space-y-5 border-t border-slate-200 p-4 sm:p-5">
+                <div className="space-y-5 border-t border-border p-4 sm:p-5">
                   <EditableDraftField
                     label="Titre"
                     value={listingPackage.title}
@@ -1659,7 +1658,7 @@ function ListingsContent() {
                       )
                     }
                   />
-                  <label className="flex items-start gap-2 rounded-xl border border-slate-200 bg-white p-3 text-sm">
+                  <label className="flex items-start gap-2 rounded-xl border border-border bg-card p-3 text-sm text-foreground">
                     <input
                       type="checkbox"
                       className="mt-1"
@@ -1721,19 +1720,19 @@ function ListingsContent() {
                       )
                     }
                   />
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 sm:flex sm:items-center sm:justify-between sm:gap-4">
+                  <div className="rounded-xl border border-border bg-muted p-3 sm:flex sm:items-center sm:justify-between sm:gap-4">
                     <div className="mb-3 sm:mb-0">
                       <p
                         className={cn(
                           "text-sm font-bold",
-                          draftDirty ? "text-amber-800" : "text-emerald-700",
+                          draftDirty ? "text-warning" : "text-signal",
                         )}
                       >
                         {draftDirty
                           ? "Modifications non enregistrées"
                           : "Enregistré pour votre profil"}
                       </p>
-                      <p className="mt-0.5 text-xs leading-5 text-slate-500">
+                      <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
                         L’extension utilisera cette version pour votre compte
                         seulement.
                       </p>
@@ -1778,7 +1777,7 @@ function ListingsContent() {
                       )}
                     </div>
                   </div>
-                  <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950">
+                  <div className="rounded-xl border border-primary/20 bg-primary/10 p-4 text-sm text-foreground">
                     <h3 className="font-bold">Champs préparés pour Facebook</h3>
                     <div className="mt-3 grid gap-x-6 gap-y-2 sm:grid-cols-2">
                       <p>
@@ -1851,9 +1850,9 @@ function ListingsContent() {
                 )}
               </div>
 
-              <div className="rounded-xl border-2 border-slate-200 bg-slate-50 p-4 sm:p-5">
-                <h3 className="font-bold text-slate-950">Suivi automatique</h3>
-                <p className="mt-1 text-sm leading-6 text-slate-600">
+              <div className="rounded-xl border-2 border-border bg-muted p-4 sm:p-5">
+                <h3 className="font-bold text-foreground">Suivi automatique</h3>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">
                   Avec l’extension, Suivia Auto détecte l’URL finale après votre
                   clic sur Publier et classe automatiquement le véhicule dans «
                   Publiées ». Pour rattacher une annonce déjà en ligne, collez
@@ -1881,7 +1880,7 @@ function ListingsContent() {
                 </button>
               </div>
 
-              <p className="text-xs leading-5 text-slate-500">
+              <p className="text-xs leading-5 text-muted-foreground">
                 Aide à la conformité seulement : validez toujours l’exactitude,
                 la disponibilité et les obligations applicables avant de
                 publier. N’ajoutez aucun frais obligatoire au prix affiché.
@@ -1890,7 +1889,7 @@ function ListingsContent() {
           </div>
         </section>
       )}
-    </div>
+    </>
   );
 }
 
@@ -1904,8 +1903,8 @@ function VehicleRow({
   onPrepare: () => void;
 }) {
   return (
-    <article className="group flex min-w-0 w-full flex-col gap-4 overflow-hidden rounded-2xl border border-slate-200 bg-white p-3 shadow-sm transition hover:border-[#8eb9e8] hover:shadow-md sm:flex-row sm:items-center">
-      <div className="relative h-32 w-full shrink-0 overflow-hidden rounded-xl bg-slate-100 sm:h-24 sm:w-36">
+    <article className="card group flex min-w-0 w-full flex-col gap-4 overflow-hidden p-3 sm:flex-row sm:items-center">
+      <div className="relative h-32 w-full shrink-0 overflow-hidden rounded-xl bg-muted sm:h-24 sm:w-36">
         {vehicle.photos[0] ? (
           <img
             src={vehicle.photos[0].url}
@@ -1916,30 +1915,30 @@ function VehicleRow({
             className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03] motion-reduce:transform-none"
           />
         ) : (
-          <div className="flex h-full items-center justify-center text-xs text-slate-400">
+          <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
             Sans photo
           </div>
         )}
       </div>
       <div className="min-w-0 flex-1 px-1">
-        <span className="inline-flex rounded-md bg-[#edf6ff] px-2 py-1 font-mono text-[10px] font-bold uppercase tracking-wide text-[#0b4da2]">
+        <span className="inline-flex rounded-md bg-primary/10 px-2 py-1 font-mono text-[10px] font-bold uppercase tracking-wide text-primary">
           Stock {vehicle.stockNumber ?? "—"}
         </span>
-        <h3 className="mt-2 truncate text-base font-black tracking-tight text-[#071426]">
+        <h3 className="mt-2 truncate text-base font-black tracking-tight text-foreground">
           {vehicleName(vehicle)}
         </h3>
-        <p className="mt-1 text-sm text-slate-500">
+        <p className="mt-1 text-sm text-muted-foreground">
           {formatNumber(vehicle.mileage)} km · Synchronisé{" "}
           {formatDateTime(vehicle.updatedAt)}
         </p>
       </div>
-      <div className="flex items-center justify-between gap-4 border-t border-slate-100 px-1 pt-3 sm:border-l sm:border-t-0 sm:pl-5 sm:pt-0">
-        <p className="text-lg font-black tabular-nums text-[#071426]">
+      <div className="flex items-center justify-between gap-4 border-t border-border px-1 pt-3 sm:border-l sm:border-t-0 sm:pl-5 sm:pt-0">
+        <p className="font-mono text-lg font-black tabular-nums text-foreground">
           {formatCurrency(vehicle.price)}
         </p>
         <button
           type="button"
-          className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl bg-[#0b4da2] px-4 text-sm font-black text-white transition hover:bg-[#083d82] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0b4da2] focus-visible:ring-offset-2"
+          className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl bg-primary px-4 text-sm font-black text-primary-foreground transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
           onClick={onPrepare}
           disabled={preparing}
         >
@@ -2004,10 +2003,10 @@ function ListingQueue({
 
   return (
     <section aria-labelledby={`${queue}-heading`}>
-      <h2 id={`${queue}-heading`} className="text-lg font-bold text-slate-950">
+      <h2 id={`${queue}-heading`} className="text-lg font-bold text-foreground">
         {copy.title}
       </h2>
-      <p className="mb-4 mt-1 text-sm text-slate-500">{copy.detail}</p>
+      <p className="mb-4 mt-1 text-sm text-muted-foreground">{copy.detail}</p>
       {queue === "active" && onHealthFilter && (
         <div className="mb-4 flex flex-wrap gap-2">
           {(
@@ -2023,8 +2022,8 @@ function ListingQueue({
               className={cn(
                 "rounded-full px-3 py-1.5 text-sm font-semibold",
                 healthFilter === id
-                  ? "bg-[#071426] text-white"
-                  : "bg-slate-100 text-slate-600",
+                  ? "bg-sidebar text-sidebar-foreground"
+                  : "bg-muted text-muted-foreground",
               )}
               onClick={() => onHealthFilter(id)}
             >
@@ -2045,18 +2044,18 @@ function ListingQueue({
             const hoursStale = listing.hoursStale;
             const staleTone =
               hoursStale == null
-                ? "text-amber-800"
+                ? "text-warning"
                 : hoursStale > 48
-                  ? "text-red-700"
+                  ? "text-destructive"
                   : hoursStale >= 24
-                    ? "text-orange-700"
-                    : "text-slate-600";
+                    ? "text-warning"
+                    : "text-muted-foreground";
             return (
               <article
                 key={listing.id}
                 className="card flex min-w-0 w-full flex-col gap-4 p-4 sm:flex-row sm:items-center"
               >
-                <div className="h-20 w-full shrink-0 overflow-hidden rounded-lg bg-slate-100 sm:w-28">
+                <div className="h-20 w-full shrink-0 overflow-hidden rounded-lg bg-muted sm:w-28">
                   {listing.vehicle.photos[0] && (
                     <img
                       src={listing.vehicle.photos[0].url}
@@ -2069,25 +2068,25 @@ function ListingQueue({
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h3 className="font-bold text-slate-950">
+                  <h3 className="font-bold text-foreground">
                     {vehicleName(listing.vehicle)}
                   </h3>
-                  <p className="mt-1 text-sm text-slate-500">
+                  <p className="mt-1 text-sm text-muted-foreground">
                     Stock {listing.vehicle.stockNumber ?? "—"} · Publiée par{" "}
                     {listing.user.name} · {formatDateTime(listing.listedAt)}
                   </p>
                   {mismatch?.direction === "up" && (
-                    <p className="mt-2 text-sm font-bold text-red-700">
+                    <p className="mt-2 text-sm font-bold text-destructive">
                       Prix augmenté : à corriger maintenant ({formatCurrency(mismatch.from)} → {formatCurrency(mismatch.to)}). Au Québec, un client peut exiger le prix annoncé.
                     </p>
                   )}
                   {mismatch?.direction === "down" && (
-                    <p className="mt-2 text-sm font-semibold text-amber-800">
+                    <p className="mt-2 text-sm font-semibold text-warning">
                       Prix à mettre à jour : {formatCurrency(mismatch.from)} → {formatCurrency(mismatch.to)}
                     </p>
                   )}
                   {(queue === "renew" || listing.health?.renewDue) && queue !== "remove" && (
-                    <p className="mt-2 text-sm font-semibold text-slate-700">
+                    <p className="mt-2 text-sm font-semibold text-foreground">
                       En ligne depuis {listing.health?.daysSinceFreshness ?? 0} jours, renouvellement possible
                     </p>
                   )}
@@ -2098,7 +2097,7 @@ function ListingQueue({
                   )}
                 </div>
                 <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                  <p className="mr-2 font-bold tabular-nums">
+                  <p className="mr-2 font-mono font-bold tabular-nums">
                     {formatCurrency(listing.vehicle.price ?? listing.priceAtListing)}
                   </p>
                   {listing.externalUrl && (
@@ -2179,7 +2178,7 @@ function CopyField({
   return (
     <div>
       <div className="mb-1.5 flex items-center justify-between">
-        <label className="text-sm font-bold text-slate-900">{label}</label>
+        <label className="text-sm font-bold text-foreground">{label}</label>
         <button
           type="button"
           className="btn-secondary px-3 py-1.5"
@@ -2191,12 +2190,12 @@ function CopyField({
       </div>
       {multiline ? (
         <textarea
-          className="input min-h-72 resize-y bg-white leading-6"
+          className="input min-h-72 resize-y bg-card leading-6"
           readOnly
           value={value}
         />
       ) : (
-        <input className="input bg-white" readOnly value={value} />
+        <input className="input bg-card" readOnly value={value} />
       )}
     </div>
   );
@@ -2224,11 +2223,11 @@ function EditableDraftField({
   return (
     <div>
       <div className="mb-1.5 flex items-center justify-between gap-3">
-        <label className="text-sm font-bold text-slate-900" htmlFor={inputId}>
+        <label className="text-sm font-bold text-foreground" htmlFor={inputId}>
           {label}
         </label>
         <div className="flex items-center gap-2">
-          <span className="text-xs tabular-nums text-slate-500">
+          <span className="text-xs tabular-nums text-muted-foreground">
             {value.length}/{maxLength}
           </span>
           <button
@@ -2244,7 +2243,7 @@ function EditableDraftField({
       {multiline ? (
         <textarea
           id={inputId}
-          className="input min-h-72 resize-y bg-white leading-6"
+          className="input min-h-72 resize-y bg-card leading-6"
           value={value}
           maxLength={maxLength}
           onChange={(event) => onChange(event.target.value)}
@@ -2252,7 +2251,7 @@ function EditableDraftField({
       ) : (
         <input
           id={inputId}
-          className="input bg-white"
+          className="input bg-card"
           value={value}
           maxLength={maxLength}
           onChange={(event) => onChange(event.target.value)}
@@ -2268,8 +2267,8 @@ function CheckItem({ ok, label }: { ok: boolean; label: string }) {
       className={cn(
         "flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium",
         ok
-          ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-          : "border-amber-200 bg-amber-50 text-amber-800",
+          ? "border-signal/30 bg-signal/10 text-signal"
+          : "border-warning/30 bg-warning/10 text-warning",
       )}
     >
       {ok ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
@@ -2280,10 +2279,10 @@ function CheckItem({ ok, label }: { ok: boolean; label: string }) {
 
 function EmptyState({ title, detail }: { title: string; detail: string }) {
   return (
-    <div className="rounded-xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center">
-      <CheckCircle2 className="mx-auto text-slate-300" size={30} />
-      <p className="mt-3 font-bold text-slate-800">{title}</p>
-      <p className="mt-1 text-sm text-slate-500">{detail}</p>
+    <div className="rounded-xl border border-dashed border-border bg-card px-6 py-12 text-center">
+      <CheckCircle2 className="mx-auto text-muted-foreground" size={30} />
+      <p className="mt-3 font-bold text-foreground">{title}</p>
+      <p className="mt-1 text-sm text-muted-foreground">{detail}</p>
     </div>
   );
 }

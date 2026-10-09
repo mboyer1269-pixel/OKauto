@@ -117,14 +117,14 @@ function LeadsContent() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Leads Marketplace</h1>
-        <p className="mt-1 text-sm text-slate-600">
+        <p className="mt-1 text-sm text-muted-foreground">
           Saisissez manuellement les personnes qui écrivent sur Messenger. Suivia
           n’aspire pas Messenger et ne contourne aucune limite Meta.
         </p>
       </div>
 
       {(message || error) && (
-        <p className={error ? "text-sm text-red-700" : "text-sm text-emerald-700"}>
+        <p className={error ? "text-sm text-destructive" : "text-sm text-signal"}>
           {error || message}
         </p>
       )}
@@ -181,7 +181,7 @@ function LeadsContent() {
       </div>
 
       {leads.length === 0 ? (
-        <div className="card text-sm text-slate-600">
+        <div className="card text-sm text-muted-foreground">
           Aucun lead pour le moment. Ajoutez le premier dès qu’un acheteur écrit
           sur Marketplace.
         </div>
@@ -192,7 +192,7 @@ function LeadsContent() {
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <h2 className="font-bold">{lead.name}</h2>
-                  <p className="text-sm text-slate-500">
+                  <p className="text-sm text-muted-foreground">
                     {lead.phone || "Sans téléphone"}
                     {lead.email ? ` · ${lead.email}` : ""}
                   </p>
@@ -222,9 +222,9 @@ function LeadsContent() {
                 </p>
               )}
               {lead.message && (
-                <p className="text-sm text-slate-700">{lead.message}</p>
+                <p className="text-sm text-foreground">{lead.message}</p>
               )}
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-muted-foreground">
                 {STATUS_LABEL[lead.status] ?? lead.status} ·{" "}
                 {formatDateTime(lead.createdAt)}
                 {lead.assignedTo ? ` · ${lead.assignedTo.name}` : ""}

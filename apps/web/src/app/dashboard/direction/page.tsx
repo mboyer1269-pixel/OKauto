@@ -98,7 +98,7 @@ function DirectionContent() {
     return (
       <div className="card max-w-lg">
         <h1 className="text-xl font-bold">Direction des ventes</h1>
-        <p className="mt-2 text-sm text-slate-600">
+        <p className="mt-2 text-sm text-muted-foreground">
           Cet écran est réservé à la direction, aux administrateurs et au
           propriétaire.
         </p>
@@ -109,20 +109,20 @@ function DirectionContent() {
   if (error) {
     return (
       <div className="card max-w-lg">
-        <p className="text-red-700">{error}</p>
+        <p className="text-destructive">{error}</p>
       </div>
     );
   }
 
   if (!stats) {
-    return <div className="h-40 animate-pulse rounded-2xl bg-slate-200" />;
+    return <div className="h-40 animate-pulse rounded-2xl bg-muted" />;
   }
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
             Directeur des ventes
           </p>
           <h1 className="mt-1 text-2xl font-bold">Tableau de bord équipe</h1>
@@ -143,13 +143,13 @@ function DirectionContent() {
       <section className="card overflow-x-auto p-0">
         <div className="border-b px-5 py-4">
           <h2 className="font-bold">Activité Marketplace par conseiller</h2>
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-muted-foreground">
             Quota de {stats.monthlyLimit} nouvelles annonces / mois par profil
             (limite Meta documentée).
           </p>
         </div>
         <table className="min-w-full text-sm">
-          <thead className="bg-slate-50 text-left text-slate-500">
+          <thead className="bg-muted text-left text-muted-foreground">
             <tr>
               <th className="px-5 py-3">Conseiller</th>
               <th className="px-5 py-3">Semaine</th>
@@ -165,7 +165,7 @@ function DirectionContent() {
               <tr key={member.userId} className="border-t">
                 <td className="px-5 py-3 font-semibold">
                   {member.name}
-                  <div className="text-xs font-normal text-slate-500">
+                  <div className="text-xs font-normal text-muted-foreground">
                     {member.email}
                   </div>
                 </td>
@@ -190,11 +190,11 @@ function DirectionContent() {
       <div className="grid gap-4 lg:grid-cols-2">
         <section className="card">
           <h2 className="font-bold">Stocks âgés sans annonce</h2>
-          <p className="mb-3 text-sm text-slate-500">
+          <p className="mb-3 text-sm text-muted-foreground">
             Plus de 21 jours en inventaire, aucune annonce active.
           </p>
           {stats.agingWithoutListing.length === 0 ? (
-            <p className="text-sm text-slate-500">Aucun stock prioritaire.</p>
+            <p className="text-sm text-muted-foreground">Aucun stock prioritaire.</p>
           ) : (
             <ul className="space-y-2 text-sm">
               {stats.agingWithoutListing.map((vehicle) => (
@@ -206,11 +206,11 @@ function DirectionContent() {
                     {[vehicle.year, vehicle.make, vehicle.model]
                       .filter(Boolean)
                       .join(" ")}
-                    <span className="ml-2 font-normal text-slate-500">
+                    <span className="ml-2 font-normal text-muted-foreground">
                       {vehicle.stockNumber}
                     </span>
                   </Link>
-                  <span className="tabular-nums text-slate-600">
+                  <span className="tabular-nums text-muted-foreground">
                     {vehicle.daysInStock} j · {formatCurrency(vehicle.price)}
                   </span>
                 </li>
@@ -223,7 +223,7 @@ function DirectionContent() {
             <ShieldAlert size={18} /> Annonces à renouveler
           </h2>
           {stats.dueForRenewal.length === 0 ? (
-            <p className="mt-2 text-sm text-slate-500">
+            <p className="mt-2 text-sm text-muted-foreground">
               Aucune annonce au-delà du seuil.
             </p>
           ) : (
@@ -244,13 +244,13 @@ function DirectionContent() {
           )}
           <Link
             href="/dashboard/listings"
-            className="mt-4 inline-block text-sm font-semibold text-brand-700 hover:underline"
+            className="mt-4 inline-block text-sm font-semibold text-primary hover:underline"
           >
             Ouvrir Publications
           </Link>
         </section>
       </div>
-      <p className="text-xs text-slate-500">
+      <p className="text-xs text-muted-foreground">
         {formatNumber(stats.leadsThisWeek)} lead
         {stats.leadsThisWeek > 1 ? "s" : ""} cette semaine ·{" "}
         {formatNumber(stats.dueFollowUps)} relance
@@ -272,9 +272,9 @@ function Stat({
 }) {
   return (
     <div className="card">
-      <p className="text-sm text-slate-500">{label}</p>
+      <p className="text-sm text-muted-foreground">{label}</p>
       <p
-        className={`mt-1 text-2xl font-bold tabular-nums ${alert && value > 0 ? "text-amber-700" : ""}`}
+        className={`mt-1 text-2xl font-bold tabular-nums ${alert && value > 0 ? "text-warning" : ""}`}
       >
         {formatNumber(value)}
       </p>
