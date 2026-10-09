@@ -234,7 +234,7 @@ function ApiKeysContent() {
           <label>
             <span
               id="new-key-title"
-              className="block text-sm font-black text-slate-950"
+              className="block text-sm font-black text-foreground"
             >
               Nom du nouvel ordinateur
             </span>
@@ -296,7 +296,7 @@ function ApiKeysContent() {
             {[1, 2, 3].map((item) => (
               <div
                 key={item}
-                className="h-24 animate-pulse rounded-2xl bg-slate-200"
+                className="h-24 animate-pulse rounded-2xl bg-muted"
               />
             ))}
           </div>

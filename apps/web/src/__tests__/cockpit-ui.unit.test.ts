@@ -85,6 +85,9 @@ describe("Cockpit — logo D et thème", () => {
     expect(inventory).toContain("cockpit-scan");
     expect(vehicle).toContain("CockpitSkeleton");
     expect(vehicle).toContain("font-mono text-3xl font-bold tabular-nums");
+    expect(vehicle).toContain("Build d’usine");
+    expect(vehicle).toContain("vinDecodedFields");
+    expect(vehicle).toContain("Complété depuis le NIV");
     expect(listings).toContain("CockpitSkeleton");
     expect(listings).toContain("cockpit-scan");
     expect(listings).not.toMatch(/text-slate-950|bg-slate-200|bg-slate-50/);

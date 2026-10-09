@@ -230,7 +230,7 @@ function NewVehicleForm() {
               }))
             }
           />
-          <p className="mt-1 text-xs text-slate-500">
+          <p className="mt-1 text-xs text-muted-foreground">
             Un NIV valide de 17 caractères est décodé automatiquement (NHTSA
             vPIC, gratuit). Seuls les champs vides sont remplis.
           </p>
@@ -238,10 +238,10 @@ function NewVehicleForm() {
             <div
               className={
                 decodeStatus === "error"
-                  ? "mt-2 p-3 bg-red-50 text-red-700 rounded-lg text-sm"
+                  ? "mt-2 rounded-lg bg-destructive/10 p-3 text-sm text-destructive"
                   : decodeStatus === "loading"
-                    ? "mt-2 p-3 bg-slate-50 text-slate-700 rounded-lg text-sm"
-                    : "mt-2 p-3 bg-emerald-50 text-emerald-800 rounded-lg text-sm"
+                    ? "mt-2 rounded-lg bg-muted p-3 text-sm text-muted-foreground"
+                    : "mt-2 rounded-lg bg-signal/10 p-3 text-sm text-signal"
               }
               role="status"
             >

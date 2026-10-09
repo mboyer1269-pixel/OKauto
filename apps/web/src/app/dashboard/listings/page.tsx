@@ -1658,7 +1658,7 @@ function ListingsContent() {
                       )
                     }
                   />
-                  <label className="flex items-start gap-2 rounded-xl border border-slate-200 bg-white p-3 text-sm">
+                  <label className="flex items-start gap-2 rounded-xl border border-border bg-card p-3 text-sm text-foreground">
                     <input
                       type="checkbox"
                       className="mt-1"

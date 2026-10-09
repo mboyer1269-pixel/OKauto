@@ -114,6 +114,7 @@ test.describe("Suivia Auto", () => {
       .click();
     await page.waitForURL(/\/dashboard\/inventory\/[^/]+$/, { timeout: 10000 });
     await expect(page.getByRole("heading", { name: "Photos" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Build d.usine/ })).toBeVisible();
   });
 
   test("personal Marketplace draft can be edited, saved, and advanced", async ({
