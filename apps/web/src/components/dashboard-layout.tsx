@@ -17,6 +17,7 @@ import {
   Activity,
   BarChart3,
   MessageSquare,
+  Inbox,
 } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "./auth-provider";
@@ -44,6 +45,12 @@ const navItems: Array<{
   { href: "/dashboard/leads", label: "Leads", icon: MessageSquare },
   { href: "/dashboard/sync", label: "Synchronisation", icon: Activity },
   { href: "/dashboard/team", label: "Équipe", icon: Users },
+  {
+    href: "/dashboard/access-requests",
+    label: "Demandes d’accès",
+    icon: Inbox,
+    minRole: "OWNER",
+  },
   { href: "/dashboard/notifications", label: "Notifications", icon: Bell },
   { href: "/dashboard/settings", label: "Paramètres", icon: Settings },
   {

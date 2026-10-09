@@ -17,6 +17,7 @@ import {
   shouldIncludeCarfaxMention,
 } from "../description";
 import {
+  createAccessRequestSchema,
   createListingSchema,
   createVehicleSchema,
   isFacebookMarketplaceItemUrl,
@@ -764,6 +765,46 @@ describe("Marketplace draft schema", () => {
         title: "2025 GMC Terrain",
         description: "Disponible dès maintenant.",
       }),
+    ).toThrow();
+  });
+});
+
+describe("access request schema", () => {
+  const valid = {
+    name: "Patrice Gagnon",
+    dealership: "Buckingham Chevrolet Buick GMC",
+    email: "  Patrice@Concession.example ",
+    phone: "819-555-0100",
+    message: "Nous aimerions essayer Suivia Auto.",
+    consent: true as const,
+  };
+
+  it("accepte une demande complète et normalise le courriel", () => {
+    expect(createAccessRequestSchema.parse(valid)).toEqual({
+      name: "Patrice Gagnon",
+      dealership: "Buckingham Chevrolet Buick GMC",
+      email: "patrice@concession.example",
+      phone: "819-555-0100",
+      message: "Nous aimerions essayer Suivia Auto.",
+      consent: true,
+    });
+  });
+
+  it("accepte un téléphone vide et refuse un consentement absent", () => {
+    expect(
+      createAccessRequestSchema.parse({ ...valid, phone: "  " }).phone,
+    ).toBeUndefined();
+    expect(() =>
+      createAccessRequestSchema.parse({ ...valid, consent: false }),
+    ).toThrow();
+    expect(() =>
+      createAccessRequestSchema.parse({ ...valid, consent: undefined }),
+    ).toThrow();
+    expect(() =>
+      createAccessRequestSchema.parse({ ...valid, email: "pas-un-courriel" }),
+    ).toThrow();
+    expect(() =>
+      createAccessRequestSchema.parse({ ...valid, name: "" }),
     ).toThrow();
   });
 });

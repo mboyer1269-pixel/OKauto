@@ -498,3 +498,19 @@ model AuditLog {
   @@index([userId])
   @@map("audit_logs")
 }
+
+model AccessRequest {
+  id         String   @id @default(cuid())
+  name       String
+  dealership String
+  email      String
+  phone      String?
+  message    String
+  consentAt  DateTime
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([email])
+  @@map("access_requests")
+}

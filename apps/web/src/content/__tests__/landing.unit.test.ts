@@ -67,7 +67,7 @@ describe("page d’accueil — textes validés", () => {
 
   it("pointe « Créer mon espace » vers la demande d’accès, pas une inscription ouverte", () => {
     expect(isPublicSignupEnabled()).toBe(false);
-    expect(landingHrefs.createSpace).toBe("/register");
+    expect(landingHrefs.createSpace).toBe("/demande-acces");
     expect(landingHrefs.login).toBe("/login");
     expect(landingHrefs.journey).toBe("#parcours");
     expect(home).toMatch(/landingHrefs\.createSpace/);

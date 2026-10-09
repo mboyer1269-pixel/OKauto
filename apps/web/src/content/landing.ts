@@ -1,7 +1,7 @@
 /**
  * Textes validés de la page d’accueil publique.
  * Ne pas paraphraser : le propriétaire a figé chaque mot.
- * L’inscription publique reste fermée : « Créer mon espace » mène à /register (demande d’accès).
+ * L’inscription publique reste fermée : « Créer mon espace » mène à /demande-acces.
  */
 export const landingCopy = {
   meta: {
@@ -66,7 +66,7 @@ export const landingCopy = {
 
 export const landingHrefs = {
   login: "/login",
-  createSpace: "/register",
+  createSpace: "/demande-acces",
   journey: "#parcours",
   privacy: "/confidentialite",
   terms: "/conditions",

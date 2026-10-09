@@ -62,6 +62,24 @@ export const loginSchema = z.object({
   password: z.string().min(1),
 });
 
+export const createAccessRequestSchema = z.object({
+  name: z.string().trim().min(1).max(100),
+  dealership: z.string().trim().min(1).max(200),
+  email: z.string().trim().toLowerCase().email(),
+  phone: z
+    .string()
+    .trim()
+    .max(40)
+    .optional()
+    .transform((value) => (value ? value : undefined)),
+  message: z.string().trim().min(1).max(2000),
+  consent: z.literal(true, {
+    errorMap: () => ({
+      message: "Le consentement est requis pour envoyer la demande.",
+    }),
+  }),
+});
+
 export const refreshSchema = z.object({
   refreshToken: z.string().min(1),
 });
@@ -266,6 +284,7 @@ export const confirmFeedAbsenceSchema = z.object({
 
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
+export type CreateAccessRequestInput = z.infer<typeof createAccessRequestSchema>;
 export type CreateVehicleInput = z.infer<typeof createVehicleSchema>;
 export type UpdateVehicleInput = z.infer<typeof updateVehicleSchema>;
 export type CreateListingInput = z.infer<typeof createListingSchema>;

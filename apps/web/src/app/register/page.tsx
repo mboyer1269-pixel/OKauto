@@ -1,6 +1,11 @@
 import Link from "next/link";
 import { ThemedBrandLockup } from "@/components/themed-brand-mark";
 import {
+  accessRequestCopy,
+  accessRequestHrefs,
+} from "@/content/access-request";
+import { landingCopy, landingHrefs } from "@/content/landing";
+import {
   isPublicSignupEnabled,
   PUBLIC_SIGNUP_CLOSED_MESSAGE,
 } from "@/lib/signup";
@@ -16,9 +21,17 @@ export default function RegisterPage() {
             Inscriptions fermées
           </h1>
           <p className="mt-3 text-muted-foreground">{PUBLIC_SIGNUP_CLOSED_MESSAGE}</p>
-          <Link href="/login" className="btn-primary mt-6 inline-flex">
-            Se connecter
-          </Link>
+          <div className="mt-6 flex flex-col gap-3">
+            <Link href={landingHrefs.login} className="btn-primary inline-flex">
+              {landingCopy.nav.login}
+            </Link>
+            <Link
+              href={accessRequestHrefs.form}
+              className="btn-secondary inline-flex"
+            >
+              {accessRequestCopy.title}
+            </Link>
+          </div>
         </div>
       </div>
     );

@@ -4,14 +4,52 @@ test.describe("Suivia Auto", () => {
   test("landing page loads", async ({ page }) => {
     await page.goto("/");
     await expect(
-      page.getByRole("heading", { name: /Chaque véhicule/i }),
+      page.getByRole("heading", { name: /Du NIV à vendu/i }),
     ).toBeVisible();
     await expect(
-      page.getByRole("link", { name: /Accéder à mon inventaire/i }),
+      page.getByRole("link", { name: "Se connecter" }).first(),
+    ).toHaveAttribute("href", "/login");
+    const createSpace = page.getByRole("link", { name: "Créer mon espace" });
+    await expect(createSpace.first()).toHaveAttribute("href", "/demande-acces");
+  });
+
+  test("access request form records a request without opening signup", async ({
+    page,
+  }) => {
+    await page.goto("/demande-acces");
+    await expect(
+      page.getByRole("heading", { name: "Demander un accès" }),
+    ).toBeVisible();
+    const consent = page.getByRole("checkbox");
+    await expect(consent).not.toBeChecked();
+    await expect(
+      page.getByRole("link", { name: "Confidentialité" }),
+    ).toHaveAttribute("href", "/confidentialite");
+
+    await page.getByLabel("Nom").fill("Camille Rivard");
+    await page.getByLabel("Concession").fill("Rivard Auto");
+    await page.getByLabel("Courriel").fill(`e2e-access-${Date.now()}@example.com`);
+    await page.getByLabel(/Téléphone/).fill("514-555-0100");
+    await page
+      .getByLabel("Message")
+      .fill("Nous voulons publier notre inventaire.");
+    await consent.check();
+    await page.getByRole("button", { name: "Envoyer la demande" }).click();
+    await expect(
+      page.getByText("Votre demande a été enregistrée."),
+    ).toBeVisible();
+  });
+
+  test("closed register page links to the access request form", async ({
+    page,
+  }) => {
+    await page.goto("/register");
+    await expect(
+      page.getByRole("heading", { name: "Inscriptions fermées" }),
     ).toBeVisible();
     await expect(
-      page.getByRole("link", { name: /Créer mon espace/i }),
-    ).toHaveCount(0);
+      page.getByRole("link", { name: "Demander un accès" }),
+    ).toHaveAttribute("href", "/demande-acces");
   });
 
   test("login page shows demo credentials", async ({ page }) => {

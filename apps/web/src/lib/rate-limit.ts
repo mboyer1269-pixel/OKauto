@@ -13,6 +13,12 @@ export const VIN_DECODE_RATE_LIMIT = {
   maxPerUser: 20,
 } as const;
 
+export const ACCESS_REQUEST_RATE_LIMIT = {
+  windowMs: 15 * 60 * 1000,
+  maxPerIp: 5,
+  maxPerEmail: 3,
+} as const;
+
 export type AuthRateLimitAction = "login" | "register";
 
 export interface RateLimitCounter {
@@ -381,6 +387,65 @@ export async function checkVinDecodeRateLimit(params: {
       error instanceof Error ? error.message : error,
     );
     return { allowed: true, retryAfterSeconds: 0 };
+  }
+}
+
+function accessIpKey(ip: string): string {
+  return `access-rl:ip:${ip}`;
+}
+
+function accessEmailKey(email: string): string {
+  return `access-rl:email:${normalizeEmail(email)}`;
+}
+
+function tooManyAccessRequests(retryAfterSeconds: number) {
+  const response = NextResponse.json(
+    { error: "Trop de tentatives. Réessayez plus tard." },
+    { status: 429 },
+  );
+  response.headers.set(
+    "Retry-After",
+    String(Math.max(1, retryAfterSeconds)),
+  );
+  return response;
+}
+
+export async function enforceAccessRequestRateLimit(
+  request: Request,
+  email?: string,
+) {
+  try {
+    const store = await getStore();
+    if (email) {
+      const emailCount = await store.increment(
+        accessEmailKey(email),
+        ACCESS_REQUEST_RATE_LIMIT.windowMs,
+      );
+      if (emailCount > ACCESS_REQUEST_RATE_LIMIT.maxPerEmail) {
+        const emailState = await store.get(accessEmailKey(email));
+        return tooManyAccessRequests(
+          emailState.ttlSeconds || windowSeconds(),
+        );
+      }
+      return null;
+    }
+
+    const ip = getClientIp(request);
+    const ipCount = await store.increment(
+      accessIpKey(ip),
+      ACCESS_REQUEST_RATE_LIMIT.windowMs,
+    );
+    if (ipCount > ACCESS_REQUEST_RATE_LIMIT.maxPerIp) {
+      const ipState = await store.get(accessIpKey(ip));
+      return tooManyAccessRequests(ipState.ttlSeconds || windowSeconds());
+    }
+    return null;
+  } catch (error) {
+    console.warn(
+      "[rate-limit] Impossible de limiter les demandes d’accès, poursuite de la requête:",
+      error instanceof Error ? error.message : error,
+    );
+    return null;
   }
 }
 
