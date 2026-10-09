@@ -9,8 +9,10 @@ import { ThemeToggle } from "@/components/theme-toggle";
 
 export function LoginForm({
   publicSignupEnabled,
+  next,
 }: {
   publicSignupEnabled: boolean;
+  next?: string | null;
 }) {
   const { login } = useAuth();
   const router = useRouter();
@@ -24,8 +26,8 @@ export function LoginForm({
     setError("");
     setLoading(true);
     try {
-      await login(email, password);
-      router.push("/dashboard");
+      await login(email, password, next);
+      router.push(next || "/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Connexion impossible");
     } finally {

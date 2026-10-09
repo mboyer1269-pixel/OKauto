@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { NextRequest } from "next/server";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
-import { prisma, Role } from "@okauto/database";
+import { prisma } from "@okauto/database";
 import type { RoleType } from "@okauto/shared";
 
 function getJwtSecret(): Uint8Array {
@@ -16,18 +16,37 @@ function getJwtSecret(): Uint8Array {
   );
 }
 
+export const INVITATION_TOKEN_SCOPE = "invitation" as const;
+export const INVITATION_ACCESS_TTL = "10m";
+
 export interface TokenPayload {
   sub: string;
   email: string;
   orgId: string;
   role: RoleType;
+  scope?: typeof INVITATION_TOKEN_SCOPE;
+  iat?: number;
+  exp?: number;
+  /** Millisecond clock, used to revoke tokens after a password reset. */
+  issuedAtMs?: number;
 }
 
-export async function signAccessToken(payload: TokenPayload): Promise<string> {
-  return new SignJWT({ ...payload })
+export function isInvitationScopedToken(
+  auth: TokenPayload | null | undefined,
+): boolean {
+  return auth?.scope === INVITATION_TOKEN_SCOPE;
+}
+
+export async function signAccessToken(
+  payload: TokenPayload,
+  options?: { expiresIn?: string },
+): Promise<string> {
+  return new SignJWT({ ...payload, issuedAtMs: Date.now() })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
-    .setExpirationTime(process.env.JWT_ACCESS_EXPIRY ?? "15m")
+    .setExpirationTime(
+      options?.expiresIn ?? process.env.JWT_ACCESS_EXPIRY ?? "15m",
+    )
     .sign(getJwtSecret());
 }
 
@@ -48,6 +67,10 @@ export function hashToken(token: string): string {
 
 export function generateRefreshToken(): string {
   return crypto.randomBytes(48).toString("hex");
+}
+
+export function generateInviteToken(): string {
+  return crypto.randomBytes(32).toString("hex");
 }
 
 export function generateApiKey(): string {
@@ -84,6 +107,31 @@ export async function createRefreshToken(
 export async function revokeRefreshToken(token: string): Promise<void> {
   const tokenHash = hashToken(token);
   await prisma.refreshToken.deleteMany({ where: { tokenHash } });
+}
+
+export async function invalidateUserSessions(userId: string): Promise<void> {
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: userId },
+      data: { sessionInvalidatedAt: new Date() },
+    }),
+    prisma.refreshToken.deleteMany({ where: { userId } }),
+  ]);
+}
+
+export async function isAccessTokenRevoked(
+  auth: TokenPayload,
+): Promise<boolean> {
+  const user = await prisma.user.findUnique({
+    where: { id: auth.sub },
+    select: { isActive: true, sessionInvalidatedAt: true },
+  });
+  if (!user?.isActive) return true;
+  if (!user.sessionInvalidatedAt) return false;
+  const issuedAtMs =
+    auth.issuedAtMs ?? (auth.iat != null ? auth.iat * 1000 : null);
+  if (issuedAtMs == null) return true;
+  return issuedAtMs < user.sessionInvalidatedAt.getTime();
 }
 
 export async function validateRefreshToken(token: string) {
@@ -142,11 +190,13 @@ export async function authenticateApiKey(apiKey: string) {
 
   if (!record || !record.isActive) return null;
   if (record.expiresAt && record.expiresAt < new Date()) return null;
-
-  await prisma.apiKey.update({
-    where: { id: record.id },
-    data: { lastUsedAt: new Date() },
-  });
+  if (!record.user.isActive) return null;
+  if (
+    record.user.sessionInvalidatedAt &&
+    record.createdAt.getTime() <= record.user.sessionInvalidatedAt.getTime()
+  ) {
+    return null;
+  }
 
   const membership = await prisma.organizationMember.findUnique({
     where: {
@@ -156,11 +206,17 @@ export async function authenticateApiKey(apiKey: string) {
       },
     },
   });
+  if (!membership) return null;
+
+  await prisma.apiKey.update({
+    where: { id: record.id },
+    data: { lastUsedAt: new Date() },
+  });
 
   return {
     user: record.user,
     organization: record.organization,
-    role: membership?.role ?? Role.SALESPERSON,
+    role: membership.role,
     orgId: record.organizationId,
   };
 }

@@ -19,6 +19,17 @@ export const ACCESS_REQUEST_RATE_LIMIT = {
   maxPerEmail: 3,
 } as const;
 
+export const MEMBER_INVITE_RATE_LIMIT = {
+  windowMs: 15 * 60 * 1000,
+  maxPerOrganization: 10,
+} as const;
+
+export const ACCEPT_INVITE_RATE_LIMIT = {
+  windowMs: 15 * 60 * 1000,
+  maxPerIp: 30,
+  maxPerToken: 20,
+} as const;
+
 export type AuthRateLimitAction = "login" | "register";
 
 export interface RateLimitCounter {
@@ -447,6 +458,93 @@ export async function enforceAccessRequestRateLimit(
     );
     return null;
   }
+}
+
+function memberInviteKey(orgId: string): string {
+  return `member-invite-rl:${orgId}`;
+}
+
+export async function enforceMemberInviteRateLimit(orgId: string) {
+  try {
+    const store = await getStore();
+    const key = memberInviteKey(orgId);
+    const count = await store.increment(key, MEMBER_INVITE_RATE_LIMIT.windowMs);
+    if (count > MEMBER_INVITE_RATE_LIMIT.maxPerOrganization) {
+      const state = await store.get(key);
+      return tooManyAccessRequests(
+        state.ttlSeconds ||
+          Math.ceil(MEMBER_INVITE_RATE_LIMIT.windowMs / 1000),
+      );
+    }
+    return null;
+  } catch (error) {
+    console.warn(
+      "[rate-limit] Impossible de limiter les invitations, refus (fail-closed):",
+      error instanceof Error ? error.message : error,
+    );
+    return tooManyAccessRequests(60);
+  }
+}
+
+function acceptInviteIpKey(ip: string): string {
+  return `invite-accept-rl:ip:${ip}`;
+}
+
+function acceptInviteTokenKey(tokenHash: string): string {
+  return `invite-accept-rl:token:${tokenHash}`;
+}
+
+function acceptInviteFailKey(tokenHash: string): string {
+  return `invite-accept-fail:${tokenHash}`;
+}
+
+export async function enforceAcceptInviteRateLimit(
+  request: Request,
+  tokenHash: string,
+) {
+  try {
+    const store = await getStore();
+    const ip = getClientIp(request);
+    const ipCount = await store.increment(
+      acceptInviteIpKey(ip),
+      ACCEPT_INVITE_RATE_LIMIT.windowMs,
+    );
+    if (ipCount > ACCEPT_INVITE_RATE_LIMIT.maxPerIp) {
+      const state = await store.get(acceptInviteIpKey(ip));
+      return tooManyAccessRequests(
+        state.ttlSeconds ||
+          Math.ceil(ACCEPT_INVITE_RATE_LIMIT.windowMs / 1000),
+      );
+    }
+    const tokenCount = await store.increment(
+      acceptInviteTokenKey(tokenHash),
+      ACCEPT_INVITE_RATE_LIMIT.windowMs,
+    );
+    if (tokenCount > ACCEPT_INVITE_RATE_LIMIT.maxPerToken) {
+      const state = await store.get(acceptInviteTokenKey(tokenHash));
+      return tooManyAccessRequests(
+        state.ttlSeconds ||
+          Math.ceil(ACCEPT_INVITE_RATE_LIMIT.windowMs / 1000),
+      );
+    }
+    return null;
+  } catch (error) {
+    console.warn(
+      "[rate-limit] Impossible de limiter l’acceptation, refus (fail-closed):",
+      error instanceof Error ? error.message : error,
+    );
+    return tooManyAccessRequests(60);
+  }
+}
+
+export async function recordAcceptInviteFailure(
+  tokenHash: string,
+): Promise<number> {
+  const store = await getStore();
+  return store.increment(
+    acceptInviteFailKey(tokenHash),
+    ACCEPT_INVITE_RATE_LIMIT.windowMs,
+  );
 }
 
 export async function enforceAuthRateLimit(

@@ -2,6 +2,10 @@ import { prisma } from "@okauto/database";
 import { hasMinRole, updateMemberSchema } from "@okauto/shared";
 import { withAuth, jsonResponse, errorResponse, parseBody } from "@/lib/api";
 import { createAuditLog, hashPassword } from "@/lib/auth";
+import {
+  MEMBER_PASSWORD_RESET_FORBIDDEN_MESSAGE,
+  dealerMayResetMemberPassword,
+} from "@/lib/member-provisioning";
 
 export const PATCH = withAuth(
   async (request, { auth, params }) => {
@@ -10,34 +14,61 @@ export const PATCH = withAuth(
 
     const member = await prisma.organizationMember.findFirst({
       where: { id: params!.id, organizationId: auth.orgId },
+      include: {
+        user: {
+          select: { id: true, provisionedByOrganizationId: true },
+        },
+      },
     });
     if (!member) return errorResponse("Member not found", 404);
     if (member.role === "OWNER" && data.role && data.role !== "OWNER") {
       return errorResponse("Cannot change owner role", 400);
     }
-    if (member.role === "OWNER" && data.password && auth.role !== "OWNER") {
-      return errorResponse("Only the owner can reset the owner account", 403);
-    }
-
-    if (data.password && !hasMinRole(auth.role, "ADMIN")) {
-      return errorResponse("Seul un administrateur peut réinitialiser un mot de passe", 403);
-    }
     if (data.role && !hasMinRole(auth.role, "ADMIN") && data.role !== member.role) {
       return errorResponse("Seul un administrateur peut changer le rôle", 403);
     }
 
-    const passwordHash = data.password
-      ? await hashPassword(data.password)
-      : undefined;
+    let passwordUpdated = false;
+    if (data.password) {
+      if (!hasMinRole(auth.role, "ADMIN")) {
+        return errorResponse(
+          "Seul un administrateur peut réinitialiser un mot de passe",
+          403,
+        );
+      }
+      if (member.role === "OWNER" && auth.role !== "OWNER") {
+        return errorResponse("Only the owner can reset the owner account", 403);
+      }
 
-    if (passwordHash) {
+      const memberships = await prisma.organizationMember.findMany({
+        where: { userId: member.userId },
+        select: { organizationId: true },
+      });
+      if (
+        !dealerMayResetMemberPassword({
+          organizationId: auth.orgId,
+          provisionedByOrganizationId: member.user.provisionedByOrganizationId,
+          membershipOrganizationIds: memberships.map(
+            (row) => row.organizationId,
+          ),
+        })
+      ) {
+        return errorResponse(MEMBER_PASSWORD_RESET_FORBIDDEN_MESSAGE, 403);
+      }
+
+      const passwordHash = await hashPassword(data.password);
       await prisma.$transaction([
         prisma.user.update({
           where: { id: member.userId },
-          data: { passwordHash, isActive: true },
+          data: {
+            passwordHash,
+            isActive: true,
+            sessionInvalidatedAt: new Date(),
+          },
         }),
         prisma.refreshToken.deleteMany({ where: { userId: member.userId } }),
       ]);
+      passwordUpdated = true;
     }
 
     const updated = await prisma.organizationMember.update({
@@ -61,12 +92,12 @@ export const PATCH = withAuth(
       entityId: member.id,
       metadata: {
         roleChanged: Boolean(data.role),
-        passwordReset: Boolean(passwordHash),
+        passwordReset: passwordUpdated,
       },
       request: request as never,
     });
 
-    return jsonResponse({ ...updated, passwordUpdated: Boolean(passwordHash) });
+    return jsonResponse({ ...updated, passwordUpdated });
   },
   { minRole: "MANAGER" },
 );

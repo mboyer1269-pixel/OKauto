@@ -17,6 +17,13 @@ export async function POST(request: NextRequest) {
     if (!record) {
       return errorResponse("Session expirée; veuillez vous reconnecter", 401);
     }
+    if (
+      !record.user.isActive ||
+      (record.user.sessionInvalidatedAt &&
+        record.createdAt < record.user.sessionInvalidatedAt)
+    ) {
+      return errorResponse("Session expirée; veuillez vous reconnecter", 401);
+    }
 
     const membership = record.organizationId
       ? record.user.memberships.find(

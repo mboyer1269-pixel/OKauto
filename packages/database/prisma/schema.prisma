@@ -78,26 +78,31 @@ enum AuditAction {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  passwordHash String
-  name         String
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                          String    @id @default(cuid())
+  email                       String    @unique
+  passwordHash                String
+  name                        String
+  isActive                    Boolean   @default(true)
+  provisionedByOrganizationId String?
+  sessionInvalidatedAt        DateTime?
+  createdAt                   DateTime  @default(now())
+  updatedAt                   DateTime  @updatedAt
 
-  memberships       OrganizationMember[]
-  refreshTokens     RefreshToken[]
-  assignedVehicles  Vehicle[]            @relation("AssignedTo")
-  listings          Listing[]
-  marketplaceDrafts MarketplaceDraft[]
-  notifications     Notification[]
-  auditLogs         AuditLog[]
-  apiKeys           ApiKey[]
-  importJobs        ImportJob[]
-  createdLeads      MarketplaceLead[]  @relation("LeadCreatedBy")
-  assignedLeads     MarketplaceLead[]  @relation("LeadAssignedTo")
+  memberships               OrganizationMember[]
+  refreshTokens             RefreshToken[]
+  assignedVehicles          Vehicle[]            @relation("AssignedTo")
+  listings                  Listing[]
+  marketplaceDrafts         MarketplaceDraft[]
+  notifications             Notification[]
+  auditLogs                 AuditLog[]
+  apiKeys                   ApiKey[]
+  importJobs                ImportJob[]
+  createdLeads              MarketplaceLead[]    @relation("LeadCreatedBy")
+  assignedLeads             MarketplaceLead[]    @relation("LeadAssignedTo")
+  provisionedByOrganization Organization?        @relation("ProvisionedUsers", fields: [provisionedByOrganizationId], references: [id], onDelete: SetNull)
+  sentInvites               OrganizationInvite[] @relation("OrganizationInvitesSent")
 
+  @@index([provisionedByOrganizationId])
   @@map("users")
 }
 
@@ -132,6 +137,8 @@ model Organization {
   updatedAt            DateTime @updatedAt
 
   members           OrganizationMember[]
+  invites           OrganizationInvite[]
+  provisionedUsers  User[]               @relation("ProvisionedUsers")
   vehicles          Vehicle[]
   listings          Listing[]
   marketplaceDrafts MarketplaceDraft[]
@@ -160,6 +167,26 @@ model OrganizationMember {
 
   @@unique([organizationId, userId])
   @@map("organization_members")
+}
+
+model OrganizationInvite {
+  id             String    @id @default(cuid())
+  organizationId String
+  email          String
+  name           String
+  role           Role      @default(SALESPERSON)
+  tokenHash      String    @unique
+  expiresAt      DateTime
+  consumedAt     DateTime?
+  invitedById    String
+  createdAt      DateTime  @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invitedBy    User         @relation("OrganizationInvitesSent", fields: [invitedById], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, email])
+  @@index([expiresAt])
+  @@map("organization_invites")
 }
 
 model Vehicle {

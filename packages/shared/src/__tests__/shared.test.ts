@@ -20,6 +20,7 @@ import {
   createAccessRequestSchema,
   createListingSchema,
   createVehicleSchema,
+  inviteMemberSchema,
   isFacebookMarketplaceItemUrl,
   loginSchema,
   registerSchema,
@@ -815,6 +816,7 @@ describe("authentication schemas", () => {
       loginSchema.parse({
         email: "  MBoyer@BuckinghamGM.com ",
         password: "secret",
+        next: "/invitation/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       }).email,
     ).toBe("mboyer@buckinghamgm.com");
 
@@ -826,5 +828,21 @@ describe("authentication schemas", () => {
         organizationName: "Buckingham Chevrolet Buick GMC",
       }).email,
     ).toBe("mboyer@buckinghamgm.com");
+  });
+});
+
+describe("invite member schema", () => {
+  it("accepts an invitation without a password", () => {
+    expect(
+      inviteMemberSchema.parse({
+        email: "  Marie@Concession.ca ",
+        name: "Marie Tremblay",
+        role: "SALESPERSON",
+      }),
+    ).toEqual({
+      email: "marie@concession.ca",
+      name: "Marie Tremblay",
+      role: "SALESPERSON",
+    });
   });
 });

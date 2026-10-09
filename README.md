@@ -5,7 +5,7 @@
 ## Features
 
 - **Dealership Dashboard** — Inventory CRUD, CSV import, VIN decode (NHTSA), AI/template descriptions
-- **Team Management** — RBAC (Owner, Admin, Manager, Salesperson), invite members, audit logs
+- **Team Management** — RBAC (Owner, Admin, Manager, Salesperson), pending invitations, audit logs
 - **Listing Tracking** — Per-salesperson analytics, listing history, stale listing detection
 - **Sold Vehicle Alerts** — Notifications when inventory is marked sold
 - **Chrome Extension (MV3)** — Human-in-the-loop Marketplace form assist (no auto-bypass)
@@ -89,6 +89,14 @@ Ces comptes **ne doivent jamais être créés en production** (`NODE_ENV=product
 | Salesperson | sales@demo.okauto.local |
 
 Le mot de passe local est affiché uniquement par `pnpm db:seed` dans le terminal. Ne le copiez pas dans la documentation de production.
+
+### Invitations d’équipe
+
+L’app **n’envoie aucun courriel**. Un administrateur crée une invitation ; le lien (jeton à usage unique, 7 jours) s’affiche **une seule fois** et doit être copié puis transmis hors bande. S’il existe déjà un compte, le titulaire doit être **connecté avec ce courriel** pour accepter (aucun mot de passe n’est accepté sur cette route). Un compte actif sans organisation se connecte via `/login?next=/invitation/<jeton>` : le login délivre un jeton `scope: invitation` (environ 10 min), accepté seulement par la route d’acceptation. Sinon, il choisit lui-même son mot de passe en ouvrant le lien — la concession ne le connaît jamais.
+
+**Risque accepté par conception** : quiconque possède le lien d’une invitation pour un courriel **inexistant** peut créer ce compte. Ne transmettez le lien qu’au destinataire.
+
+Les comptes déjà rattachés à plusieurs concessions n’ont pas de « concession créatrice » : une concession ne peut pas en réinitialiser le mot de passe. Audit lecture seule : `deploy/audit-memberships.sql`.
 
 ## Chrome Extension
 

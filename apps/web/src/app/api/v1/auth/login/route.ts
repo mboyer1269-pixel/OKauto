@@ -6,7 +6,10 @@ import {
   signAccessToken,
   createRefreshToken,
   createAuditLog,
+  INVITATION_ACCESS_TTL,
+  INVITATION_TOKEN_SCOPE,
 } from "@/lib/auth";
+import { safeInvitationNext } from "@/lib/member-provisioning";
 import {
   jsonResponse,
   errorResponse,
@@ -55,7 +58,36 @@ export async function POST(request: NextRequest) {
 
     const membership = user.memberships[0];
     if (!membership) {
-      return errorResponse("Aucune organisation associée à ce compte", 403);
+      const inviteNext = safeInvitationNext(data.next);
+      if (!inviteNext) {
+        return errorResponse("Aucune organisation associée à ce compte", 403);
+      }
+
+      const accessToken = await signAccessToken(
+        {
+          sub: user.id,
+          email: user.email,
+          orgId: "",
+          role: "SALESPERSON",
+          scope: INVITATION_TOKEN_SCOPE,
+        },
+        { expiresIn: INVITATION_ACCESS_TTL },
+      );
+      await clearAuthFailures("login", data.email);
+      await createAuditLog({
+        userId: user.id,
+        action: "LOGIN",
+        metadata: { scope: INVITATION_TOKEN_SCOPE },
+        request,
+      });
+
+      return jsonResponse({
+        user: { id: user.id, email: user.email, name: user.name },
+        organization: null,
+        role: null,
+        scope: INVITATION_TOKEN_SCOPE,
+        accessToken,
+      });
     }
 
     const accessToken = await signAccessToken({

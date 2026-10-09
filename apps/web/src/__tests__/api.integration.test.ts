@@ -23,7 +23,9 @@ import {
 import { DELETE as revokeApiKeyHandler } from "@/app/api/v1/admin/api-keys/[id]/route";
 import { POST as inviteMemberHandler } from "@/app/api/v1/organizations/members/route";
 import { PATCH as updateMemberHandler } from "@/app/api/v1/organizations/members/[id]/route";
+import { POST as acceptInviteHandler } from "@/app/api/v1/invitations/[token]/accept/route";
 import { hashToken } from "@/lib/auth";
+import { MEMBER_INVITE_NOTICE } from "@/lib/member-provisioning";
 
 function makeRequest(url: string, options: RequestInit = {}): Request {
   return new Request(url, {
@@ -45,9 +47,7 @@ describe("API route handlers", () => {
   let demoVehicleId: string;
   let invitedMemberId: string;
   let dealerOrganizationId: string;
-  let existingMemberOrganizationId: string;
   const invitedMemberEmail = `new-salesperson-${Date.now()}@example.com`;
-  const existingMemberEmail = `existing-salesperson-${Date.now()}@example.com`;
 
   beforeAll(async () => {
     const passwordHash = await bcrypt.hash("Demo1234!", 12);
@@ -139,18 +139,16 @@ describe("API route handlers", () => {
       });
     }
     await prisma.apiKey.deleteMany({ where: { id: extensionApiKeyId } });
+    await prisma.organizationInvite.deleteMany({
+      where: { email: invitedMemberEmail },
+    });
     await prisma.organizationMember.deleteMany({
       where: {
-        user: { email: { in: [invitedMemberEmail, existingMemberEmail] } },
+        user: { email: invitedMemberEmail },
       },
     });
-    if (existingMemberOrganizationId) {
-      await prisma.organization.deleteMany({
-        where: { id: existingMemberOrganizationId },
-      });
-    }
     await prisma.user.deleteMany({
-      where: { email: { in: [invitedMemberEmail, existingMemberEmail] } },
+      where: { email: invitedMemberEmail },
     });
   });
 
@@ -222,14 +220,13 @@ describe("API route handlers", () => {
     expect(ownerVehicle.marketplaceDrafts[0].title).toBe(title);
   });
 
-  it("lets the owner add a sales team member with a temporary password", async () => {
+  it("lets the owner invite a sales team member who then sets their password", async () => {
     const req = makeRequest("http://localhost/api/v1/organizations/members", {
       method: "POST",
       headers: { Authorization: `Bearer ${accessToken}` },
       body: JSON.stringify({
         name: "Marie Tremblay",
         email: invitedMemberEmail,
-        password: "Ok!Temporary7a",
         role: "SALESPERSON",
       }),
     });
@@ -237,10 +234,27 @@ describe("API route handlers", () => {
     const data = await res.json();
 
     expect(res.status).toBe(201);
-    expect(data.user.name).toBe("Marie Tremblay");
+    expect(data.email).toBe(invitedMemberEmail);
     expect(data.role).toBe("SALESPERSON");
-    expect(data.temporaryPasswordCreated).toBe(true);
-    invitedMemberId = data.id;
+    expect(data.emailDelivery).toBe("none");
+    expect(data.notice).toBe(MEMBER_INVITE_NOTICE);
+    expect(data.inviteUrl).toContain("/invitation/");
+    expect(
+      await prisma.user.findUnique({ where: { email: invitedMemberEmail } }),
+    ).toBeNull();
+
+    const token = String(data.inviteUrl).split("/invitation/")[1];
+    const accept = await acceptInviteHandler(
+      makeRequest(`http://localhost/api/v1/invitations/${token}/accept`, {
+        method: "POST",
+        body: JSON.stringify({ password: "Ok!Temporary7a" }),
+      }),
+      { params: Promise.resolve({ token }) },
+    );
+    const accepted = await accept.json();
+    expect(accept.status).toBe(200);
+    expect(accepted.memberId).toBeTruthy();
+    invitedMemberId = accepted.memberId;
   });
 
   it("lets an owner reset a team member temporary password", async () => {
@@ -275,8 +289,9 @@ describe("API route handlers", () => {
     expect(salespersonAccessToken).toBeTruthy();
   });
 
-  it("opens the shared dealer inventory for an existing user added to the team", async () => {
+  it("does not attach an existing account when inviting its email", async () => {
     const existingPassword = "Existing!Password9c";
+    const existingMemberEmail = `existing-salesperson-${Date.now()}@example.com`;
     const legacyUser = await prisma.user.create({
       data: {
         email: existingMemberEmail,
@@ -290,7 +305,6 @@ describe("API route handlers", () => {
         slug: `legacy-personal-${Date.now()}`,
       },
     });
-    existingMemberOrganizationId = legacyOrganization.id;
 
     await prisma.organizationMember.create({
       data: {
@@ -308,13 +322,21 @@ describe("API route handlers", () => {
         body: JSON.stringify({
           name: "Jean Vendeur",
           email: existingMemberEmail,
-          password: "Unused!Temporary7a",
           role: "SALESPERSON",
         }),
       }),
       { params: Promise.resolve({}) },
     );
+    const inviteData = await invite.json();
     expect(invite.status).toBe(201);
+    expect(inviteData.emailDelivery).toBe("none");
+    expect(inviteData.inviteUrl).toContain("/invitation/");
+
+    const memberships = await prisma.organizationMember.findMany({
+      where: { userId: legacyUser.id },
+    });
+    expect(memberships).toHaveLength(1);
+    expect(memberships[0].organizationId).toBe(legacyOrganization.id);
 
     const login = await loginHandler(
       makeRequest("http://localhost/api/v1/auth/login", {
@@ -326,25 +348,16 @@ describe("API route handlers", () => {
       }) as never,
     );
     const loginData = await login.json();
-
     expect(login.status).toBe(200);
-    expect(loginData.organization.id).toBe(dealerOrganizationId);
-    expect(loginData.role).toBe("SALESPERSON");
+    expect(loginData.organization.id).toBe(legacyOrganization.id);
 
-    const vehicles = await vehiclesHandler(
-      makeRequest("http://localhost/api/v1/vehicles", {
-        headers: { Authorization: `Bearer ${loginData.accessToken}` },
-      }),
-      { params: Promise.resolve({}) },
-    );
-    const vehicleData = await vehicles.json();
-
-    expect(vehicles.status).toBe(200);
-    expect(
-      vehicleData.vehicles.some(
-        (vehicle: { id: string }) => vehicle.id === extensionVehicleId,
-      ),
-    ).toBe(true);
+    await prisma.organizationMember.deleteMany({
+      where: { userId: legacyUser.id },
+    });
+    await prisma.user.deleteMany({ where: { id: legacyUser.id } });
+    await prisma.organization.deleteMany({
+      where: { id: legacyOrganization.id },
+    });
   });
 
   it("lists vehicles for authenticated user", async () => {
