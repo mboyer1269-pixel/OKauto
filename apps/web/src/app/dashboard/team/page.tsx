@@ -5,8 +5,6 @@ import {
   CheckCircle2,
   Building2,
   Copy,
-  Eye,
-  EyeOff,
   KeyRound,
   Plus,
   RefreshCw,
@@ -27,10 +25,12 @@ interface CreatedMember {
   name: string;
   email: string;
   temporaryPassword: string | null;
-  action: "created" | "reset";
+  inviteUrl: string | null;
+  notice?: string;
+  action: "invited" | "reset";
 }
 
-const EMPTY_INVITE = { name: "", email: "", password: "", role: "SALESPERSON" };
+const EMPTY_INVITE = { name: "", email: "", role: "SALESPERSON" };
 
 function generateTemporaryPassword() {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
@@ -55,7 +55,6 @@ function TeamContent() {
   const { apiFetch, organization, role } = useAuth();
   const [members, setMembers] = useState<Member[]>([]);
   const [showInvite, setShowInvite] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
   const [invite, setInvite] = useState(EMPTY_INVITE);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -94,8 +93,7 @@ function TeamContent() {
     setResettingMember(null);
     setCreatedMember(null);
     setFormError("");
-    setShowPassword(false);
-    setInvite({ ...EMPTY_INVITE, password: generateTemporaryPassword() });
+    setInvite({ ...EMPTY_INVITE });
     setShowInvite(true);
   };
 
@@ -123,21 +121,21 @@ function TeamContent() {
       });
       const result = (await response.json()) as {
         error?: string;
-        temporaryPasswordCreated?: boolean;
+        inviteUrl?: string;
+        notice?: string;
       };
 
-      if (!response.ok) {
-        throw new Error(result.error ?? "Le compte n’a pas pu être créé.");
+      if (!response.ok || !result.inviteUrl) {
+        throw new Error(result.error ?? "L’invitation n’a pas pu être créée.");
       }
 
       setCreatedMember({
         name: submittedInvite.name,
         email: submittedInvite.email,
-        action: "created",
-        temporaryPassword:
-          result.temporaryPasswordCreated === false
-            ? null
-            : submittedInvite.password,
+        action: "invited",
+        temporaryPassword: null,
+        inviteUrl: result.inviteUrl,
+        notice: result.notice,
       });
       setShowInvite(false);
       setInvite(EMPTY_INVITE);
@@ -186,6 +184,7 @@ function TeamContent() {
         name: resettingMember.user.name,
         email: resettingMember.user.email,
         temporaryPassword: resetPassword,
+        inviteUrl: null,
         action: "reset",
       });
       setResettingMember(null);
@@ -204,9 +203,11 @@ function TeamContent() {
 
   const copyCredentials = async () => {
     if (!createdMember) return;
-    const details = createdMember.temporaryPassword
-      ? `Accès Suivia Auto\nCourriel : ${createdMember.email}\nMot de passe temporaire : ${createdMember.temporaryPassword}`
-      : `Accès Suivia Auto\nCourriel : ${createdMember.email}\nUtilisez votre mot de passe Suivia Auto actuel.`;
+    const details = createdMember.inviteUrl
+      ? `Invitation Suivia Auto\nCourriel : ${createdMember.email}\nLien (à copier maintenant) : ${createdMember.inviteUrl}`
+      : createdMember.temporaryPassword
+        ? `Accès Suivia Auto\nCourriel : ${createdMember.email}\nMot de passe temporaire : ${createdMember.temporaryPassword}`
+        : `Accès Suivia Auto\nCourriel : ${createdMember.email}`;
 
     try {
       await navigator.clipboard.writeText(details);
@@ -260,15 +261,19 @@ function TeamContent() {
                 <h2 className="font-bold text-foreground">
                   {createdMember.action === "reset"
                     ? `Nouvel accès prêt pour ${createdMember.name}`
-                    : `${createdMember.name} a été ajouté à l’équipe`}
+                    : `Invitation prête pour ${createdMember.name}`}
                 </h2>
                 <p className="mt-1 text-sm text-signal">
                   {createdMember.action === "reset"
                     ? "Toutes les anciennes sessions ont été fermées. Copiez ce nouveau mot de passe temporaire et transmettez-le de façon sécuritaire."
-                    : `Son compte est rattaché à ${organization?.name ?? "votre concession"} et tout l’inventaire est prêt. Copiez les accès et transmettez-les de façon sécuritaire.`}
+                    : createdMember.notice ??
+                      "Aucun courriel n’est envoyé. Copiez ce lien maintenant — il ne sera plus réaffiché."}
                 </p>
                 <div className="mt-3 rounded-xl border border-signal/30 bg-card/80 px-4 py-3 font-mono text-sm text-foreground">
                   <p>{createdMember.email}</p>
+                  {createdMember.inviteUrl && (
+                    <p className="mt-1 break-all">{createdMember.inviteUrl}</p>
+                  )}
                   {createdMember.temporaryPassword && (
                     <p className="mt-1">{createdMember.temporaryPassword}</p>
                   )}
@@ -282,7 +287,11 @@ function TeamContent() {
                 onClick={() => void copyCredentials()}
               >
                 <Copy className="mr-2" size={16} />{" "}
-                {copied ? "Copié" : "Copier les accès"}
+                {copied
+                  ? "Copié"
+                  : createdMember.inviteUrl
+                    ? "Copier le lien"
+                    : "Copier les accès"}
               </button>
               <button
                 type="button"
@@ -310,10 +319,10 @@ function TeamContent() {
                 Une équipe, un seul inventaire Buckingham
               </h2>
               <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
-                Chaque personne ajoutée ici est automatiquement rattachée à{" "}
-                {organization?.name ?? "la concession"}. Elle voit tout
-                l’inventaire synchronisé dès sa prochaine connexion, avec son
-                propre nom sur ses descriptions et ses publications.
+                Chaque personne invitée ici rejoint{" "}
+                {organization?.name ?? "la concession"} seulement après avoir
+                accepté le lien. Elle voit alors tout l’inventaire synchronisé,
+                avec son propre nom sur ses descriptions et ses publications.
               </p>
             </div>
           </div>
@@ -334,12 +343,13 @@ function TeamContent() {
             </div>
             <div>
               <h2 className="font-bold text-foreground">
-                Créer un accès pour un membre
+                Inviter un membre
               </h2>
               <p className="mt-1 text-sm leading-5 text-muted-foreground">
-                La personne sera ajoutée à{" "}
-                {organization?.name ?? "votre concession"} et verra tout
-                l’inventaire dès sa connexion avec les accès ci-dessous.
+                Un lien d’invitation à usage unique sera affiché une seule
+                fois. Aucun courriel n’est envoyé : copiez-le et transmettez-le
+                vous-même. Le destinataire choisit son mot de passe. Le lien
+                expire dans 7 jours.
               </p>
             </div>
           </div>
@@ -379,56 +389,6 @@ function TeamContent() {
               />
             </label>
             <label className="text-sm font-semibold text-foreground sm:col-span-2">
-              Mot de passe temporaire
-              <div className="mt-1.5 flex flex-col gap-2 sm:flex-row">
-                <div className="relative flex-1">
-                  <KeyRound
-                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-                    size={17}
-                  />
-                  <input
-                    className="input pl-10 pr-10 font-mono"
-                    type={showPassword ? "text" : "password"}
-                    value={invite.password}
-                    onChange={(event) =>
-                      setInvite({ ...invite, password: event.target.value })
-                    }
-                    autoComplete="new-password"
-                    required
-                    minLength={8}
-                  />
-                  <button
-                    type="button"
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    onClick={() => setShowPassword(!showPassword)}
-                    aria-label={
-                      showPassword
-                        ? "Masquer le mot de passe"
-                        : "Afficher le mot de passe"
-                    }
-                  >
-                    {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
-                  </button>
-                </div>
-                <button
-                  type="button"
-                  className="btn-secondary whitespace-nowrap"
-                  onClick={() =>
-                    setInvite({
-                      ...invite,
-                      password: generateTemporaryPassword(),
-                    })
-                  }
-                >
-                  <RefreshCw className="mr-2" size={16} /> Régénérer
-                </button>
-              </div>
-              <span className="mt-1.5 block text-xs font-normal text-muted-foreground">
-                Au moins 8 caractères. Un mot de passe sécuritaire est déjà
-                généré.
-              </span>
-            </label>
-            <label className="text-sm font-semibold text-foreground sm:col-span-2">
               Fonction et niveau d’accès
               <select
                 className="input mt-1.5"
@@ -460,7 +420,7 @@ function TeamContent() {
               Annuler
             </button>
             <button type="submit" className="btn-primary" disabled={saving}>
-              {saving ? "Création en cours…" : "Créer le compte"}
+              {saving ? "Invitation en cours…" : "Créer l’invitation"}
             </button>
           </div>
         </form>

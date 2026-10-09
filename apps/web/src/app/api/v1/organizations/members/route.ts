@@ -1,11 +1,16 @@
+import bcrypt from "bcryptjs";
 import { prisma } from "@okauto/database";
 import { inviteMemberSchema } from "@okauto/shared";
-import { withAuth, jsonResponse, errorResponse, parseBody } from "@/lib/api";
-import { hashPassword } from "@/lib/auth";
+import { withAuth, jsonResponse, parseBody } from "@/lib/api";
+import { createAuditLog, generateInviteToken, hashToken } from "@/lib/auth";
 import {
-  MEMBER_CREATE_CONFLICT_MESSAGE,
+  INVITE_DUMMY_PASSWORD_HASH,
+  INVITE_TTL_MS,
+  MEMBER_INVITE_NOTICE,
   dealerMayResetMemberPassword,
+  inviteUrlFor,
 } from "@/lib/member-provisioning";
+import { enforceMemberInviteRateLimit } from "@/lib/rate-limit";
 
 export const GET = withAuth(async (_request, { auth }) => {
   const members = await prisma.organizationMember.findMany({
@@ -48,49 +53,68 @@ export const GET = withAuth(async (_request, { auth }) => {
 
 export const POST = withAuth(
   async (request, { auth }) => {
+    const limited = await enforceMemberInviteRateLimit(auth.orgId);
+    if (limited) return limited;
+
     const body = await parseBody<unknown>(request);
     const data = inviteMemberSchema.parse(body);
 
-    const existing = await prisma.user.findUnique({
-      where: { email: data.email },
-      select: { id: true },
-    });
-    if (existing) {
-      return errorResponse(MEMBER_CREATE_CONFLICT_MESSAGE, 409);
-    }
+    const token = generateInviteToken();
+    const tokenHash = hashToken(token);
+    const expiresAt = new Date(Date.now() + INVITE_TTL_MS);
 
-    const passwordHash = await hashPassword(data.password);
-    try {
-      const member = await prisma.$transaction(async (tx) => {
-        const user = await tx.user.create({
-          data: {
-            email: data.email,
-            passwordHash,
-            name: data.name,
-            provisionedByOrganizationId: auth.orgId,
-          },
-        });
-        return tx.organizationMember.create({
-          data: {
-            organizationId: auth.orgId,
-            userId: user.id,
-            role: data.role,
-          },
-          include: { user: { select: { id: true, email: true, name: true } } },
-        });
+    await Promise.all([
+      prisma.user.findUnique({
+        where: { email: data.email },
+        select: { id: true },
+      }),
+      bcrypt.compare("invite", INVITE_DUMMY_PASSWORD_HASH),
+    ]);
+
+    const invite = await prisma.$transaction(async (tx) => {
+      await tx.organizationInvite.updateMany({
+        where: {
+          organizationId: auth.orgId,
+          email: data.email,
+          consumedAt: null,
+        },
+        data: { consumedAt: new Date() },
       });
+      return tx.organizationInvite.create({
+        data: {
+          organizationId: auth.orgId,
+          email: data.email,
+          name: data.name,
+          role: data.role,
+          tokenHash,
+          expiresAt,
+          invitedById: auth.sub,
+        },
+      });
+    });
 
-      return jsonResponse({ ...member, temporaryPasswordCreated: true }, 201);
-    } catch (err) {
-      if (
-        err instanceof Error &&
-        "code" in err &&
-        (err as { code?: string }).code === "P2002"
-      ) {
-        return errorResponse(MEMBER_CREATE_CONFLICT_MESSAGE, 409);
-      }
-      throw err;
-    }
+    await createAuditLog({
+      organizationId: auth.orgId,
+      userId: auth.sub,
+      action: "INVITE",
+      entityType: "organization_invite",
+      entityId: invite.id,
+      request: request as never,
+    });
+
+    return jsonResponse(
+      {
+        id: invite.id,
+        email: invite.email,
+        name: invite.name,
+        role: invite.role,
+        expiresAt: invite.expiresAt.toISOString(),
+        inviteUrl: inviteUrlFor(token),
+        emailDelivery: "none",
+        notice: MEMBER_INVITE_NOTICE,
+      },
+      201,
+    );
   },
   { minRole: "ADMIN" },
 );

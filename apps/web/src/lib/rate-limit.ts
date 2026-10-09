@@ -19,6 +19,11 @@ export const ACCESS_REQUEST_RATE_LIMIT = {
   maxPerEmail: 3,
 } as const;
 
+export const MEMBER_INVITE_RATE_LIMIT = {
+  windowMs: 15 * 60 * 1000,
+  maxPerOrganization: 10,
+} as const;
+
 export type AuthRateLimitAction = "login" | "register";
 
 export interface RateLimitCounter {
@@ -443,6 +448,32 @@ export async function enforceAccessRequestRateLimit(
   } catch (error) {
     console.warn(
       "[rate-limit] Impossible de limiter les demandes d’accès, poursuite de la requête:",
+      error instanceof Error ? error.message : error,
+    );
+    return null;
+  }
+}
+
+function memberInviteKey(orgId: string): string {
+  return `member-invite-rl:${orgId}`;
+}
+
+export async function enforceMemberInviteRateLimit(orgId: string) {
+  try {
+    const store = await getStore();
+    const key = memberInviteKey(orgId);
+    const count = await store.increment(key, MEMBER_INVITE_RATE_LIMIT.windowMs);
+    if (count > MEMBER_INVITE_RATE_LIMIT.maxPerOrganization) {
+      const state = await store.get(key);
+      return tooManyAccessRequests(
+        state.ttlSeconds ||
+          Math.ceil(MEMBER_INVITE_RATE_LIMIT.windowMs / 1000),
+      );
+    }
+    return null;
+  } catch (error) {
+    console.warn(
+      "[rate-limit] Impossible de limiter les invitations, poursuite de la requête:",
       error instanceof Error ? error.message : error,
     );
     return null;

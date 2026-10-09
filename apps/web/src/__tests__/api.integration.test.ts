@@ -23,7 +23,9 @@ import {
 import { DELETE as revokeApiKeyHandler } from "@/app/api/v1/admin/api-keys/[id]/route";
 import { POST as inviteMemberHandler } from "@/app/api/v1/organizations/members/route";
 import { PATCH as updateMemberHandler } from "@/app/api/v1/organizations/members/[id]/route";
+import { POST as acceptInviteHandler } from "@/app/api/v1/invitations/[token]/accept/route";
 import { hashToken } from "@/lib/auth";
+import { MEMBER_INVITE_NOTICE } from "@/lib/member-provisioning";
 
 function makeRequest(url: string, options: RequestInit = {}): Request {
   return new Request(url, {
@@ -137,6 +139,9 @@ describe("API route handlers", () => {
       });
     }
     await prisma.apiKey.deleteMany({ where: { id: extensionApiKeyId } });
+    await prisma.organizationInvite.deleteMany({
+      where: { email: invitedMemberEmail },
+    });
     await prisma.organizationMember.deleteMany({
       where: {
         user: { email: invitedMemberEmail },
@@ -215,14 +220,13 @@ describe("API route handlers", () => {
     expect(ownerVehicle.marketplaceDrafts[0].title).toBe(title);
   });
 
-  it("lets the owner add a sales team member with a temporary password", async () => {
+  it("lets the owner invite a sales team member who then sets their password", async () => {
     const req = makeRequest("http://localhost/api/v1/organizations/members", {
       method: "POST",
       headers: { Authorization: `Bearer ${accessToken}` },
       body: JSON.stringify({
         name: "Marie Tremblay",
         email: invitedMemberEmail,
-        password: "Ok!Temporary7a",
         role: "SALESPERSON",
       }),
     });
@@ -230,10 +234,27 @@ describe("API route handlers", () => {
     const data = await res.json();
 
     expect(res.status).toBe(201);
-    expect(data.user.name).toBe("Marie Tremblay");
+    expect(data.email).toBe(invitedMemberEmail);
     expect(data.role).toBe("SALESPERSON");
-    expect(data.temporaryPasswordCreated).toBe(true);
-    invitedMemberId = data.id;
+    expect(data.emailDelivery).toBe("none");
+    expect(data.notice).toBe(MEMBER_INVITE_NOTICE);
+    expect(data.inviteUrl).toContain("/invitation/");
+    expect(
+      await prisma.user.findUnique({ where: { email: invitedMemberEmail } }),
+    ).toBeNull();
+
+    const token = String(data.inviteUrl).split("/invitation/")[1];
+    const accept = await acceptInviteHandler(
+      makeRequest(`http://localhost/api/v1/invitations/${token}/accept`, {
+        method: "POST",
+        body: JSON.stringify({ password: "Ok!Temporary7a" }),
+      }),
+      { params: Promise.resolve({ token }) },
+    );
+    const accepted = await accept.json();
+    expect(accept.status).toBe(200);
+    expect(accepted.memberId).toBeTruthy();
+    invitedMemberId = accepted.memberId;
   });
 
   it("lets an owner reset a team member temporary password", async () => {
@@ -301,13 +322,15 @@ describe("API route handlers", () => {
         body: JSON.stringify({
           name: "Jean Vendeur",
           email: existingMemberEmail,
-          password: "Unused!Temporary7a",
           role: "SALESPERSON",
         }),
       }),
       { params: Promise.resolve({}) },
     );
-    expect(invite.status).toBe(409);
+    const inviteData = await invite.json();
+    expect(invite.status).toBe(201);
+    expect(inviteData.emailDelivery).toBe("none");
+    expect(inviteData.inviteUrl).toContain("/invitation/");
 
     const memberships = await prisma.organizationMember.findMany({
       where: { userId: legacyUser.id },

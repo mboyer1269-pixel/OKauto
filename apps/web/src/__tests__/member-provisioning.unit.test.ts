@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  MEMBER_CREATE_CONFLICT_MESSAGE,
+  MEMBER_INVITE_NOTICE,
   dealerMayResetMemberPassword,
 } from "@/lib/member-provisioning";
 
@@ -45,12 +45,8 @@ describe("dealerMayResetMemberPassword", () => {
     ).toBe(false);
   });
 
-  it("uses a generic add-member conflict that does not say the email exists", () => {
-    expect(MEMBER_CREATE_CONFLICT_MESSAGE.toLowerCase()).not.toContain(
-      "déjà enregistré",
-    );
-    expect(MEMBER_CREATE_CONFLICT_MESSAGE.toLowerCase()).not.toContain(
-      "existe",
-    );
+  it("uses an invite notice that does not say whether the email exists", () => {
+    expect(MEMBER_INVITE_NOTICE.toLowerCase()).not.toContain("existe");
+    expect(MEMBER_INVITE_NOTICE.toLowerCase()).not.toContain("déjà enregistré");
   });
 });

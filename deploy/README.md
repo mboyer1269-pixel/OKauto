@@ -170,6 +170,8 @@ Après un merge qui change `deploy/scripts`, `compose.prod.yml`, `README.md` ou 
 
 Migrations expand/contract uniquement. CI : `scripts/check-destructive-migrations.sh`.
 
+Audit lecture seule des comptes multi-concession : `deploy/audit-memberships.sql`.
+
 ## Santé et files
 
 - `GET /api/health` — liveness + SHA. Reste 200 si le worker est mort.

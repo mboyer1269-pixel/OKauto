@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { NextRequest } from "next/server";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
-import { prisma, Role } from "@okauto/database";
+import { prisma } from "@okauto/database";
 import type { RoleType } from "@okauto/shared";
 
 function getJwtSecret(): Uint8Array {
@@ -52,6 +52,10 @@ export function hashToken(token: string): string {
 
 export function generateRefreshToken(): string {
   return crypto.randomBytes(48).toString("hex");
+}
+
+export function generateInviteToken(): string {
+  return crypto.randomBytes(32).toString("hex");
 }
 
 export function generateApiKey(): string {
@@ -171,11 +175,13 @@ export async function authenticateApiKey(apiKey: string) {
 
   if (!record || !record.isActive) return null;
   if (record.expiresAt && record.expiresAt < new Date()) return null;
-
-  await prisma.apiKey.update({
-    where: { id: record.id },
-    data: { lastUsedAt: new Date() },
-  });
+  if (!record.user.isActive) return null;
+  if (
+    record.user.sessionInvalidatedAt &&
+    record.createdAt.getTime() <= record.user.sessionInvalidatedAt.getTime()
+  ) {
+    return null;
+  }
 
   const membership = await prisma.organizationMember.findUnique({
     where: {
@@ -185,11 +191,17 @@ export async function authenticateApiKey(apiKey: string) {
       },
     },
   });
+  if (!membership) return null;
+
+  await prisma.apiKey.update({
+    where: { id: record.id },
+    data: { lastUsedAt: new Date() },
+  });
 
   return {
     user: record.user,
     organization: record.organization,
-    role: membership?.role ?? Role.SALESPERSON,
+    role: membership.role,
     orgId: record.organizationId,
   };
 }

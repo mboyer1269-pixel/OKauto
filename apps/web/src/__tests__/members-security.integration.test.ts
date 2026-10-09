@@ -6,8 +6,10 @@ import { POST as refreshHandler } from "@/app/api/v1/auth/refresh/route";
 import { GET as currentUserHandler } from "@/app/api/v1/auth/me/route";
 import { POST as inviteMemberHandler } from "@/app/api/v1/organizations/members/route";
 import { PATCH as updateMemberHandler } from "@/app/api/v1/organizations/members/[id]/route";
+import { POST as acceptInviteHandler } from "@/app/api/v1/invitations/[token]/accept/route";
+import { GET as previewInviteHandler } from "@/app/api/v1/invitations/[token]/route";
 import {
-  MEMBER_CREATE_CONFLICT_MESSAGE,
+  MEMBER_INVITE_NOTICE,
   MEMBER_PASSWORD_RESET_FORBIDDEN_MESSAGE,
 } from "@/lib/member-provisioning";
 
@@ -32,6 +34,10 @@ async function login(email: string, password: string) {
   return { status: response.status, data };
 }
 
+function tokenFromInviteUrl(url: string) {
+  return url.split("/invitation/")[1] ?? "";
+}
+
 describe("member takeover prevention", () => {
   const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const ownerAEmail = `owner-a-${suffix}@example.com`;
@@ -47,6 +53,17 @@ describe("member takeover prevention", () => {
   let userAId = "";
   let ownerBToken = "";
   let staffBMemberId = "";
+  let inviteAToken = "";
+  const inviteShape = [
+    "id",
+    "email",
+    "name",
+    "role",
+    "expiresAt",
+    "inviteUrl",
+    "emailDelivery",
+    "notice",
+  ];
 
   beforeAll(async () => {
     const [hashA, hashB] = await Promise.all([
@@ -93,6 +110,9 @@ describe("member takeover prevention", () => {
 
   afterAll(async () => {
     const emails = [ownerAEmail, ownerBEmail, staffBEmail];
+    await prisma.organizationInvite.deleteMany({
+      where: { email: { in: emails } },
+    });
     const users = await prisma.user.findMany({
       where: { email: { in: emails } },
       select: { id: true },
@@ -125,7 +145,6 @@ describe("member takeover prevention", () => {
         body: JSON.stringify({
           name: "Owner A hijack",
           email: ownerAEmail,
-          password: "Hijack!Password9c",
           role: "SALESPERSON",
         }),
       }),
@@ -133,8 +152,11 @@ describe("member takeover prevention", () => {
     );
     const inviteData = await invite.json();
 
-    expect(invite.status).toBe(409);
-    expect(inviteData.error).toBe(MEMBER_CREATE_CONFLICT_MESSAGE);
+    expect(invite.status).toBe(201);
+    expect(Object.keys(inviteData).sort()).toEqual([...inviteShape].sort());
+    expect(inviteData.notice).toBe(MEMBER_INVITE_NOTICE);
+    expect(inviteData.emailDelivery).toBe("none");
+    inviteAToken = tokenFromInviteUrl(inviteData.inviteUrl);
 
     const memberships = await prisma.organizationMember.findMany({
       where: { userId: userAId },
@@ -193,7 +215,7 @@ describe("member takeover prevention", () => {
     expect(stillA.status).toBe(200);
   });
 
-  it("still lets a dealership create and reset its own staff account", async () => {
+  it("still lets a dealership invite and reset its own staff account", async () => {
     const invite = await inviteMemberHandler(
       makeRequest("http://localhost/api/v1/organizations/members", {
         method: "POST",
@@ -201,7 +223,6 @@ describe("member takeover prevention", () => {
         body: JSON.stringify({
           name: "Staff B",
           email: staffBEmail,
-          password: staffPassword,
           role: "SALESPERSON",
         }),
       }),
@@ -209,8 +230,26 @@ describe("member takeover prevention", () => {
     );
     const inviteData = await invite.json();
     expect(invite.status).toBe(201);
-    expect(inviteData.temporaryPasswordCreated).toBe(true);
-    staffBMemberId = inviteData.id;
+    expect(Object.keys(inviteData).sort()).toEqual([...inviteShape].sort());
+    expect(inviteData.emailDelivery).toBe("none");
+
+    const token = tokenFromInviteUrl(inviteData.inviteUrl);
+    const preview = await previewInviteHandler(
+      makeRequest(`http://localhost/api/v1/invitations/${token}`),
+      { params: Promise.resolve({ token }) },
+    );
+    expect(preview.status).toBe(200);
+
+    const accept = await acceptInviteHandler(
+      makeRequest(`http://localhost/api/v1/invitations/${token}/accept`, {
+        method: "POST",
+        body: JSON.stringify({ password: staffPassword }),
+      }),
+      { params: Promise.resolve({ token }) },
+    );
+    const accepted = await accept.json();
+    expect(accept.status).toBe(200);
+    staffBMemberId = accepted.memberId;
 
     const created = await prisma.user.findUniqueOrThrow({
       where: { email: staffBEmail },
@@ -283,5 +322,28 @@ describe("member takeover prevention", () => {
       }) as never,
     );
     expect(refresh.status).toBe(401);
+  });
+
+  it("attaches an existing account only after the owner accepts with their password", async () => {
+    expect(inviteAToken).toBeTruthy();
+    const accept = await acceptInviteHandler(
+      makeRequest(`http://localhost/api/v1/invitations/${inviteAToken}/accept`, {
+        method: "POST",
+        body: JSON.stringify({ password: passwordA }),
+      }),
+      { params: Promise.resolve({ token: inviteAToken }) },
+    );
+    expect(accept.status).toBe(200);
+
+    const memberships = await prisma.organizationMember.findMany({
+      where: { userId: userAId },
+      orderBy: { joinedAt: "asc" },
+    });
+    expect(memberships.map((row) => row.organizationId).sort()).toEqual(
+      [orgAId, orgBId].sort(),
+    );
+
+    const stillA = await login(ownerAEmail, passwordA);
+    expect(stillA.status).toBe(200);
   });
 });

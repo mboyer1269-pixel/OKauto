@@ -21,7 +21,9 @@ BEGIN
   END IF;
 END $$;
 
--- Legacy staff invited by a dealership (single non-OWNER membership).
+-- Legacy staff invited by a dealership (exactly one non-OWNER membership).
+-- Never assign a creating dealership to an account that already belongs
+-- to more than one organization: those stay non-resettable.
 UPDATE "users" AS u
 SET "provisionedByOrganizationId" = m."organizationId"
 FROM "organization_members" AS m
