@@ -44,7 +44,7 @@ describe("demande d’accès", () => {
       "utf8",
     );
     expect(dashboard).not.toMatch(/ipAddress/);
-    expect(dashboard).toMatch(/minRole\(role as RoleType, "OWNER"\)/);
+    expect(dashboard).toMatch(/hasMinRole\(role as RoleType, "OWNER"\)/);
   });
 
   it("réserve la navigation du tableau de bord au propriétaire", () => {
