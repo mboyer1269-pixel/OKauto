@@ -30,7 +30,7 @@ export function BrandMark({
       <span className={cn("inline-flex items-center", className)} aria-label={label}>
         <Wordmark
           inverted={inverted}
-          className="h-6 w-auto max-w-[min(52vw,13.5rem)] sm:h-9 sm:max-w-none"
+          className="h-6 w-auto max-w-[7.25rem] sm:h-9 sm:max-w-none"
         />
       </span>
     );

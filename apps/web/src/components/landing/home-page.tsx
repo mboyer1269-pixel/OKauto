@@ -13,8 +13,10 @@ export function LandingHomePage() {
       <header className="border-b border-border bg-background/90 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-5 py-4 lg:px-8">
           <ThemedBrandLockup />
-          <div className="flex items-center gap-2 sm:gap-3">
-            <ThemeToggle />
+          <div className="flex min-w-0 shrink-0 items-center gap-2 sm:gap-3">
+            <div className="hidden sm:block">
+              <ThemeToggle />
+            </div>
             <Link
               href={landingHrefs.login}
               className="shrink-0 whitespace-nowrap text-sm font-semibold text-primary hover:underline dark:text-brand-cyan"
@@ -23,7 +25,7 @@ export function LandingHomePage() {
             </Link>
             <Link
               href={landingHrefs.createSpace}
-              className="btn-primary shrink-0 whitespace-nowrap px-3 py-2 text-sm sm:px-4"
+              className="btn-primary shrink-0 whitespace-nowrap px-3 py-2 text-xs sm:px-4 sm:text-sm"
             >
               {nav.create}
             </Link>
