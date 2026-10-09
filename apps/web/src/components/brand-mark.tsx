@@ -8,7 +8,7 @@ const spec = specJson as BrandSpec;
 
 const lockupSizes = {
   header: "h-6 w-auto max-w-[7.25rem] sm:h-9 sm:max-w-none",
-  app: "h-8 w-auto max-w-[12.5rem] sm:h-11 sm:max-w-[16.5rem]",
+  app: "h-8 w-auto max-w-full",
   login: "h-11 w-auto max-w-[16rem] sm:h-14 sm:max-w-[20rem]",
 } as const;
 

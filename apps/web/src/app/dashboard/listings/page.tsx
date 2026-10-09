@@ -1066,6 +1066,7 @@ function ListingsContent() {
   }, [prepareId, loading]);
 
   return (
+    <>
     <FadeIn className="min-w-0 space-y-4">
       <header className="cockpit-scan relative overflow-hidden rounded-2xl border border-sidebar-accent/20 bg-sidebar px-5 py-4 text-sidebar-foreground shadow-[0_0_40px_hsl(var(--sidebar-accent)/0.08)] sm:px-6 sm:py-5">
         <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-2/5 border-l border-white/10 lg:block">
@@ -1445,9 +1446,10 @@ function ListingsContent() {
         />
       )}
 
+    </FadeIn>
       {selected && listingPackage && (
         <section
-          className="fixed inset-0 z-50 !mt-0 overflow-y-auto bg-background/80 p-3 backdrop-blur-md sm:p-6"
+          className="fixed inset-0 z-50 overflow-y-auto bg-background/80 p-3 backdrop-blur-md sm:p-6"
           role="dialog"
           aria-modal="true"
           aria-label="Préparer l’annonce"
@@ -1887,7 +1889,7 @@ function ListingsContent() {
           </div>
         </section>
       )}
-    </FadeIn>
+    </>
   );
 }
 

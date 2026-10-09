@@ -96,25 +96,25 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
         >
           {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
-        <BrandMark lockup inverted size="app" />
+        <BrandMark lockup inverted size="app" className="max-w-[10rem]" />
         <div className="w-8" />
       </div>
 
       <div className="flex">
         <aside
           className={cn(
-            "fixed inset-y-0 left-0 z-40 w-56 transform border-r border-sidebar-border bg-sidebar/95 text-sidebar-foreground shadow-2xl backdrop-blur-xl transition-transform lg:static lg:translate-x-0 lg:shadow-none",
+            "fixed inset-y-0 left-0 z-40 flex w-64 transform flex-col overflow-hidden border-r border-sidebar-border bg-sidebar/95 text-sidebar-foreground shadow-2xl backdrop-blur-xl transition-transform lg:static lg:translate-x-0 lg:shadow-none",
             sidebarOpen ? "translate-x-0" : "-translate-x-full",
           )}
         >
-          <div className="cockpit-scan border-b border-sidebar-border px-4 py-5">
-            <BrandMark lockup inverted size="app" />
+          <div className="cockpit-scan shrink-0 border-b border-sidebar-border px-3 py-4">
+            <BrandMark lockup inverted size="app" className="w-full max-w-full" />
             <p className="mt-2 truncate font-mono text-[11px] uppercase tracking-[0.16em] text-sidebar-accent">
               {organization?.name}
             </p>
           </div>
           <nav
-            className="space-y-0.5 p-2 pb-40"
+            className="min-h-0 flex-1 space-y-0.5 overflow-y-auto p-2 pb-40"
             aria-label="Navigation principale"
           >
             {visibleNavItems.map((item) => {

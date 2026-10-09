@@ -8,12 +8,11 @@ const src = (...parts: string[]) =>
 describe("Cockpit — logo D et thème", () => {
   it("affiche le mot-symbole D dans la barre latérale et l’en-tête mobile", () => {
     const layout = src("components", "dashboard-layout.tsx");
-    expect(layout).toMatch(/<BrandMark lockup inverted size="app" \/>/g);
-    expect(layout.match(/<BrandMark lockup inverted size="app" \/>/g)?.length).toBe(
+    expect(layout.match(/<BrandMark lockup inverted size="app"/g)?.length).toBe(
       2,
     );
     expect(layout).toContain("cockpit-grid");
-    expect(layout).toContain('w-56');
+    expect(layout).toContain("w-64");
     expect(layout).toContain("shadow-[0_0_18px_hsl(var(--sidebar-accent)/0.28)]");
   });
 
