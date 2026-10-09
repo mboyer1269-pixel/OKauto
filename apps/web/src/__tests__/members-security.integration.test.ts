@@ -213,6 +213,8 @@ describe("member takeover prevention", () => {
 
     const stillA = await login(ownerAEmail, passwordA);
     expect(stillA.status).toBe(200);
+
+    await prisma.organizationMember.delete({ where: { id: poisoned.id } });
   });
 
   it("still lets a dealership invite and reset its own staff account", async () => {
