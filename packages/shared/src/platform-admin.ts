@@ -1,3 +1,5 @@
+import { readEnv } from "./job-policy";
+
 export function parsePlatformAdminEmails(
   raw: string | undefined | null,
 ): string[] {
@@ -10,7 +12,7 @@ export function parsePlatformAdminEmails(
 
 export function isPlatformAdminEmail(
   email: string | null | undefined,
-  raw: string | undefined | null = process.env.PLATFORM_ADMIN_EMAILS,
+  raw: string | undefined | null = readEnv().PLATFORM_ADMIN_EMAILS,
 ): boolean {
   if (!email) return false;
   const allowlist = parsePlatformAdminEmails(raw);

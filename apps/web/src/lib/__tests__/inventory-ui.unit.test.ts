@@ -82,25 +82,34 @@ describe("inventory-ui", () => {
   });
 
   it("ignore les raccourcis quand un élément interactif a le focus", () => {
+    const target = (value: object) => value as EventTarget;
     expect(isInventoryShortcutTarget(null)).toBe(false);
-    expect(isInventoryShortcutTarget({ tagName: "BUTTON" })).toBe(true);
-    expect(isInventoryShortcutTarget({ tagName: "A" })).toBe(true);
-    expect(isInventoryShortcutTarget({ tagName: "INPUT" })).toBe(true);
-    expect(isInventoryShortcutTarget({ tagName: "TEXTAREA" })).toBe(true);
-    expect(isInventoryShortcutTarget({ tagName: "SELECT" })).toBe(true);
-    expect(isInventoryShortcutTarget({ isContentEditable: true })).toBe(true);
+    expect(isInventoryShortcutTarget(target({ tagName: "BUTTON" }))).toBe(true);
+    expect(isInventoryShortcutTarget(target({ tagName: "A" }))).toBe(true);
+    expect(isInventoryShortcutTarget(target({ tagName: "INPUT" }))).toBe(true);
+    expect(isInventoryShortcutTarget(target({ tagName: "TEXTAREA" }))).toBe(
+      true,
+    );
+    expect(isInventoryShortcutTarget(target({ tagName: "SELECT" }))).toBe(true);
     expect(
-      isInventoryShortcutTarget({
-        tagName: "svg",
-        closest: (selector: string) =>
-          selector.includes("button") ? {} : null,
-      }),
+      isInventoryShortcutTarget(target({ isContentEditable: true })),
     ).toBe(true);
     expect(
-      isInventoryShortcutTarget({
-        tagName: "DIV",
-        closest: () => null,
-      }),
+      isInventoryShortcutTarget(
+        target({
+          tagName: "svg",
+          closest: (selector: string) =>
+            selector.includes("button") ? {} : null,
+        }),
+      ),
+    ).toBe(true);
+    expect(
+      isInventoryShortcutTarget(
+        target({
+          tagName: "DIV",
+          closest: () => null,
+        }),
+      ),
     ).toBe(false);
   });
 });

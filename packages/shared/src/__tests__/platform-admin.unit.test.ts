@@ -13,9 +13,7 @@ describe("PLATFORM_ADMIN_EMAILS", () => {
     expect(parsePlatformAdminEmails(undefined)).toEqual([]);
     expect(parsePlatformAdminEmails("")).toEqual([]);
     expect(parsePlatformAdminEmails("  ,  ")).toEqual([]);
-    expect(isPlatformAdminEmail("owner@demo.okauto.local", undefined)).toBe(
-      false,
-    );
+    expect(isPlatformAdminEmail("owner@demo.okauto.local", null)).toBe(false);
     expect(isPlatformAdminEmail("owner@demo.okauto.local", "")).toBe(false);
   });
 
