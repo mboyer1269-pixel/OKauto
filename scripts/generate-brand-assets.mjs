@@ -1,5 +1,5 @@
 /**
- * Génère favicon, icônes d’extension et image Open Graph
+ * Génère favicon, icônes d’extension, jetons CSS et image Open Graph
  * à partir de apps/web/src/brand/spec.json — unique source de la marque.
  *
  * Usage : pnpm brand:assets
@@ -8,51 +8,18 @@ import { deflateSync } from "node:zlib";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  barLayout,
+  cssBrandTokens,
+  hexToRgb,
+  resolveBarCount,
+  svgMark,
+} from "./brand-mark.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const specPath = join(root, "apps/web/src/brand/spec.json");
 const spec = JSON.parse(readFileSync(specPath, "utf8"));
-
-if (spec.mark.kind !== "vin-bars") {
-  throw new Error(
-    `generate-brand-assets: kind « ${spec.mark.kind} » non implémenté. Ajoutez un renderer avant de changer de direction.`,
-  );
-}
-
 const view = spec.mark.viewBox;
-
-function barLayout(count) {
-  const bars = spec.bars[String(count)];
-  if (!bars) throw new Error(`Pas de barres pour count=${count}`);
-  const pad = spec.mark.pad;
-  const totalUnits = count * spec.mark.barUnit + (count - 1) * spec.mark.gapRatio;
-  const inner = view - 2 * pad;
-  const scale = inner / totalUnits;
-  const barW = spec.mark.barUnit * scale;
-  const gap = spec.mark.gapRatio * scale;
-  const rx = spec.mark.radius * scale;
-  let x = pad;
-  return bars.map((bar) => {
-    const rect = { x, y: bar.y, w: barW, h: bar.h, rx };
-    x += barW + gap;
-    return rect;
-  });
-}
-
-function svgMark(count) {
-  const radius = view * spec.mark.iconRadiusRatio;
-  const rects = barLayout(count)
-    .map(
-      (b) =>
-        `<rect x="${b.x.toFixed(3)}" y="${b.y}" width="${b.w.toFixed(3)}" height="${b.h}" rx="${b.rx.toFixed(3)}" fill="${spec.colors.amber}"/>`,
-    )
-    .join("");
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${view} ${view}" fill="none" role="img" aria-label="${spec.ariaLabel}">
-  <rect width="${view}" height="${view}" rx="${radius.toFixed(2)}" fill="${spec.colors.graphite}"/>
-  ${rects}
-</svg>
-`;
-}
 
 function crc32(buf) {
   let crc = ~0;
@@ -96,8 +63,8 @@ function encodePng(width, height, rgba) {
 }
 
 function parseHex(hex) {
-  const n = Number.parseInt(hex.replace("#", ""), 16);
-  return [(n >> 16) & 255, (n >> 8) & 255, n & 255, 255];
+  const [r, g, b] = hexToRgb(hex);
+  return [r, g, b, 255];
 }
 
 function setPixel(buf, w, x, y, color) {
@@ -133,11 +100,82 @@ function fillRoundedRect(buf, width, height, x, y, w, h, r, color) {
   }
 }
 
-function rasterMark(size, count) {
-  const buf = Buffer.alloc(size * size * 4);
-  const scale = size / view;
-  const graphite = parseHex(spec.colors.graphite);
-  const amber = parseHex(spec.colors.amber);
+function fillCircle(buf, width, cx, cy, r, color) {
+  const x0 = Math.max(0, Math.floor(cx - r));
+  const y0 = Math.max(0, Math.floor(cy - r));
+  const x1 = Math.min(width, Math.ceil(cx + r));
+  const y1 = Math.min(buf.length / 4 / width, Math.ceil(cy + r));
+  const r2 = r * r;
+  for (let py = y0; py < y1; py += 1) {
+    for (let px = x0; px < x1; px += 1) {
+      const dx = px + 0.5 - cx;
+      const dy = py + 0.5 - cy;
+      if (dx * dx + dy * dy <= r2) setPixel(buf, width, px, py, color);
+    }
+  }
+}
+
+function pointInTriangle(px, py, a, b, c) {
+  const s = (a[0] - c[0]) * (py - c[1]) - (a[1] - c[1]) * (px - c[0]);
+  const t = (b[0] - a[0]) * (py - a[1]) - (b[1] - a[1]) * (px - a[0]);
+  if (s < 0 !== t < 0 && s !== 0 && t !== 0) return false;
+  const d = (c[0] - b[0]) * (py - b[1]) - (c[1] - b[1]) * (px - b[0]);
+  return d === 0 || d < 0 === s + t <= 0;
+}
+
+function fillTriangle(buf, width, a, b, c, color) {
+  const xs = [a[0], b[0], c[0]];
+  const ys = [a[1], b[1], c[1]];
+  const x0 = Math.max(0, Math.floor(Math.min(...xs)));
+  const y0 = Math.max(0, Math.floor(Math.min(...ys)));
+  const x1 = Math.min(width, Math.ceil(Math.max(...xs)));
+  const y1 = Math.min(buf.length / 4 / width, Math.ceil(Math.max(...ys)));
+  for (let py = y0; py < y1; py += 1) {
+    for (let px = x0; px < x1; px += 1) {
+      if (pointInTriangle(px + 0.5, py + 0.5, a, b, c)) {
+        setPixel(buf, width, px, py, color);
+      }
+    }
+  }
+}
+
+function cubicPoint(p0, p1, p2, p3, t) {
+  const u = 1 - t;
+  return [
+    u * u * u * p0[0] + 3 * u * u * t * p1[0] + 3 * u * t * t * p2[0] + t * t * t * p3[0],
+    u * u * u * p0[1] + 3 * u * u * t * p1[1] + 3 * u * t * t * p2[1] + t * t * t * p3[1],
+  ];
+}
+
+function samplePath(d) {
+  const tokens = d.match(/[MC]|-?\d*\.?\d+/g) ?? [];
+  const points = [];
+  let i = 0;
+  let current = [0, 0];
+  while (i < tokens.length) {
+    const cmd = tokens[i];
+    if (cmd === "M") {
+      current = [Number(tokens[i + 1]), Number(tokens[i + 2])];
+      points.push(current);
+      i += 3;
+    } else if (cmd === "C") {
+      const p1 = [Number(tokens[i + 1]), Number(tokens[i + 2])];
+      const p2 = [Number(tokens[i + 3]), Number(tokens[i + 4])];
+      const p3 = [Number(tokens[i + 5]), Number(tokens[i + 6])];
+      for (let s = 1; s <= 12; s += 1) {
+        points.push(cubicPoint(current, p1, p2, p3, s / 12));
+      }
+      current = p3;
+      i += 7;
+    } else {
+      i += 1;
+    }
+  }
+  return points;
+}
+
+function paintBackground(buf, size) {
+  const bg = parseHex(spec.colors.markBg);
   fillRoundedRect(
     buf,
     size,
@@ -147,9 +185,16 @@ function rasterMark(size, count) {
     size,
     size,
     size * spec.mark.iconRadiusRatio,
-    graphite,
+    bg,
   );
-  for (const bar of barLayout(count)) {
+}
+
+function rasterVinBars(size, count) {
+  const buf = Buffer.alloc(size * size * 4);
+  const scale = size / view;
+  const fg = parseHex(spec.colors.markFg);
+  paintBackground(buf, size);
+  for (const bar of barLayout(spec, count)) {
     fillRoundedRect(
       buf,
       size,
@@ -159,26 +204,78 @@ function rasterMark(size, count) {
       bar.w * scale,
       bar.h * scale,
       Math.max(0.6, bar.rx * scale),
-      amber,
+      fg,
     );
   }
   return buf;
 }
 
+function rasterStrokeS(size, includeNode) {
+  const buf = Buffer.alloc(size * size * 4);
+  const scale = size / view;
+  const fg = parseHex(spec.colors.markFg);
+  const accent = parseHex(spec.colors.accent);
+  paintBackground(buf, size);
+  const radius = Math.max(0.8, (spec.mark.strokeWidth / 2) * scale);
+  for (const [x, y] of samplePath(spec.mark.path)) {
+    fillCircle(buf, size, x * scale, y * scale, radius, fg);
+  }
+  if (includeNode && spec.mark.node) {
+    fillCircle(
+      buf,
+      size,
+      spec.mark.node.cx * scale,
+      spec.mark.node.cy * scale,
+      spec.mark.node.r * scale,
+      accent,
+    );
+  }
+  return buf;
+}
+
+function rasterMapPin(size) {
+  const buf = Buffer.alloc(size * size * 4);
+  const scale = size / view;
+  const fg = parseHex(spec.colors.markFg);
+  const bg = parseHex(spec.colors.markBg);
+  const accent = parseHex(spec.colors.accent);
+  paintBackground(buf, size);
+  const { pinHead, pinTip, hole, badge } = spec.mark;
+  fillCircle(buf, size, pinHead.cx * scale, pinHead.cy * scale, pinHead.r * scale, fg);
+  fillTriangle(
+    buf,
+    size,
+    pinTip[0].map((n) => n * scale),
+    pinTip[1].map((n) => n * scale),
+    pinTip[2].map((n) => n * scale),
+    fg,
+  );
+  fillCircle(buf, size, hole.cx * scale, hole.cy * scale, hole.r * scale, bg);
+  fillCircle(buf, size, badge.cx * scale, badge.cy * scale, badge.r * scale, accent);
+  return buf;
+}
+
+function rasterMark(size, sizeName) {
+  const kind = spec.mark.kind;
+  if (kind === "vin-bars") return rasterVinBars(size, resolveBarCount(spec, sizeName));
+  if (kind === "stroke-s") return rasterStrokeS(size, sizeName !== "small");
+  if (kind === "map-pin") return rasterMapPin(size);
+  throw new Error(`kind « ${kind} » non implémenté pour le raster PNG.`);
+}
+
 function drawLockup(width, height) {
   const buf = Buffer.alloc(width * height * 4);
-  const graphite = parseHex(spec.colors.graphite);
-  const ivory = parseHex(spec.colors.ivory);
-  const amber = parseHex(spec.colors.amber);
-  buf.fill(0);
+  const ink = parseHex(spec.colors.ink);
+  const paper = parseHex(spec.colors.paper);
+  const accent = parseHex(spec.colors.accent);
   for (let i = 0; i < width * height; i += 1) {
-    buf[i * 4] = graphite[0];
-    buf[i * 4 + 1] = graphite[1];
-    buf[i * 4 + 2] = graphite[2];
+    buf[i * 4] = ink[0];
+    buf[i * 4 + 1] = ink[1];
+    buf[i * 4 + 2] = ink[2];
     buf[i * 4 + 3] = 255;
   }
   const markSize = Math.round(height * 0.42);
-  const mark = rasterMark(markSize, spec.mark.fullBarCount);
+  const mark = rasterMark(markSize, "full");
   const mx = Math.round(width * 0.1);
   const my = Math.round((height - markSize) / 2);
   for (let y = 0; y < markSize; y += 1) {
@@ -207,7 +304,7 @@ function drawLockup(width, height) {
       glyphW,
       glyphH,
       2,
-      ivory,
+      paper,
     );
   }
   fillRoundedRect(
@@ -219,30 +316,37 @@ function drawLockup(width, height) {
     Math.round(width * 0.08),
     Math.round(height * 0.012),
     1,
-    amber,
+    accent,
   );
   return buf;
 }
 
 const webBrand = join(root, "apps/web/src/brand");
+const generated = join(webBrand, "generated");
 const webApp = join(root, "apps/web/src/app");
 const extIcons = join(root, "apps/extension/public/icons");
 mkdirSync(webBrand, { recursive: true });
+mkdirSync(generated, { recursive: true });
 mkdirSync(webApp, { recursive: true });
 mkdirSync(extIcons, { recursive: true });
 
-writeFileSync(join(webBrand, "mark.svg"), svgMark(spec.mark.fullBarCount));
-writeFileSync(join(webBrand, "mark-simple.svg"), svgMark(spec.mark.mediumBarCount));
-writeFileSync(join(webApp, "icon.svg"), svgMark(spec.mark.smallBarCount));
+const fullSvg = svgMark(spec, "full");
+const mediumSvg = svgMark(spec, "medium");
+const smallSvg = svgMark(spec, "small");
+
+writeFileSync(join(webBrand, "mark.svg"), fullSvg);
+writeFileSync(join(webBrand, "mark-simple.svg"), mediumSvg);
+writeFileSync(join(webApp, "icon.svg"), smallSvg);
+writeFileSync(join(generated, "tokens.css"), cssBrandTokens(spec));
 
 const icons = [
-  [join(extIcons, "icon16.png"), 16, spec.mark.smallBarCount],
-  [join(extIcons, "icon48.png"), 48, spec.mark.mediumBarCount],
-  [join(extIcons, "icon128.png"), 128, spec.mark.fullBarCount],
-  [join(webApp, "apple-icon.png"), 180, spec.mark.fullBarCount],
+  [join(extIcons, "icon16.png"), 16, "small"],
+  [join(extIcons, "icon48.png"), 48, "medium"],
+  [join(extIcons, "icon128.png"), 128, "full"],
+  [join(webApp, "apple-icon.png"), 180, "full"],
 ];
-for (const [path, size, count] of icons) {
-  writeFileSync(path, encodePng(size, size, rasterMark(size, count)));
+for (const [path, size, sizeName] of icons) {
+  writeFileSync(path, encodePng(size, size, rasterMark(size, sizeName)));
 }
 
 writeFileSync(
@@ -252,7 +356,7 @@ writeFileSync(
 
 const popupPath = join(root, "apps/extension/src/popup/index.html");
 const popup = readFileSync(popupPath, "utf8");
-const inlineMark = svgMark(spec.mark.mediumBarCount)
+const inlineMark = mediumSvg
   .replace('role="img" aria-label="Suivia"', 'aria-hidden="true"')
   .replace(/\n/g, "\n      ")
   .trim();
@@ -269,5 +373,5 @@ writeFileSync(
 
 console.log("Marque générée depuis", spec.id, spec.name);
 console.log(" -", join(webBrand, "mark.svg"));
-console.log(" -", join(webApp, "icon.svg"));
+console.log(" -", join(generated, "tokens.css"));
 console.log(" - icônes 16/48/128 + apple-icon + opengraph-image");

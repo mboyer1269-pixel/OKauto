@@ -4,7 +4,7 @@
   "wordmark": "SUIVIA",
   "descriptor": "Auto",
   "ariaLabel": "Suivia",
-  "note": "Piste active, non confirmée. Pour passer à A ou C : copier directions/A.json ou directions/C.json vers spec.json, puis pnpm brand:assets.",
+  "note": "Direction B du rapport : 17 barres = 17 caractères d’un NIV. Copier vers ../spec.json puis pnpm brand:assets.",
   "typography": {
     "wordmarkFont": "mono",
     "wordmarkTracking": "0.08em",

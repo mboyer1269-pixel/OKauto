@@ -79,6 +79,10 @@ module.exports = {
           amber: "hsl(var(--brand-amber))",
           graphite: "hsl(var(--brand-graphite))",
           ivory: "hsl(var(--brand-ivory))",
+          mark: {
+            DEFAULT: "hsl(var(--brand-mark-bg))",
+            fg: "hsl(var(--brand-mark-fg))",
+          },
         },
       },
       keyframes: {

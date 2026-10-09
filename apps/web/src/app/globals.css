@@ -1,6 +1,7 @@
 @import "tailwindcss/base";
 @import "tailwindcss/components";
 @import "tailwindcss/utilities";
+@import "../brand/generated/tokens.css";
 
 @layer base {
   :root {
@@ -32,9 +33,6 @@
     --sidebar-foreground: 216 28% 93%;
     --sidebar-accent: 39 100% 56%;
     --sidebar-border: 221 19% 17%;
-    --brand-graphite: 223 17% 8%;
-    --brand-amber: 39 100% 56%;
-    --brand-ivory: 43 26% 95%;
     --electric: 224 75% 51%;
   }
 

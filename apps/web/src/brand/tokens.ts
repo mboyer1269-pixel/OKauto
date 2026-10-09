@@ -1,12 +1,16 @@
 /**
  * Jetons de marque et de surface (Cockpit).
- * Les valeurs CSS vivent dans globals.css ; ce module sert les tests de contraste
- * et le script d’assets.
+ * Les couleurs de marque viennent de spec.json (piste A, B ou C).
+ * Les valeurs CSS générées vivent dans generated/tokens.css.
  */
+import spec from "./spec.json";
+
 export const brandColors = {
-  graphite: "#111318",
-  amber: "#FFB020",
-  ivory: "#F5F3EE",
+  graphite: spec.colors.ink,
+  amber: spec.colors.accent,
+  ivory: spec.colors.paper,
+  markBg: spec.colors.markBg,
+  markFg: spec.colors.markFg,
 } as const;
 
 export const cockpitLight = {
@@ -55,7 +59,7 @@ export const contrastPairs: Array<{
   { name: "signal sombre", fg: cockpitDark.signal, bg: cockpitDark.bg, min: 4.5 },
   { name: "avertissement sombre", fg: cockpitDark.warning, bg: cockpitDark.bg, min: 4.5 },
   { name: "danger sombre", fg: cockpitDark.danger, bg: cockpitDark.bg, min: 4.5 },
-  { name: "ambre sur graphite (logo)", fg: brandColors.amber, bg: brandColors.graphite, min: 4.5 },
+  { name: "pictogramme (markFg sur markBg)", fg: brandColors.markFg, bg: brandColors.markBg, min: 4.5 },
 ];
 
 export function hexToRgb(hex: string): [number, number, number] {

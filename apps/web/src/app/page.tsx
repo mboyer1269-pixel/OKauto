@@ -219,7 +219,7 @@ export default function HomePage() {
             </div>
             <Link
               href={publicSignupEnabled ? "/register" : "/login"}
-              className="btn bg-card px-6 py-3 text-foreground hover:bg-muted"
+              className="btn bg-brand-ivory px-6 py-3 text-brand-graphite hover:bg-white"
             >
               {publicSignupEnabled ? "Créer un espace" : "Se connecter"}{" "}
               <ArrowRight className="ml-2" size={18} />
