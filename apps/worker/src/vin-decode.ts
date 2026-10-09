@@ -4,13 +4,15 @@ import {
   emptyFieldsFromVinDecode,
   isValidVinFormat,
   normalizeVin,
+  unionVinDecodedFields,
   vehicleNeedsVinDecode,
+  vinDecodeBackoffWhere,
   vinDecodeIsRetryable,
+  vinDecodeReadyForRetry,
   VIN_DECODE_BATCH_SIZE,
   VIN_DECODE_CONSECUTIVE_NETWORK_STOP,
   VIN_DECODE_GAP_MS,
   VIN_DECODE_MAX_ATTEMPTS,
-  vinDecodeRetryDelayMs,
   type VinDecodeResult,
 } from "@okauto/shared";
 
@@ -72,8 +74,11 @@ export async function processVinDecodeBatch(options?: {
 
   const candidates = await prisma.vehicle.findMany({
     where: {
-      ...pendingVinDecodeWhere,
-      ...(options?.vehicleIds ? { id: { in: options.vehicleIds } } : {}),
+      AND: [
+        pendingVinDecodeWhere,
+        vinDecodeBackoffWhere(),
+        options?.vehicleIds ? { id: { in: options.vehicleIds } } : {},
+      ],
     },
     orderBy: [{ vinDecodeAttempts: "asc" }, { createdAt: "asc" }],
     take: limit,
@@ -129,9 +134,17 @@ export async function processVinDecodeBatch(options?: {
       continue;
     }
 
-    const waitMs = vinDecodeRetryDelayMs(vehicle.vinDecodeAttempts ?? 0, delayMs);
-    if (vpicCalls > 0 && waitMs > 0) {
-      await wait(waitMs);
+    if (
+      !vinDecodeReadyForRetry(
+        vehicle.vinDecodeAttempts ?? 0,
+        vehicle.vinDecodeLastAttemptAt,
+      )
+    ) {
+      continue;
+    }
+
+    if (vpicCalls > 0 && delayMs > 0) {
+      await wait(delayMs);
     }
 
     const result = await decode(vin);
@@ -145,6 +158,7 @@ export async function processVinDecodeBatch(options?: {
           where: { id: vehicle.id },
           data: {
             vinDecodeAttempts: attempts,
+            vinDecodeLastAttemptAt: new Date(),
             vinDecodeError: clipError(result.error),
             ...(abandoned
               ? { vinDecodedAt: new Date(), vinDecodedVin: vin }
@@ -192,8 +206,13 @@ export async function processVinDecodeBatch(options?: {
         cylinders: patch.cylinders as number | undefined,
         vinDecodedAt: new Date(),
         vinDecodedVin: vin,
+        vinDecodedFields: unionVinDecodedFields(
+          vehicle.vinDecodedFields,
+          filledFields,
+        ),
         vinDecodeAttempts: 0,
         vinDecodeError: null,
+        vinDecodeLastAttemptAt: null,
       },
     });
     decoded += 1;

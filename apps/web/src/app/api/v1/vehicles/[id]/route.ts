@@ -74,8 +74,10 @@ export const PATCH = withAuth(async (request, { auth, params }) => {
         ? {
             vinDecodedAt: null,
             vinDecodedVin: null,
+            vinDecodedFields: [],
             vinDecodeAttempts: 0,
             vinDecodeError: null,
+            vinDecodeLastAttemptAt: null,
           }
         : {}),
       soldAt: wasSold

@@ -100,6 +100,7 @@ export const createVehicleSchema = z.object({
   assignedToId: z.string().optional().nullable(),
   includeCarfaxSourceUrl: z.boolean().optional(),
   vinDecoded: z.boolean().optional(),
+  vinDecodedFields: z.array(z.string()).optional(),
   photos: z
     .array(
       z.object({

@@ -1,6 +1,7 @@
 import {
   decodeVin,
   emptyFieldsFromVinDecode,
+  unionVinDecodedFields,
   vinDecodeErrorMessageFr,
   vinDecodeIsRetryable,
 } from "@okauto/shared";
@@ -37,8 +38,10 @@ export const POST = withAuth(async (_request, { auth, params }) => {
       cylinders: patch.cylinders as number | undefined,
       vinDecodedAt: new Date(),
       vinDecodedVin: decoded.vin,
+      vinDecodedFields: unionVinDecodedFields(vehicle.vinDecodedFields, filled),
       vinDecodeAttempts: 0,
       vinDecodeError: null,
+      vinDecodeLastAttemptAt: null,
     },
     include: { photos: true },
   });

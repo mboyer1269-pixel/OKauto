@@ -66,6 +66,10 @@ describe("processVinDecodeBatch", () => {
     expect(enriched?.engine).toBe("5.3L V8");
     expect(enriched?.vinDecodedVin).toBe(testVin);
     expect(enriched?.vinDecodedAt).toBeTruthy();
+    expect(enriched?.vinDecodedFields).toEqual(
+      expect.arrayContaining(["model", "engine", "bodyStyle"]),
+    );
+    expect(enriched?.vinDecodedFields).not.toContain("trim");
 
     decodeVinFn.mockClear();
     const second = await processVinDecodeBatch({

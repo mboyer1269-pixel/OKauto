@@ -113,6 +113,7 @@ export const POST = withAuth(async (request, { auth }) => {
   const vinStamp = vinDecodeStampFromCreate({
     vin: data.vin,
     vinDecoded,
+    vinDecodedFields: data.vinDecodedFields,
   });
 
   const vehicle = await prisma.vehicle.create({

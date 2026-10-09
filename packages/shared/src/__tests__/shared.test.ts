@@ -11,6 +11,7 @@ import {
   generateMarketplaceTitle,
   generateTemplateDescription,
   listingDescriptionForExtension,
+  listingDescriptionWithCarfax,
   shouldIncludeCarfaxMention,
 } from "../description";
 import {
@@ -31,12 +32,20 @@ import {
   isRetryableVinDecodeError,
   isRetryableVinDecodeFailure,
   isValidVinFormat,
+  mapVpicTransmission,
+  mergeDealerFieldsOverVinDecode,
   mergeVinDecodeIntoForm,
   normalizeVin,
   normalizeVinDecodeResult,
   vehicleNeedsVinDecode,
   vinDecodeStampFromCreate,
 } from "../vin";
+import {
+  VIN_DECODE_RETRY_DELAYS_MS,
+  vinDecodeBackoffWhere,
+  vinDecodeReadyForRetry,
+  vinDecodeRetryDelayMs,
+} from "../job-policy";
 
 describe("description", () => {
   it("generates listing title from vehicle data", () => {
@@ -267,6 +276,8 @@ describe("vin", () => {
     expect(terrain.drivetrain).toBe("Intégrale");
     expect(terrain.make).toBe("Chevrolet");
     expect(equinox.drivetrain).toBe("Traction avant");
+    expect(mapVpicTransmission("Manual")).toBe("Manuelle");
+    expect(mapVpicTransmission("Automatic")).toBe("Auto.");
     expect(VPIC_SUV_BODY_CLASS.length).toBeGreaterThan(50);
     expect(createVehicleSchema.safeParse(terrain).success).toBe(true);
     expect(createVehicleSchema.safeParse(equinox).success).toBe(true);
@@ -299,6 +310,103 @@ describe("vin", () => {
     expect(live.ignored).toBe(false);
     expect(live.next.make).toBe("GMC");
     expect(live.next.model).toBe("Saisi");
+  });
+
+  it("maps Automated Manual to Automatique, not Manuelle", () => {
+    expect(mapVpicTransmission("Automated Manual")).toBe("Automatique");
+    expect(mapVpicTransmission("Automated Manual Transmission")).toBe(
+      "Automatique",
+    );
+    expect(mapVpicTransmission("Manuelle robotisée")).toBe("Automatique");
+    expect(mapVpicTransmission("Manual")).toBe("Manuelle");
+  });
+
+  it("never lets an empty site value overwrite a vPIC field, but a filled site value wins", () => {
+    const current = {
+      engine: "5.3L V8",
+      make: "GMC",
+      vinDecodedFields: ["engine"],
+    };
+    const emptySite = mergeDealerFieldsOverVinDecode(current, {
+      engine: null,
+      make: "",
+    });
+    expect(emptySite.patch.engine).toBeUndefined();
+    expect(emptySite.patch.make).toBeNull();
+    expect(emptySite.vinDecodedFields).toEqual(["engine"]);
+
+    const dealerEngine = mergeDealerFieldsOverVinDecode(current, {
+      engine: "2.0L turbo",
+    });
+    expect(dealerEngine.patch.engine).toBe("2.0L turbo");
+    expect(dealerEngine.vinDecodedFields).toEqual([]);
+
+    const omitted = mergeDealerFieldsOverVinDecode(current, {
+      engine: undefined,
+    });
+    expect(omitted.patch.engine).toBeUndefined();
+    expect(omitted.vinDecodedFields).toEqual(["engine"]);
+  });
+
+  it("protects non-empty fields on vehicles decoded before vinDecodedFields existed", () => {
+    const legacy = mergeDealerFieldsOverVinDecode(
+      {
+        engine: "1.5L L4",
+        drivetrain: "Intégrale",
+        make: "GMC",
+        vinDecodedAt: "2026-10-09T12:00:00.000Z",
+        vinDecodedFields: [],
+      },
+      { engine: "", drivetrain: null, make: "GMC" },
+    );
+    expect(legacy.patch.engine).toBeUndefined();
+    expect(legacy.patch.drivetrain).toBeUndefined();
+    expect(legacy.patch.make).toBe("GMC");
+    expect(legacy.vinDecodedFields).toEqual(
+      expect.arrayContaining(["engine", "drivetrain"]),
+    );
+    expect(legacy.vinDecodedFields).not.toContain("make");
+  });
+
+  it("spaces retryable vPIC failures 15 min, then 1 h, 6 h and 24 h", () => {
+    expect(vinDecodeRetryDelayMs(1)).toBe(15 * 60 * 1000);
+    expect(vinDecodeRetryDelayMs(2)).toBe(60 * 60 * 1000);
+    expect(vinDecodeRetryDelayMs(3)).toBe(6 * 60 * 60 * 1000);
+    expect(vinDecodeRetryDelayMs(4)).toBe(24 * 60 * 60 * 1000);
+    expect(VIN_DECODE_RETRY_DELAYS_MS).toHaveLength(4);
+    const now = new Date("2026-10-09T12:00:00.000Z");
+    expect(
+      vinDecodeReadyForRetry(1, new Date("2026-10-09T11:50:00.000Z"), now),
+    ).toBe(false);
+    expect(
+      vinDecodeReadyForRetry(1, new Date("2026-10-09T11:44:00.000Z"), now),
+    ).toBe(true);
+    expect(
+      vinDecodeReadyForRetry(2, new Date("2026-10-09T11:01:00.000Z"), now),
+    ).toBe(false);
+    expect(
+      vinDecodeReadyForRetry(2, new Date("2026-10-09T11:00:00.000Z"), now),
+    ).toBe(true);
+    const where = vinDecodeBackoffWhere(now);
+    expect(where.OR).toEqual(
+      expect.arrayContaining([
+        { vinDecodeAttempts: { lte: 0 } },
+        { vinDecodeLastAttemptAt: null },
+        {
+          vinDecodeAttempts: 1,
+          vinDecodeLastAttemptAt: {
+            lte: new Date(now.getTime() - 15 * 60 * 1000),
+          },
+        },
+        {
+          vinDecodeAttempts: 4,
+          vinDecodeLastAttemptAt: {
+            lte: new Date(now.getTime() - 24 * 60 * 60 * 1000),
+          },
+        },
+      ]),
+    );
+    expect(where.OR).toHaveLength(6);
   });
 
   it("stamps vinDecodedAt on create only when the form already decoded the NIV", () => {
@@ -485,10 +593,27 @@ describe("Carfax listing mention", () => {
     expect(withMention).toContain(draft);
     expect(withMention).toContain(CARFAX_MENTION_FR);
     expect(
+      listingDescriptionWithCarfax(draft, {
+        mileage: 12000,
+        year: 2025,
+        make: "GMC",
+        model: "Terrain",
+      }),
+    ).toBe(withMention);
+    expect(
       listingDescriptionForExtension(withMention, {
         mileage: 12000,
       }),
     ).toBe(withMention);
+    expect(
+      listingDescriptionWithCarfax(draft, {
+        condition: "New",
+        mileage: 12,
+        year: 2026,
+        make: "Chevrolet",
+        model: "Trax",
+      }),
+    ).not.toMatch(/carfax/i);
   });
 
   it("keeps one French and one English Carfax line in bilingual copy", () => {

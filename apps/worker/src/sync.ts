@@ -1,6 +1,10 @@
 import { prisma } from "@okauto/database";
 import type { SyncVehicle } from "@okauto/shared";
-import { extractD2cDetailPhotos, parseSyncFeed } from "@okauto/shared";
+import {
+  extractD2cDetailPhotos,
+  mergeDealerFieldsOverVinDecode,
+  parseSyncFeed,
+} from "@okauto/shared";
 import { fetchTextLimited } from "./fetch-limit.js";
 
 export interface SyncResult {
@@ -63,12 +67,43 @@ export async function runSyncSource(syncSourceId: string): Promise<SyncResult> {
               vin: v.vin,
             },
           },
-          select: { id: true, price: true },
+          select: {
+            id: true,
+            price: true,
+            vinDecodedAt: true,
+            vinDecodedFields: true,
+            year: true,
+            make: true,
+            model: true,
+            trim: true,
+            bodyStyle: true,
+            engine: true,
+            fuelType: true,
+            transmission: true,
+            drivetrain: true,
+            doors: true,
+            cylinders: true,
+          },
         });
 
         const newPrice = v.price != null ? v.price : undefined;
         const oldPrice = existing?.price ? Number(existing.price) : null;
         const status = mapStatus(v.status);
+        const vinMerge = existing
+          ? mergeDealerFieldsOverVinDecode(existing, {
+              year: v.year,
+              make: v.make,
+              model: v.model,
+              trim: v.trim,
+              bodyStyle: v.bodyStyle,
+              engine: v.engine,
+              fuelType: v.fuelType,
+              transmission: v.transmission,
+              drivetrain: v.drivetrain,
+              doors: v.doors,
+              cylinders: v.cylinders,
+            })
+          : null;
 
         const vehicle = await prisma.vehicle.upsert({
           where: {
@@ -111,22 +146,29 @@ export async function runSyncSource(syncSourceId: string): Promise<SyncResult> {
             syncSourceId: source.id,
             sourceUrl: v.sourceUrl,
             stockNumber: v.stockNumber,
-            year: v.year,
-            make: v.make,
-            model: v.model,
-            trim: v.trim,
             mileage: v.mileage,
             price: newPrice,
             exteriorColor: v.exteriorColor,
             interiorColor: v.interiorColor,
             description: v.description,
-            transmission: v.transmission,
-            fuelType: v.fuelType,
-            drivetrain: v.drivetrain,
-            engine: v.engine,
-            bodyStyle: v.bodyStyle,
-            doors: v.doors,
-            cylinders: v.cylinders,
+            ...(vinMerge
+              ? {
+                  ...vinMerge.patch,
+                  vinDecodedFields: vinMerge.vinDecodedFields,
+                }
+              : {
+                  year: v.year,
+                  make: v.make,
+                  model: v.model,
+                  trim: v.trim,
+                  transmission: v.transmission,
+                  fuelType: v.fuelType,
+                  drivetrain: v.drivetrain,
+                  engine: v.engine,
+                  bodyStyle: v.bodyStyle,
+                  doors: v.doors,
+                  cylinders: v.cylinders,
+                }),
             condition: v.condition,
             status,
             soldAt: status === "SOLD" ? new Date() : null,

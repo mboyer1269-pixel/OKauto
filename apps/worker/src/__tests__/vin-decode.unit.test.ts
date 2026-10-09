@@ -10,6 +10,8 @@ import {
   VIN_DECODE_CONSECUTIVE_NETWORK_STOP,
   VIN_DECODE_GAP_MS,
   VIN_DECODE_MAX_ATTEMPTS,
+  VIN_DECODE_RETRY_DELAYS_MS,
+  vinDecodeReadyForRetry,
   vinDecodeRetryDelayMs,
 } from "@okauto/shared";
 
@@ -62,10 +64,18 @@ describe("VIN decode catch-up policy", () => {
   });
 
   it("grows the retry delay and abandons after N attempts", () => {
-    expect(vinDecodeRetryDelayMs(0)).toBe(VIN_DECODE_GAP_MS);
-    expect(vinDecodeRetryDelayMs(1)).toBe(VIN_DECODE_GAP_MS * 2);
+    expect(vinDecodeRetryDelayMs(0)).toBe(0);
+    expect(vinDecodeRetryDelayMs(1)).toBe(15 * 60 * 1000);
+    expect(vinDecodeRetryDelayMs(2)).toBe(60 * 60 * 1000);
+    expect(vinDecodeRetryDelayMs(3)).toBe(6 * 60 * 60 * 1000);
+    expect(vinDecodeRetryDelayMs(4)).toBe(24 * 60 * 60 * 1000);
+    expect(VIN_DECODE_RETRY_DELAYS_MS[0]).toBeGreaterThanOrEqual(15 * 60 * 1000);
     expect(VIN_DECODE_MAX_ATTEMPTS).toBe(5);
     expect(VIN_DECODE_CONSECUTIVE_NETWORK_STOP).toBe(3);
+    const now = new Date("2026-10-09T12:00:00.000Z");
+    expect(
+      vinDecodeReadyForRetry(1, new Date(now.getTime() - 5 * 60 * 1000), now),
+    ).toBe(false);
   });
 
   it("logs job completion only when vehicles were scanned", () => {
@@ -181,6 +191,50 @@ describe("processVinDecodeBatch queueing", () => {
 
     expect(update.mock.calls[0][0].data.vinDecodeAttempts).toBe(5);
     expect(update.mock.calls[0][0].data.vinDecodedAt).toBeInstanceOf(Date);
+    expect(update.mock.calls[0][0].data.vinDecodeLastAttemptAt).toBeInstanceOf(
+      Date,
+    );
     expect(update.mock.calls[0][0].data.vinDecodeError).toMatch(/503/);
+  });
+
+  it("does not call vPIC again while the retry window is still open", async () => {
+    const { processVinDecodeBatch } = await import("../vin-decode.js");
+    const decodeVinFn = vi.fn(async () => ({
+      vin: "1GNEVHKW0RJ123456",
+      error: "fetch failed",
+      retryable: true,
+    }));
+    findMany.mockResolvedValue([
+      {
+        id: "cooling",
+        vin: "1GNEVHKW0RJ123456",
+        vinDecodedAt: null,
+        vinDecodedVin: null,
+        vinDecodeAttempts: 1,
+        vinDecodeLastAttemptAt: new Date(),
+        createdAt: new Date(),
+        year: 2024,
+        make: "GMC",
+        model: null,
+        trim: null,
+        engine: null,
+        bodyStyle: null,
+        fuelType: null,
+        transmission: null,
+        drivetrain: null,
+        doors: null,
+        cylinders: null,
+        status: "AVAILABLE",
+      },
+    ]);
+
+    const result = await processVinDecodeBatch({
+      delayMs: 0,
+      decodeVinFn,
+      sleepFn: async () => undefined,
+    });
+
+    expect(decodeVinFn).not.toHaveBeenCalled();
+    expect(result.failed).toBe(0);
   });
 });

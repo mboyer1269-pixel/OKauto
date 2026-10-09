@@ -209,8 +209,10 @@ model Vehicle {
   includeCarfaxSourceUrl Boolean  @default(false)
   vinDecodedAt           DateTime?
   vinDecodedVin          String?
-  vinDecodeAttempts      Int      @default(0)
+  vinDecodedFields       String[]  @default([])
+  vinDecodeAttempts      Int       @default(0)
   vinDecodeError         String?
+  vinDecodeLastAttemptAt DateTime?
   createdAt          DateTime          @default(now())
   updatedAt          DateTime          @updatedAt
 

@@ -52,6 +52,7 @@ function NewVehicleForm() {
   const [decodeStatus, setDecodeStatus] = useState<DecodeStatus>("idle");
   const [decodeMessage, setDecodeMessage] = useState("");
   const lastDecodedVin = useRef("");
+  const lastFilledFields = useRef<VinDecodeField[]>([]);
   const formRef = useRef(form);
   formRef.current = form;
 
@@ -82,6 +83,7 @@ function NewVehicleForm() {
     setDecodeStatus("success");
     setDecodeMessage(parts.join(" "));
     lastDecodedVin.current = decoded.vin;
+    lastFilledFields.current = preview.filled;
     return preview.next as FormState;
   };
 
@@ -164,6 +166,7 @@ function NewVehicleForm() {
           description: payload.description || null,
           condition: payload.condition || null,
           vinDecoded: decodedVin,
+          vinDecodedFields: decodedVin ? lastFilledFields.current : [],
         }),
       });
       if (!res.ok) {

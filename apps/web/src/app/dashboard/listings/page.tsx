@@ -31,8 +31,10 @@ import {
   isFacebookMarketplaceItemUrl,
   isListingDueForRenewal,
   carfaxSourceUrlCheckboxState,
+  listingDescriptionWithCarfax,
   resolveIncludeCarfaxSourceUrl,
   type ListingLocale,
+  type VehicleData,
 } from "@okauto/shared";
 import { ProtectedRoute } from "@/components/protected-route";
 import { useAuth } from "@/components/auth-provider";
@@ -594,12 +596,28 @@ function ListingsContent() {
     const draft = selected.marketplaceDrafts?.[0];
     const activeEdit =
       draftEdit?.vehicleId === selected.id ? draftEdit : undefined;
+    const marketplaceVehicle: VehicleData = {
+      ...selected,
+      dealershipName: organization.name,
+      contactName: user?.name || MARKETPLACE_CONTACT_NAME,
+      phone: organization.phone ?? undefined,
+      location: [organization.address, organization.city, organization.state]
+        .filter(Boolean)
+        .join(", "),
+      includeCarfaxSourceUrl: resolveIncludeCarfaxSourceUrl(
+        organization.includeCarfaxSourceUrl,
+        selected.includeCarfaxSourceUrl,
+      ),
+      language: draftLocale === "bilingual" ? "fr_en" : "fr",
+    };
     return {
       ...generated,
       title: activeEdit ? activeEdit.title : draft?.title || generated.title,
-      description: activeEdit
-        ? activeEdit.description
-        : draft?.description || generated.description,
+      description: listingDescriptionWithCarfax(
+        activeEdit?.description ?? draft?.description ?? generated.description,
+        marketplaceVehicle,
+        draftLocale,
+      ),
     };
   }, [draftEdit, draftLocale, organization, selected, user?.name]);
   const carfaxLinkCheckbox = carfaxSourceUrlCheckboxState(
@@ -688,7 +706,21 @@ function ListingsContent() {
       const initialDraft = {
         vehicleId: vehicle.id,
         title: personalDraft?.title || generated.title,
-        description: personalDraft?.description || generated.description,
+        description: listingDescriptionWithCarfax(
+          personalDraft?.description || generated.description,
+          {
+            ...vehicle,
+            dealershipName: organization.name,
+            contactName: user?.name || MARKETPLACE_CONTACT_NAME,
+            phone: organization.phone ?? undefined,
+            includeCarfaxSourceUrl: resolveIncludeCarfaxSourceUrl(
+              organization.includeCarfaxSourceUrl,
+              vehicle.includeCarfaxSourceUrl,
+            ),
+            language: draftLocale === "bilingual" ? "fr_en" : "fr",
+          },
+          draftLocale,
+        ),
       };
       setDraftEdit(initialDraft);
       setSavedDraft(initialDraft);
@@ -791,7 +823,21 @@ function ListingsContent() {
   const saveMarketplaceDraft = async (advanceToNext = false) => {
     if (!selected || !draftEdit || draftEdit.vehicleId !== selected.id) return;
     const title = draftEdit.title.trim();
-    const description = draftEdit.description.trim();
+    const description = listingDescriptionWithCarfax(
+      draftEdit.description.trim(),
+      {
+        ...selected,
+        dealershipName: organization.name,
+        contactName: user?.name || MARKETPLACE_CONTACT_NAME,
+        phone: organization.phone ?? undefined,
+        includeCarfaxSourceUrl: resolveIncludeCarfaxSourceUrl(
+          organization.includeCarfaxSourceUrl,
+          selected.includeCarfaxSourceUrl,
+        ),
+        language: draftLocale === "bilingual" ? "fr_en" : "fr",
+      },
+      draftLocale,
+    );
     if (title.length < 5) {
       setError("Le titre doit contenir au moins 5 caractères.");
       return;

@@ -12,7 +12,11 @@ import {
   formatDateTime,
 } from "@/lib/utils";
 import { PhotoManager } from "@/components/photo-manager";
-import { carfaxSourceUrlCheckboxState } from "@okauto/shared";
+import {
+  carfaxSourceUrlCheckboxState,
+  isVinSourcedField,
+  type VinDecodeField,
+} from "@okauto/shared";
 import { ExternalLink, Sparkles, Search } from "lucide-react";
 
 export default function VehicleDetailPage() {
@@ -101,6 +105,34 @@ function VehicleDetail() {
   const marketplaceDraft = (
     vehicle.marketplaceDrafts as Array<{ description: string }> | undefined
   )?.[0];
+  const fromVin = (field: VinDecodeField) =>
+    isVinSourcedField(
+      {
+        vinDecodedAt: vehicle.vinDecodedAt as string | null | undefined,
+        vinDecodedFields: vehicle.vinDecodedFields as string[] | undefined,
+        year: vehicle.year as number | null,
+        make: vehicle.make as string | null,
+        model: vehicle.model as string | null,
+        trim: vehicle.trim as string | null,
+        bodyStyle: vehicle.bodyStyle as string | null,
+        engine: vehicle.engine as string | null,
+        fuelType: vehicle.fuelType as string | null,
+        transmission: vehicle.transmission as string | null,
+        drivetrain: vehicle.drivetrain as string | null,
+        doors: vehicle.doors as number | null,
+        cylinders: vehicle.cylinders as number | null,
+      },
+      field,
+    );
+  const VinBadge = ({ field }: { field: VinDecodeField }) =>
+    fromVin(field) ? (
+      <span
+        className="ml-1.5 rounded bg-slate-100 px-1 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500"
+        title="Complété depuis le NIV (NHTSA vPIC)"
+      >
+        NIV
+      </span>
+    ) : null;
   const carfaxLink = carfaxSourceUrlCheckboxState(
     Boolean(
       (vehicle.organization as { includeCarfaxSourceUrl?: boolean } | undefined)
@@ -163,13 +195,16 @@ function VehicleDetail() {
               <p>
                 <strong>Transmission :</strong>{" "}
                 {(vehicle.transmission as string) ?? "—"}
+                <VinBadge field="transmission" />
               </p>
               <p>
                 <strong>Rouage :</strong>{" "}
                 {(vehicle.drivetrain as string) ?? "—"}
+                <VinBadge field="drivetrain" />
               </p>
               <p>
                 <strong>Moteur :</strong> {(vehicle.engine as string) ?? "—"}
+                <VinBadge field="engine" />
               </p>
             </div>
             {decodeError && (

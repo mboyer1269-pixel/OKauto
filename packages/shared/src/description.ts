@@ -599,14 +599,23 @@ export function composeListingDescription(
   return `${french}\n\n${ENGLISH_VERSION_SEPARATOR}\n\n${english}`;
 }
 
-export function listingDescriptionForExtension(
+export function listingDescriptionWithCarfax(
   draftDescription: string | null | undefined,
   vehicle: VehicleData,
   locale: ListingLocale = "fr",
 ): string {
-  const base = draftDescription || generateTemplateDescription(vehicle);
-  return ensureCarfaxMention(base, vehicle, locale);
+  const trimmed = draftDescription?.trim();
+  const base = trimmed
+    ? trimmed
+    : composeListingDescription(vehicle, locale);
+  return ensureCarfaxMention(
+    base,
+    vehicle,
+    locale === "en" ? "en" : "fr",
+  );
 }
+
+export const listingDescriptionForExtension = listingDescriptionWithCarfax;
 
 export function generateCatalogDescription(vehicle: VehicleData): string {
   const title = generateListingTitle(vehicle);

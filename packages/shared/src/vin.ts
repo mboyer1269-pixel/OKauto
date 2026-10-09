@@ -33,6 +33,33 @@ export const VIN_DECODE_FIELDS = [
 
 export type VinDecodeField = (typeof VIN_DECODE_FIELDS)[number];
 
+export const VIN_DECODE_NUMBER_FIELDS = [
+  'year',
+  'doors',
+  'cylinders',
+] as const satisfies readonly VinDecodeField[];
+
+export type VinDecodeNumberField = (typeof VIN_DECODE_NUMBER_FIELDS)[number];
+export type VinDecodeStringField = Exclude<VinDecodeField, VinDecodeNumberField>;
+
+export type VinDecodePatch = {
+  [K in VinDecodeStringField]?: string | null;
+} & {
+  [K in VinDecodeNumberField]?: number | null;
+};
+
+export function isVinDecodeNumberField(
+  field: VinDecodeField,
+): field is VinDecodeNumberField {
+  return (VIN_DECODE_NUMBER_FIELDS as readonly string[]).includes(field);
+}
+
+function toVinDecodeNumber(value: string | number): number | null {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
 export const VIN_DECODE_FIELD_LABELS_FR: Record<VinDecodeField, string> = {
   year: 'année',
   make: 'marque',
@@ -73,7 +100,92 @@ export type VinDecodeSource = Partial<
   vin?: string | null;
   vinDecodedAt?: Date | string | null;
   vinDecodedVin?: string | null;
+  vinDecodedFields?: string[] | null;
 };
+
+export function isVinDecodeField(value: string): value is VinDecodeField {
+  return (VIN_DECODE_FIELDS as readonly string[]).includes(value);
+}
+
+export function normalizeVinDecodedFields(
+  fields?: string[] | null,
+): VinDecodeField[] {
+  const seen = new Set<VinDecodeField>();
+  for (const field of fields ?? []) {
+    if (isVinDecodeField(field)) seen.add(field);
+  }
+  return VIN_DECODE_FIELDS.filter((field) => seen.has(field));
+}
+
+export function unionVinDecodedFields(
+  current: string[] | null | undefined,
+  filled: VinDecodeField[],
+): VinDecodeField[] {
+  return normalizeVinDecodedFields([...(current ?? []), ...filled]);
+}
+
+/**
+ * Fields filled from vPIC. If the list is empty but the NIV was already
+ * stamped (vehicles decoded before this column existed), treat currently
+ * non-empty enrichable fields as vPIC-sourced so the next sync cannot wipe them.
+ */
+export function effectiveVinDecodedFields(
+  vehicle: VinDecodeSource,
+): VinDecodeField[] {
+  const recorded = normalizeVinDecodedFields(vehicle.vinDecodedFields);
+  if (recorded.length > 0) return recorded;
+  if (!vehicle.vinDecodedAt) return [];
+  return VIN_DECODE_FIELDS.filter((field) => !isEmptyVinDecodeField(vehicle[field]));
+}
+
+export function isVinSourcedField(
+  vehicle: VinDecodeSource,
+  field: VinDecodeField,
+): boolean {
+  return effectiveVinDecodedFields(vehicle).includes(field);
+}
+
+/**
+ * Empty dealer/site values must never overwrite a vPIC field. A non-empty
+ * site value always wins and is removed from `vinDecodedFields`.
+ */
+export function mergeDealerFieldsOverVinDecode(
+  current: VinDecodeSource,
+  incoming: Partial<Record<VinDecodeField, string | number | null | undefined>>,
+): {
+  patch: VinDecodePatch;
+  vinDecodedFields: VinDecodeField[];
+} {
+  const decoded = new Set(effectiveVinDecodedFields(current));
+  const patch: VinDecodePatch = {};
+
+  for (const field of VIN_DECODE_FIELDS) {
+    if (!(field in incoming)) continue;
+    const siteValue = incoming[field];
+    if (siteValue === undefined) continue;
+    if (isEmptyVinDecodeField(siteValue)) {
+      if (decoded.has(field)) continue;
+      patch[field] = null;
+      continue;
+    }
+    if (isVinDecodeNumberField(field)) {
+      const numeric =
+        typeof siteValue === 'number' || typeof siteValue === 'string'
+          ? toVinDecodeNumber(siteValue)
+          : null;
+      if (numeric == null) continue;
+      patch[field] = numeric;
+    } else {
+      patch[field] = String(siteValue);
+    }
+    decoded.delete(field);
+  }
+
+  return {
+    patch,
+    vinDecodedFields: VIN_DECODE_FIELDS.filter((field) => decoded.has(field)),
+  };
+}
 
 interface NhtsaResult {
   Value: string | null;
@@ -200,11 +312,13 @@ export function mergeVinDecodeIntoForm<T extends Record<string, string> & { vin:
 export function vinDecodeStampFromCreate(input: {
   vin?: string | null;
   vinDecoded?: boolean | null;
+  vinDecodedFields?: string[] | null;
 }): {
   vinDecodedAt?: Date;
   vinDecodedVin?: string;
   vinDecodeAttempts?: number;
   vinDecodeError?: null;
+  vinDecodedFields?: string[];
 } {
   const vin = input.vin ? normalizeVin(input.vin) : '';
   if (!input.vinDecoded || !isValidVinFormat(vin)) return {};
@@ -213,6 +327,7 @@ export function vinDecodeStampFromCreate(input: {
     vinDecodedVin: vin,
     vinDecodeAttempts: 0,
     vinDecodeError: null,
+    vinDecodedFields: normalizeVinDecodedFields(input.vinDecodedFields),
   };
 }
 
@@ -326,7 +441,10 @@ export function mapVpicFuelType(value: string): string {
 
 export function mapVpicTransmission(value: string): string {
   const n = value.toLocaleLowerCase('fr-CA');
-  if (/manu/.test(n)) return 'Manuelle';
+  if (/automated\s*manual|manuelle\s*robotis|semi-?auto|\bdct\b|\bdsg\b/.test(n)) {
+    return 'Automatique';
+  }
+  if (/manu/.test(n) && !/auto/.test(n)) return 'Manuelle';
   if (/\bcvt\b/.test(n)) return 'CVT';
   if (/auto/.test(n)) return 'Auto.';
   return truncateToLimit(value, VIN_DECODE_STRING_LIMITS.transmission);
