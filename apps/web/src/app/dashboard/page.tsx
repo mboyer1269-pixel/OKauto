@@ -17,6 +17,7 @@ import {
 import { ProtectedRoute } from "@/components/protected-route";
 import { useAuth } from "@/components/auth-provider";
 import { FadeIn } from "@/components/fade-in";
+import { CockpitSkeleton } from "@/components/cockpit-skeleton";
 import { formatCurrency, formatDateTime, formatNumber } from "@/lib/utils";
 
 interface DashboardStats {
@@ -108,16 +109,7 @@ function DashboardContent() {
   }, [apiFetch]);
 
   if (loading) {
-    return (
-      <div className="animate-pulse space-y-4">
-        <div className="h-44 rounded-2xl bg-muted" />
-        <div className="grid gap-4 md:grid-cols-3">
-          {[1, 2, 3].map((item) => (
-            <div key={item} className="h-28 rounded-xl bg-muted" />
-          ))}
-        </div>
-      </div>
-    );
+    return <CockpitSkeleton rows={5} className="max-w-5xl" />;
   }
 
   if (error || !stats) {
@@ -146,7 +138,7 @@ function DashboardContent() {
 
   return (
     <FadeIn className="space-y-7">
-      <section className="overflow-hidden rounded-2xl bg-sidebar text-sidebar-foreground shadow-sm">
+      <section className="cockpit-scan overflow-hidden rounded-2xl border border-sidebar-accent/20 bg-sidebar text-sidebar-foreground shadow-[0_0_40px_hsl(var(--sidebar-accent)/0.08)]">
         <div className="grid gap-6 px-6 py-7 lg:grid-cols-[1fr_auto] lg:items-end lg:px-8">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-sidebar-accent">
@@ -393,7 +385,7 @@ function DashboardContent() {
             <MessageSquare className="text-muted-foreground" />
             <div>
               <p className="text-sm text-muted-foreground">Leads ouverts</p>
-              <p className="text-xl font-bold">
+              <p className="font-mono text-xl font-bold tabular-nums">
                 {formatNumber(queue?.openLeadCount ?? 0)}
               </p>
               <Link
@@ -458,7 +450,7 @@ function HeroMetric({
 }) {
   return (
     <div className="border-b border-white/10 px-6 py-4 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0 lg:px-8">
-      <p className="text-xs font-medium uppercase tracking-wider text-sidebar-foreground/50">
+      <p className="font-mono text-[11px] font-medium uppercase tracking-[0.16em] text-sidebar-accent">
         {label}
       </p>
       <p
@@ -501,7 +493,7 @@ function PriorityCard({
   return (
     <Link
       href={href}
-      className="card group block p-5 transition hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md"
+      className="card group block p-5"
     >
       <div className="flex items-start justify-between">
         <span className="font-mono text-xs font-bold tracking-widest text-muted-foreground">

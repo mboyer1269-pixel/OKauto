@@ -23,6 +23,8 @@ import {
   type MarketplaceStatus,
   type SavedView,
 } from "@/lib/inventory-ui";
+import { FadeIn } from "@/components/fade-in";
+import { CockpitSkeleton } from "@/components/cockpit-skeleton";
 import {
   Search,
   Plus,
@@ -297,9 +299,9 @@ function InventoryContent() {
   const compact = density === "compact";
 
   return (
-    <div className="space-y-5">
-      <header className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-        <div className="h-1.5 bg-gradient-to-r from-primary via-primary to-signal" />
+    <FadeIn className="space-y-5">
+      <header className="cockpit-scan card overflow-hidden p-0">
+        <div className="h-1.5 bg-gradient-to-r from-primary via-[hsl(var(--brand-cyan))] to-signal" />
         <div className="flex flex-col gap-5 px-5 py-5 sm:flex-row sm:items-end sm:justify-between sm:px-7 sm:py-6">
           <div>
             <p className="brand-label text-[11px] font-bold uppercase tracking-[0.18em] text-primary">
@@ -309,7 +311,7 @@ function InventoryContent() {
               <h1 className="brand-display text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
                 Inventaire
               </h1>
-              <span className="mb-1 font-mono text-sm font-semibold tabular-nums text-muted-foreground">
+              <span className="mb-1 font-mono text-lg font-semibold tabular-nums text-foreground">
                 {formatNumber(pagination.total)} unités
               </span>
             </div>
@@ -388,7 +390,7 @@ function InventoryContent() {
       <div
         role="tablist"
         aria-label="Vues enregistrées"
-        className="flex flex-wrap gap-1 rounded-xl border border-border bg-card p-1"
+        className="cockpit-panel flex flex-wrap gap-1 p-1"
       >
         {SAVED_VIEWS.map((item) => (
           <button
@@ -409,7 +411,7 @@ function InventoryContent() {
         ))}
       </div>
 
-      <div className="grid gap-3 rounded-2xl border border-border bg-card p-3 shadow-sm sm:grid-cols-2 xl:grid-cols-[1fr_13rem_13rem]">
+      <div className="cockpit-panel grid gap-3 p-3 sm:grid-cols-2 xl:grid-cols-[1fr_13rem_13rem]">
         <label className="relative flex-1">
           <span className="sr-only">Rechercher dans l’inventaire</span>
           <Search
@@ -478,11 +480,7 @@ function InventoryContent() {
       )}
 
       {loading ? (
-        <div className="animate-pulse space-y-3">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="h-14 rounded-xl bg-muted" />
-          ))}
-        </div>
+        <CockpitSkeleton rows={6} />
       ) : loadError ? (
         <div
           className="card border border-destructive/30 bg-destructive/10 py-10 text-center"
@@ -518,13 +516,13 @@ function InventoryContent() {
           <div
             ref={tableRef}
             className={cn(
-              "hidden overflow-x-auto rounded-2xl border border-border bg-card md:block",
+              "cockpit-panel hidden overflow-x-auto md:block",
               refreshing && "opacity-70",
             )}
             aria-busy={refreshing}
           >
             <table className="w-full min-w-[64rem] text-left text-sm">
-              <thead className="border-b border-border bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
+              <thead className="border-b border-border bg-muted/40 font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
                 <tr>
                   <th className="w-10 px-3 py-2">
                     <span className="sr-only">Sélection</span>
@@ -712,7 +710,7 @@ function InventoryContent() {
       )}
 
       {selected.size > 0 && (
-        <div className="sticky bottom-4 z-20 mx-auto flex max-w-xl items-center justify-between gap-3 rounded-2xl border border-border bg-popover px-4 py-3 text-sm shadow-lg">
+        <div className="cockpit-panel sticky bottom-4 z-20 mx-auto flex max-w-xl items-center justify-between gap-3 px-4 py-3 text-sm">
           <span className="font-medium">
             {selected.size} véhicule{selected.size > 1 ? "s" : ""} sélectionné
             {selected.size > 1 ? "s" : ""}
@@ -747,7 +745,7 @@ function InventoryContent() {
           </button>
         </div>
       )}
-    </div>
+    </FadeIn>
   );
 }
 
@@ -797,9 +795,11 @@ function DaysBar({
         <span
           className={cn(
             "block h-full rounded-full",
-            tone === "signal" && "bg-signal",
-            tone === "warning" && "bg-warning",
-            tone === "danger" && "bg-destructive",
+            tone === "signal" && "bg-signal shadow-[0_0_8px_hsl(var(--signal))]",
+            tone === "warning" &&
+              "bg-warning shadow-[0_0_8px_hsl(var(--warning))]",
+            tone === "danger" &&
+              "bg-destructive shadow-[0_0_8px_hsl(var(--destructive))]",
           )}
           style={{ width: `${Math.max(8, width)}%` }}
         />
@@ -811,9 +811,9 @@ function DaysBar({
 function MarketDot({ status }: { status: MarketplaceStatus }) {
   const tone = {
     never: "bg-muted-foreground/40",
-    active: "bg-signal",
-    renew: "bg-warning",
-    sold: "bg-destructive",
+    active: "bg-signal shadow-[0_0_10px_hsl(var(--signal))]",
+    renew: "bg-warning shadow-[0_0_10px_hsl(var(--warning))]",
+    sold: "bg-destructive shadow-[0_0_10px_hsl(var(--destructive))]",
   }[status];
   return (
     <span className="inline-flex items-center gap-1.5 text-xs">
@@ -841,7 +841,7 @@ function VehicleCard({
     .filter(Boolean)
     .join(" ");
   return (
-    <article className="content-auto flex flex-col gap-3 rounded-2xl border border-border bg-card p-3 shadow-sm">
+    <article className="card content-auto flex flex-col gap-3 p-3">
       <div className="h-32 w-full overflow-hidden rounded-xl bg-muted">
         {vehicle.photos?.[0] && (
           <img

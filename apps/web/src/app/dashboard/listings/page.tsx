@@ -41,6 +41,8 @@ import {
 } from "@okauto/shared";
 import { ProtectedRoute } from "@/components/protected-route";
 import { useAuth } from "@/components/auth-provider";
+import { CockpitSkeleton } from "@/components/cockpit-skeleton";
+import { FadeIn } from "@/components/fade-in";
 import { cn, formatCurrency, formatDateTime, formatNumber } from "@/lib/utils";
 
 interface Vehicle {
@@ -202,9 +204,7 @@ export default function ListingsPage() {
   return (
     <ProtectedRoute>
       <Suspense
-        fallback={
-          <div className="h-24 animate-pulse rounded-xl bg-slate-200" />
-        }
+        fallback={<CockpitSkeleton rows={2} />}
       >
         <ListingsContent />
       </Suspense>
@@ -1066,8 +1066,8 @@ function ListingsContent() {
   }, [prepareId, loading]);
 
   return (
-    <div className="min-w-0 space-y-4">
-      <header className="relative overflow-hidden rounded-2xl bg-sidebar px-5 py-4 text-sidebar-foreground shadow-sm sm:px-6 sm:py-5">
+    <FadeIn className="min-w-0 space-y-4">
+      <header className="cockpit-scan relative overflow-hidden rounded-2xl border border-sidebar-accent/20 bg-sidebar px-5 py-4 text-sidebar-foreground shadow-[0_0_40px_hsl(var(--sidebar-accent)/0.08)] sm:px-6 sm:py-5">
         <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-2/5 border-l border-white/10 lg:block">
           <div className="absolute left-12 top-0 h-full w-px bg-card/10" />
           <div className="absolute left-24 top-0 h-full w-px bg-card/5" />
@@ -1078,11 +1078,13 @@ function ListingsContent() {
               <span className="rounded-full border border-sidebar-accent/50 bg-sidebar-accent/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-sidebar-accent">
                 {organization.name} · voie de publication
               </span>
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 px-3 py-1 text-xs text-muted-foreground">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 px-3 py-1 text-xs text-sidebar-foreground/70">
                 <Radio
                   size={12}
                   className={
-                    extensionConnected ? "text-emerald-400" : "text-slate-400"
+                    extensionConnected
+                      ? "text-signal shadow-[0_0_10px_hsl(var(--signal))]"
+                      : "text-sidebar-foreground/50"
                   }
                 />
                 {extensionConnected
@@ -1093,7 +1095,7 @@ function ListingsContent() {
             <h1 className="mt-3 max-w-3xl text-2xl font-black leading-tight tracking-[-0.035em] sm:text-3xl">
               Centre de publication Marketplace
             </h1>
-            <p className="mt-2 max-w-2xl text-sm leading-5 text-muted-foreground">
+            <p className="mt-2 max-w-2xl text-sm leading-5 text-sidebar-foreground/70">
               Choisissez une auto, laissez Suivia remplir l’annonce, puis
               vérifiez et publiez dans Facebook.
             </p>
@@ -1101,17 +1103,19 @@ function ListingsContent() {
 
           <div className="rounded-2xl border border-white/10 bg-card/[0.06] p-4 backdrop-blur-sm">
             <div className="flex items-center justify-between border-b border-white/10 pb-3">
-              <span className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
+              <span className="font-mono text-xs font-bold uppercase tracking-[0.16em] text-sidebar-accent">
                 Lot prêt
               </span>
               <Gauge size={18} className="text-sidebar-accent" />
             </div>
             <div className="mt-2 flex items-end justify-between gap-4">
               <div>
-                <p className="text-3xl font-black tabular-nums">
+                <p className="font-mono text-3xl font-black tabular-nums">
                   {formatNumber(counts.prepare)}
                 </p>
-                <p className="text-xs text-slate-400">véhicules publiables</p>
+                <p className="text-xs text-sidebar-foreground/60">
+                  véhicules publiables
+                </p>
               </div>
               <Link
                 href="/dashboard/inventory"
@@ -1162,8 +1166,8 @@ function ListingsContent() {
           className={cn(
             "flex items-center justify-between rounded-lg border px-4 py-3 text-sm",
             error
-              ? "border-red-200 bg-red-50 text-red-800"
-              : "border-signal/30 bg-emerald-50 text-emerald-800",
+              ? "border-destructive/30 bg-destructive/10 text-destructive"
+              : "border-signal/30 bg-signal/10 text-signal",
           )}
         >
           <span>{error || message}</span>
@@ -1181,7 +1185,7 @@ function ListingsContent() {
         </div>
       )}
 
-      <div className="rounded-2xl border border-border bg-card p-1.5 shadow-sm">
+      <div className="cockpit-panel p-1.5">
         <div
           className="flex gap-1 overflow-x-auto"
           role="tablist"
@@ -1221,17 +1225,10 @@ function ListingsContent() {
       </div>
 
       {loading ? (
-        <div className="grid gap-3">
-          {[1, 2, 3].map((item) => (
-            <div
-              key={item}
-              className="h-24 animate-pulse rounded-xl bg-slate-200"
-            />
-          ))}
-        </div>
+        <CockpitSkeleton rows={4} />
       ) : queue === "today" ? (
         <section aria-labelledby="today-heading">
-          <h2 id="today-heading" className="text-lg font-bold text-slate-950">
+          <h2 id="today-heading" className="text-lg font-bold text-foreground">
             File du jour
           </h2>
           <p className="mb-4 mt-1 text-sm text-muted-foreground">
@@ -1265,16 +1262,16 @@ function ListingsContent() {
                     <p className="text-xs font-bold uppercase tracking-wide text-primary">
                       Priorité n° {index + 1}
                     </p>
-                    <h3 className="font-bold text-slate-950">
+                    <h3 className="font-bold text-foreground">
                       {vehicleName(item.vehicle)}
                     </h3>
-                    <ul className="mt-1 text-sm text-slate-600">
+                    <ul className="mt-1 text-sm text-muted-foreground">
                       {item.reasons.map((reason) => (
                         <li key={reason}>• {reason}</li>
                       ))}
                     </ul>
                     {item.alreadyListedBy.length > 0 && (
-                      <p className="mt-2 text-sm font-semibold text-amber-800">
+                      <p className="mt-2 text-sm font-semibold text-warning">
                         Déjà en ligne chez{" "}
                         {item.alreadyListedBy.map((person) => person.name).join(", ")}{" "}
                         : évitez une deuxième annonce pour le même véhicule.
@@ -1301,7 +1298,7 @@ function ListingsContent() {
               <div className="flex items-center gap-2">
                 <h2
                   id="prepare-heading"
-                  className="text-lg font-bold text-slate-950"
+                  className="text-lg font-bold text-foreground"
                 >
                   Véhicules prêts à préparer
                 </h2>
@@ -1320,7 +1317,7 @@ function ListingsContent() {
             <label className="relative block w-full sm:w-80">
               <span className="sr-only">Rechercher un véhicule</span>
               <Search
-                className="absolute left-3 top-3 text-slate-400"
+                className="absolute left-3 top-3 text-muted-foreground"
                 size={16}
               />
               <input
@@ -1334,7 +1331,7 @@ function ListingsContent() {
           </div>
 
           <div
-            className="mb-4 flex gap-1 overflow-x-auto rounded-2xl border border-border bg-card p-1.5 shadow-sm"
+            className="cockpit-panel mb-4 flex gap-1 overflow-x-auto p-1.5"
             role="group"
             aria-label="Type d’inventaire"
           >
@@ -1348,7 +1345,7 @@ function ListingsContent() {
                   "min-h-10 shrink-0 rounded-xl px-3 text-sm font-bold transition-colors",
                   inventoryType === type.id
                     ? "bg-primary text-primary-foreground"
-                    : "text-slate-600 hover:bg-muted hover:text-slate-950",
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
                 )}
               >
                 {type.label}
@@ -1378,9 +1375,9 @@ function ListingsContent() {
                 ))}
               </div>
               {vehicles.length < readyTotal && (
-                <div className="mt-5 rounded-2xl border border-border bg-card p-4 text-center shadow-sm">
+                <div className="cockpit-panel mt-5 p-4 text-center">
                   <p
-                    className="text-sm font-semibold text-slate-700"
+                    className="text-sm font-semibold text-foreground"
                     aria-live="polite"
                   >
                     {formatNumber(vehicles.length)} affichés sur{" "}
@@ -1450,7 +1447,7 @@ function ListingsContent() {
 
       {selected && listingPackage && (
         <section
-          className="fixed inset-0 z-50 !mt-0 overflow-y-auto bg-slate-950/55 p-3 sm:p-6"
+          className="fixed inset-0 z-50 !mt-0 overflow-y-auto bg-background/80 p-3 backdrop-blur-md sm:p-6"
           role="dialog"
           aria-modal="true"
           aria-label="Préparer l’annonce"
@@ -1497,7 +1494,7 @@ function ListingsContent() {
               )}
 
               {!marketplaceReady && (
-                <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-900">
+                <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
                   <p className="font-semibold">Publication bloquée</p>
                   <ul className="mt-2 list-disc space-y-1 pl-5">
                     {listingPackage.blockers.map((blocker) => (
@@ -1552,7 +1549,7 @@ function ListingsContent() {
                         ? "Ouvrir et remplir Facebook"
                         : "Préparer et ouvrir Facebook"}
                     </h3>
-                    <p className="mt-1 max-w-xl text-sm leading-6 text-slate-600">
+                    <p className="mt-1 max-w-xl text-sm leading-6 text-muted-foreground">
                       {extensionConnected
                         ? "Suivia Auto ouvre Marketplace, remplit les champs et ajoute automatiquement jusqu’à 20 photos. Il ne vous reste qu’à vérifier et publier."
                         : "Suivia Auto copie le texte, télécharge la photo et ouvre Marketplace. Ajoutez la photo, collez le contenu, puis publiez."}
@@ -1608,7 +1605,7 @@ function ListingsContent() {
                   ].map(([number, label]) => (
                     <div
                       key={number}
-                      className="flex items-center gap-2 border-b border-primary/10 px-4 py-3 text-sm font-bold text-slate-700 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0"
+                      className="flex items-center gap-2 border-b border-primary/10 px-4 py-3 text-sm font-bold text-foreground last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0"
                     >
                       <span className="flex h-6 w-6 items-center justify-center rounded-full bg-sidebar font-mono text-[11px] text-sidebar-foreground">
                         {number}
@@ -1721,12 +1718,12 @@ function ListingsContent() {
                       )
                     }
                   />
-                  <div className="rounded-xl border border-border bg-slate-50 p-3 sm:flex sm:items-center sm:justify-between sm:gap-4">
+                  <div className="rounded-xl border border-border bg-muted p-3 sm:flex sm:items-center sm:justify-between sm:gap-4">
                     <div className="mb-3 sm:mb-0">
                       <p
                         className={cn(
                           "text-sm font-bold",
-                          draftDirty ? "text-amber-800" : "text-emerald-700",
+                          draftDirty ? "text-warning" : "text-signal",
                         )}
                       >
                         {draftDirty
@@ -1778,7 +1775,7 @@ function ListingsContent() {
                       )}
                     </div>
                   </div>
-                  <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950">
+                  <div className="rounded-xl border border-primary/20 bg-primary/10 p-4 text-sm text-foreground">
                     <h3 className="font-bold">Champs préparés pour Facebook</h3>
                     <div className="mt-3 grid gap-x-6 gap-y-2 sm:grid-cols-2">
                       <p>
@@ -1851,9 +1848,9 @@ function ListingsContent() {
                 )}
               </div>
 
-              <div className="rounded-xl border-2 border-border bg-slate-50 p-4 sm:p-5">
-                <h3 className="font-bold text-slate-950">Suivi automatique</h3>
-                <p className="mt-1 text-sm leading-6 text-slate-600">
+              <div className="rounded-xl border-2 border-border bg-muted p-4 sm:p-5">
+                <h3 className="font-bold text-foreground">Suivi automatique</h3>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">
                   Avec l’extension, Suivia Auto détecte l’URL finale après votre
                   clic sur Publier et classe automatiquement le véhicule dans «
                   Publiées ». Pour rattacher une annonce déjà en ligne, collez
@@ -1890,7 +1887,7 @@ function ListingsContent() {
           </div>
         </section>
       )}
-    </div>
+    </FadeIn>
   );
 }
 
@@ -1904,7 +1901,7 @@ function VehicleRow({
   onPrepare: () => void;
 }) {
   return (
-    <article className="group flex min-w-0 w-full flex-col gap-4 overflow-hidden rounded-2xl border border-border bg-card p-3 shadow-sm transition hover:border-primary/40 hover:shadow-md sm:flex-row sm:items-center">
+    <article className="card group flex min-w-0 w-full flex-col gap-4 overflow-hidden p-3 sm:flex-row sm:items-center">
       <div className="relative h-32 w-full shrink-0 overflow-hidden rounded-xl bg-muted sm:h-24 sm:w-36">
         {vehicle.photos[0] ? (
           <img
@@ -1916,7 +1913,7 @@ function VehicleRow({
             className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03] motion-reduce:transform-none"
           />
         ) : (
-          <div className="flex h-full items-center justify-center text-xs text-slate-400">
+          <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
             Sans photo
           </div>
         )}
@@ -1933,8 +1930,8 @@ function VehicleRow({
           {formatDateTime(vehicle.updatedAt)}
         </p>
       </div>
-      <div className="flex items-center justify-between gap-4 border-t border-slate-100 px-1 pt-3 sm:border-l sm:border-t-0 sm:pl-5 sm:pt-0">
-        <p className="text-lg font-black tabular-nums text-foreground">
+      <div className="flex items-center justify-between gap-4 border-t border-border px-1 pt-3 sm:border-l sm:border-t-0 sm:pl-5 sm:pt-0">
+        <p className="font-mono text-lg font-black tabular-nums text-foreground">
           {formatCurrency(vehicle.price)}
         </p>
         <button
@@ -2004,7 +2001,7 @@ function ListingQueue({
 
   return (
     <section aria-labelledby={`${queue}-heading`}>
-      <h2 id={`${queue}-heading`} className="text-lg font-bold text-slate-950">
+      <h2 id={`${queue}-heading`} className="text-lg font-bold text-foreground">
         {copy.title}
       </h2>
       <p className="mb-4 mt-1 text-sm text-muted-foreground">{copy.detail}</p>
@@ -2024,7 +2021,7 @@ function ListingQueue({
                 "rounded-full px-3 py-1.5 text-sm font-semibold",
                 healthFilter === id
                   ? "bg-sidebar text-sidebar-foreground"
-                  : "bg-muted text-slate-600",
+                  : "bg-muted text-muted-foreground",
               )}
               onClick={() => onHealthFilter(id)}
             >
@@ -2045,12 +2042,12 @@ function ListingQueue({
             const hoursStale = listing.hoursStale;
             const staleTone =
               hoursStale == null
-                ? "text-amber-800"
+                ? "text-warning"
                 : hoursStale > 48
-                  ? "text-red-700"
+                  ? "text-destructive"
                   : hoursStale >= 24
-                    ? "text-orange-700"
-                    : "text-slate-600";
+                    ? "text-warning"
+                    : "text-muted-foreground";
             return (
               <article
                 key={listing.id}
@@ -2069,7 +2066,7 @@ function ListingQueue({
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h3 className="font-bold text-slate-950">
+                  <h3 className="font-bold text-foreground">
                     {vehicleName(listing.vehicle)}
                   </h3>
                   <p className="mt-1 text-sm text-muted-foreground">
@@ -2077,17 +2074,17 @@ function ListingQueue({
                     {listing.user.name} · {formatDateTime(listing.listedAt)}
                   </p>
                   {mismatch?.direction === "up" && (
-                    <p className="mt-2 text-sm font-bold text-red-700">
+                    <p className="mt-2 text-sm font-bold text-destructive">
                       Prix augmenté : à corriger maintenant ({formatCurrency(mismatch.from)} → {formatCurrency(mismatch.to)}). Au Québec, un client peut exiger le prix annoncé.
                     </p>
                   )}
                   {mismatch?.direction === "down" && (
-                    <p className="mt-2 text-sm font-semibold text-amber-800">
+                    <p className="mt-2 text-sm font-semibold text-warning">
                       Prix à mettre à jour : {formatCurrency(mismatch.from)} → {formatCurrency(mismatch.to)}
                     </p>
                   )}
                   {(queue === "renew" || listing.health?.renewDue) && queue !== "remove" && (
-                    <p className="mt-2 text-sm font-semibold text-slate-700">
+                    <p className="mt-2 text-sm font-semibold text-foreground">
                       En ligne depuis {listing.health?.daysSinceFreshness ?? 0} jours, renouvellement possible
                     </p>
                   )}
@@ -2098,7 +2095,7 @@ function ListingQueue({
                   )}
                 </div>
                 <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                  <p className="mr-2 font-bold tabular-nums">
+                  <p className="mr-2 font-mono font-bold tabular-nums">
                     {formatCurrency(listing.vehicle.price ?? listing.priceAtListing)}
                   </p>
                   {listing.externalUrl && (
@@ -2268,8 +2265,8 @@ function CheckItem({ ok, label }: { ok: boolean; label: string }) {
       className={cn(
         "flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium",
         ok
-          ? "border-signal/30 bg-emerald-50 text-emerald-800"
-          : "border-amber-200 bg-amber-50 text-amber-800",
+          ? "border-signal/30 bg-signal/10 text-signal"
+          : "border-warning/30 bg-warning/10 text-warning",
       )}
     >
       {ok ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
@@ -2282,7 +2279,7 @@ function EmptyState({ title, detail }: { title: string; detail: string }) {
   return (
     <div className="rounded-xl border border-dashed border-border bg-card px-6 py-12 text-center">
       <CheckCircle2 className="mx-auto text-muted-foreground" size={30} />
-      <p className="mt-3 font-bold text-slate-800">{title}</p>
+      <p className="mt-3 font-bold text-foreground">{title}</p>
       <p className="mt-1 text-sm text-muted-foreground">{detail}</p>
     </div>
   );

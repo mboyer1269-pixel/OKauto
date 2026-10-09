@@ -79,14 +79,14 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="cockpit-grid min-h-screen bg-background">
       <a
         href="#contenu-principal"
         className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:m-3 focus:rounded-lg focus:bg-primary focus:px-3 focus:py-2 focus:text-primary-foreground"
       >
         Aller au contenu
       </a>
-      <div className="flex items-center justify-between border-b border-sidebar-border bg-sidebar p-4 text-sidebar-foreground lg:hidden">
+      <div className="flex items-center justify-between border-b border-sidebar-border bg-sidebar px-3 py-3 text-sidebar-foreground lg:hidden">
         <button
           type="button"
           onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -96,24 +96,27 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
         >
           {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
-        <BrandMark inverted compact />
+        <BrandMark lockup inverted size="app" />
         <div className="w-8" />
       </div>
 
       <div className="flex">
         <aside
           className={cn(
-            "fixed inset-y-0 left-0 z-40 w-64 transform border-r border-sidebar-border bg-sidebar text-sidebar-foreground shadow-2xl transition-transform lg:static lg:translate-x-0 lg:shadow-none",
+            "fixed inset-y-0 left-0 z-40 w-56 transform border-r border-sidebar-border bg-sidebar/95 text-sidebar-foreground shadow-2xl backdrop-blur-xl transition-transform lg:static lg:translate-x-0 lg:shadow-none",
             sidebarOpen ? "translate-x-0" : "-translate-x-full",
           )}
         >
-          <div className="border-b border-sidebar-border p-6">
-            <BrandMark inverted />
-            <p className="mt-1 truncate text-xs text-sidebar-foreground/60">
+          <div className="cockpit-scan border-b border-sidebar-border px-4 py-5">
+            <BrandMark lockup inverted size="app" />
+            <p className="mt-2 truncate font-mono text-[11px] uppercase tracking-[0.16em] text-sidebar-accent">
               {organization?.name}
             </p>
           </div>
-          <nav className="space-y-1 p-4 pb-40" aria-label="Navigation principale">
+          <nav
+            className="space-y-0.5 p-2 pb-40"
+            aria-label="Navigation principale"
+          >
             {visibleNavItems.map((item) => {
               const Icon = item.icon;
               const active =
@@ -125,20 +128,20 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                   href={item.href}
                   onClick={() => setSidebarOpen(false)}
                   className={cn(
-                    "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold transition-colors",
+                    "flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] font-semibold transition-colors",
                     active
-                      ? "bg-sidebar-accent/15 text-sidebar-accent"
+                      ? "bg-sidebar-accent/15 text-sidebar-accent shadow-[0_0_18px_hsl(var(--sidebar-accent)/0.28)]"
                       : "text-sidebar-foreground/75 hover:bg-white/10 hover:text-sidebar-foreground",
                   )}
                 >
-                  <Icon size={18} />
+                  <Icon size={16} className="shrink-0" />
                   {item.label}
                 </Link>
               );
             })}
           </nav>
-          <div className="absolute bottom-0 left-0 right-0 border-t border-sidebar-border p-4">
-            <div className="mb-3">
+          <div className="absolute bottom-0 left-0 right-0 border-t border-sidebar-border p-3">
+            <div className="mb-2">
               <ThemeToggle />
             </div>
             <div className="flex items-center justify-between">
@@ -149,7 +152,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                 <p className="truncate text-xs font-medium text-sidebar-accent">
                   {professionalTitle}
                 </p>
-                <p className="truncate text-[11px] text-sidebar-foreground/50">
+                <p className="truncate font-mono text-[11px] text-sidebar-foreground/50">
                   {user?.email}
                 </p>
               </div>

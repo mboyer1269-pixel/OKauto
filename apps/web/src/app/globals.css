@@ -37,33 +37,33 @@
   }
 
   .dark {
-    --background: 220 23% 5%;
+    --background: 223 24% 5%;
     --foreground: 216 28% 93%;
-    --card: 220 21% 8%;
+    --card: 222 22% 8%;
     --card-foreground: 216 28% 93%;
-    --popover: 218 19% 11%;
+    --popover: 221 20% 10%;
     --popover-foreground: 216 28% 93%;
     --primary: 218 85% 29%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 218 19% 11%;
+    --secondary: 221 20% 12%;
     --secondary-foreground: 216 28% 93%;
-    --muted: 218 19% 11%;
-    --muted-foreground: 218 12% 59%;
-    --accent: 218 19% 11%;
+    --muted: 221 18% 12%;
+    --muted-foreground: 218 12% 70%;
+    --accent: 221 20% 12%;
     --accent-foreground: 216 28% 93%;
     --destructive: 358 100% 68%;
     --destructive-foreground: 223 47% 7%;
-    --border: 221 19% 17%;
-    --input: 221 19% 17%;
+    --border: 221 24% 18%;
+    --input: 221 24% 18%;
     --ring: 188 83% 51%;
     --signal: 159 79% 54%;
-    --signal-foreground: 220 23% 5%;
+    --signal-foreground: 223 24% 5%;
     --warning: 39 100% 56%;
-    --warning-foreground: 220 23% 5%;
-    --sidebar: 223 17% 8%;
+    --warning-foreground: 223 24% 5%;
+    --sidebar: 223 28% 7%;
     --sidebar-foreground: 216 28% 93%;
     --sidebar-accent: 188 83% 51%;
-    --sidebar-border: 221 19% 17%;
+    --sidebar-border: 221 24% 16%;
     --electric: 188 83% 51%;
   }
 
@@ -118,6 +118,89 @@
   contain-intrinsic-size: 116px;
 }
 
+.cockpit-grid {
+  background-color: hsl(var(--background));
+  background-image:
+    linear-gradient(hsl(var(--brand-cyan) / 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, hsl(var(--brand-cyan) / 0.045) 1px, transparent 1px),
+    radial-gradient(
+      1200px 480px at 80% -10%,
+      hsl(var(--brand-cyan) / 0.08),
+      transparent 55%
+    );
+  background-size:
+    48px 48px,
+    48px 48px,
+    auto;
+}
+
+.cockpit-scan {
+  position: relative;
+}
+
+.cockpit-scan::after {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 3px,
+    hsl(var(--brand-cyan) / 0.03) 3px,
+    hsl(var(--brand-cyan) / 0.03) 4px
+  );
+  mix-blend-mode: screen;
+}
+
+.cockpit-panel {
+  border: 1px solid transparent;
+  border-radius: 1rem;
+  background:
+    linear-gradient(hsl(var(--card) / 0.82), hsl(var(--card) / 0.82))
+      padding-box,
+    linear-gradient(
+        135deg,
+        hsl(var(--brand-navy) / 0.7),
+        hsl(var(--brand-cyan) / 0.85)
+      )
+      border-box;
+  backdrop-filter: blur(16px);
+  box-shadow: 0 0 0 1px hsl(var(--brand-cyan) / 0.06);
+}
+
+.dark .cockpit-panel {
+  background:
+    linear-gradient(hsl(var(--card) / 0.62), hsl(var(--card) / 0.62))
+      padding-box,
+    linear-gradient(
+        135deg,
+        hsl(var(--brand-navy) / 0.9),
+        hsl(var(--brand-cyan) / 0.95)
+      )
+      border-box;
+}
+
+.cockpit-skeleton {
+  background: linear-gradient(
+    90deg,
+    hsl(var(--muted)) 0%,
+    hsl(var(--brand-cyan) / 0.16) 50%,
+    hsl(var(--muted)) 100%
+  );
+  background-size: 200% 100%;
+  animation: cockpit-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes cockpit-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -126,6 +209,15 @@
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+
+  .cockpit-skeleton {
+    animation: none;
+    background: hsl(var(--muted));
+  }
+
+  .cockpit-scan::after {
+    display: none;
   }
 }
 
@@ -146,10 +238,57 @@
     @apply w-full rounded-xl border border-input bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20;
   }
   .card {
-    @apply rounded-2xl border border-border bg-card p-5 text-card-foreground shadow-sm;
+    border: 1px solid transparent;
+    border-radius: 1rem;
+    background:
+      linear-gradient(
+          hsl(var(--card) / 0.82),
+          hsl(var(--card) / 0.82)
+        )
+        padding-box,
+      linear-gradient(
+          135deg,
+          hsl(var(--brand-navy) / 0.7),
+          hsl(var(--brand-cyan) / 0.85)
+        )
+        border-box;
+    color: hsl(var(--card-foreground));
+    padding: 1.25rem;
+    box-shadow:
+      0 0 0 1px hsl(var(--brand-cyan) / 0.06),
+      0 18px 40px hsl(223 47% 4% / 0.28);
+    backdrop-filter: blur(16px);
+  }
+  .dark .card {
+    background:
+      linear-gradient(
+          hsl(var(--card) / 0.62),
+          hsl(var(--card) / 0.62)
+        )
+        padding-box,
+      linear-gradient(
+          135deg,
+          hsl(var(--brand-navy) / 0.9),
+          hsl(var(--brand-cyan) / 0.95)
+        )
+        border-box;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .card {
+      transition:
+        transform 0.2s ease,
+        box-shadow 0.2s ease;
+    }
+    .card:hover {
+      transform: translateY(-2px);
+      box-shadow:
+        0 0 28px hsl(var(--brand-cyan) / 0.16),
+        0 18px 40px hsl(223 47% 4% / 0.32);
+    }
   }
   .badge {
     @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
+    box-shadow: 0 0 12px currentColor;
   }
   .badge-success {
     @apply badge bg-signal/15 text-signal;
@@ -165,5 +304,6 @@
   }
   .badge-neutral {
     @apply badge bg-muted text-muted-foreground;
+    box-shadow: none;
   }
 }

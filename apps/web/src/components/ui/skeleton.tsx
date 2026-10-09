@@ -7,7 +7,7 @@ function Skeleton({
 }: HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn("animate-pulse rounded-xl bg-muted", className)}
+      className={cn("cockpit-skeleton rounded-xl", className)}
       {...props}
     />
   );

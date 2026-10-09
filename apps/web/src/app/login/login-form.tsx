@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth-provider";
 import { ThemedBrandLockup } from "@/components/themed-brand-mark";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export function LoginForm({
   publicSignupEnabled,
@@ -33,10 +34,13 @@ export function LoginForm({
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+    <div className="cockpit-grid relative flex min-h-screen items-center justify-center px-4">
+      <div className="absolute right-4 top-4 rounded-lg border border-sidebar-border bg-sidebar p-1">
+        <ThemeToggle />
+      </div>
       <div className="card w-full max-w-md rounded-2xl p-7 sm:p-8">
         <div className="mb-8 text-center">
-          <ThemedBrandLockup className="justify-center" />
+          <ThemedBrandLockup className="justify-center" size="login" />
           <h1 className="brand-display mt-6 text-2xl font-bold tracking-tight">
             Bon retour
           </h1>

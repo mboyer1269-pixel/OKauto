@@ -12,6 +12,8 @@ import {
   formatDateTime,
 } from "@/lib/utils";
 import { PhotoManager } from "@/components/photo-manager";
+import { CockpitSkeleton } from "@/components/cockpit-skeleton";
+import { FadeIn } from "@/components/fade-in";
 import {
   carfaxSourceUrlCheckboxState,
   isVinSourcedField,
@@ -91,8 +93,7 @@ function VehicleDetail() {
     load();
   };
 
-  if (loading)
-    return <div className="h-64 animate-pulse rounded-xl bg-muted" />;
+  if (loading) return <CockpitSkeleton rows={5} className="max-w-5xl" />;
   if (!vehicle) return <div className="card">Véhicule introuvable.</div>;
 
   const photos =
@@ -166,15 +167,15 @@ function VehicleDetail() {
   ];
 
   return (
-    <div className="space-y-6">
+    <FadeIn>
       <button
         onClick={() => router.back()}
-        className="text-sm text-primary hover:underline"
+        className="mb-4 text-sm text-primary hover:underline"
       >
         ← Retour à l’inventaire
       </button>
 
-      <section className="overflow-hidden rounded-2xl border border-border bg-card">
+      <section className="cockpit-scan card overflow-hidden p-0">
         <div className="relative h-56 bg-muted sm:h-72">
           {photos[0] ? (
             <img
@@ -194,7 +195,7 @@ function VehicleDetail() {
                   {title}
                 </h1>
               </div>
-              <p className="font-mono text-2xl font-semibold tabular-nums">
+              <p className="font-mono text-3xl font-bold tabular-nums text-primary">
                 {formatCurrency(vehicle.price as number)}
               </p>
             </div>
@@ -233,7 +234,7 @@ function VehicleDetail() {
         </div>
       </section>
 
-      <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+      <div className="mt-6 grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
         <div className="space-y-6">
           <div className="card">
             <div className="mb-4 flex items-start justify-between gap-3">
@@ -258,7 +259,9 @@ function VehicleDetail() {
                     {label}
                     {field ? <VinBadge field={field} /> : null}
                   </dt>
-                  <dd className="mt-0.5 text-sm font-medium">{value}</dd>
+                  <dd className="mt-0.5 font-mono text-sm font-medium tabular-nums">
+                    {value}
+                  </dd>
                 </div>
               ))}
             </dl>
@@ -334,7 +337,7 @@ function VehicleDetail() {
                 )}
                 <div className="space-y-2 p-3">
                   <p className="text-sm font-semibold leading-5">{title}</p>
-                  <p className="font-mono text-base font-semibold tabular-nums">
+                  <p className="font-mono text-base font-semibold tabular-nums text-primary">
                     {formatCurrency(vehicle.price as number)}
                   </p>
                   <ul className="space-y-1 text-xs text-muted-foreground">
@@ -385,6 +388,6 @@ function VehicleDetail() {
           </div>
         </div>
       </div>
-    </div>
+    </FadeIn>
   );
 }

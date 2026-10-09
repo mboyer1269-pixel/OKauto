@@ -6,12 +6,19 @@ import { cn } from "@/lib/utils";
 
 const spec = specJson as BrandSpec;
 
+const lockupSizes = {
+  header: "h-6 w-auto max-w-[7.25rem] sm:h-9 sm:max-w-none",
+  app: "h-8 w-auto max-w-[12.5rem] sm:h-11 sm:max-w-[16.5rem]",
+  login: "h-11 w-auto max-w-[16rem] sm:h-14 sm:max-w-[20rem]",
+} as const;
+
 interface BrandMarkProps {
   compact?: boolean;
   inverted?: boolean;
   className?: string;
   showDescriptor?: boolean;
   lockup?: boolean;
+  size?: keyof typeof lockupSizes;
 }
 
 export function BrandMark({
@@ -20,18 +27,19 @@ export function BrandMark({
   className,
   showDescriptor = true,
   lockup = false,
+  size = "header",
 }: BrandMarkProps) {
   const label = spec.lockup ?? `${spec.ariaLabel}, ${spec.descriptor}`;
   const wordmarkFont =
     spec.typography.wordmarkFont === "mono" ? "font-mono" : "font-sans";
 
-  if (lockup && !compact) {
+  if (lockup) {
     return (
-      <span className={cn("inline-flex items-center", className)} aria-label={label}>
-        <Wordmark
-          inverted={inverted}
-          className="h-6 w-auto max-w-[7.25rem] sm:h-9 sm:max-w-none"
-        />
+      <span
+        className={cn("inline-flex items-center", className)}
+        aria-label={label}
+      >
+        <Wordmark inverted={inverted} className={lockupSizes[size]} />
       </span>
     );
   }

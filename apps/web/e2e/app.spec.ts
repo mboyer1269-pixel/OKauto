@@ -55,6 +55,9 @@ test.describe("Suivia Auto", () => {
   test("login page shows demo credentials", async ({ page }) => {
     await page.goto("/login");
     await expect(page.getByText("owner@demo.okauto.local")).toBeVisible();
+    await expect(
+      page.getByLabel("SUIVIA AUTO").locator("visible=true").first(),
+    ).toBeVisible();
   });
 
   test("can login with demo credentials", async ({ page }) => {
@@ -64,6 +67,9 @@ test.describe("Suivia Auto", () => {
     await page.click('button[type="submit"]');
     await page.waitForURL("**/dashboard**", { timeout: 15000 });
     await expect(page.getByText("Brief du matin")).toBeVisible();
+    await expect(
+      page.getByLabel("SUIVIA AUTO").locator("visible=true").first(),
+    ).toBeVisible();
   });
 
   test("inventory page loads after login", async ({ page }) => {
