@@ -51,8 +51,6 @@ describe("invite accept — brute force, enumeration, rehire", () => {
   let ownerToken = "";
   let otherToken = "";
   let victimUserId = "";
-  let ownerId = "";
-  let otherUserId = "";
 
   beforeAll(async () => {
     process.env.TRUST_PROXY = "true";
@@ -75,8 +73,6 @@ describe("invite accept — brute force, enumeration, rehire", () => {
     const victim = await prisma.user.create({
       data: { email: victimEmail, name: "Victim Accept", passwordHash: hash },
     });
-    ownerId = owner.id;
-    otherUserId = other.id;
     victimUserId = victim.id;
 
     await prisma.organizationMember.createMany({

@@ -45,6 +45,7 @@ describe("invitations d’équipe", () => {
     expect(form).not.toMatch(/accountExists/);
     expect(previewRoute).not.toMatch(/accountExists/);
     expect(previewRoute).toMatch(/MEMBER_INVITE_LOGIN_OR_CREATE_MESSAGE/);
-    expect(form).toMatch(/Connectez-vous/);
+    expect(form).toMatch(/Se connecter/);
+    expect(form).toMatch(/créez votre mot de passe/);
   });
 });
