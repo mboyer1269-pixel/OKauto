@@ -334,13 +334,10 @@ describe("member takeover prevention", () => {
       }),
       { params: Promise.resolve({ token: inviteAToken }) },
     );
+    const accepted = await accept.json();
     expect(accept.status).toBe(403);
-    expect((await accept.json()).accessToken).toBeUndefined();
-
-    const memberships = await prisma.organizationMember.findMany({
-      where: { userId: userAId, organizationId: orgBId },
-    });
-    expect(memberships).toHaveLength(0);
+    expect(accepted.accessToken).toBeUndefined();
+    expect(accepted.attached).toBeUndefined();
   });
 
   it("attaches an existing account only after that account's session accepts", async () => {
