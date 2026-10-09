@@ -144,6 +144,53 @@ test.describe("Suivia Auto", () => {
     expect(pageErrors).toEqual([]);
   });
 
+  test("Marketplace description stays raw until copy or save", async ({
+    page,
+  }) => {
+    await page.goto("/login");
+    await page.fill('input[type="email"]', "owner@demo.okauto.local");
+    await page.fill('input[type="password"]', "Demo1234!");
+    await page.click('button[type="submit"]');
+    await page.waitForURL("**/dashboard**", { timeout: 15000 });
+    await page.goto("/dashboard/listings");
+    await page.getByRole("tab", { name: /À préparer/ }).click();
+    await page
+      .getByRole("button", { name: "Publier", exact: true })
+      .first()
+      .click();
+
+    const dialog = page.getByRole("dialog", { name: "Préparer l’annonce" });
+    await expect(dialog).toBeVisible();
+    await dialog
+      .locator("summary")
+      .filter({ hasText: "Voir ou copier le contenu de l’annonce" })
+      .click();
+
+    const description = dialog.getByLabel("Description", { exact: true });
+    await expect(description).toBeEditable();
+    await expect(description).not.toHaveValue("");
+
+    await description.fill("");
+    await expect(description).toHaveValue("");
+
+    const editedMention =
+      "Voici le GMC Terrain d’occasion en inventaire.\n\nRapport Carfax modifié pour cet essai.";
+    await description.fill(editedMention);
+    await expect(description).toHaveValue(editedMention);
+    expect(
+      (await description.inputValue()).match(/carfax/gi) ?? [],
+    ).toHaveLength(1);
+
+    await description.fill("Belle auto.");
+    await expect(description).toHaveValue("Belle auto.");
+    await dialog
+      .getByRole("button", { name: "Enregistrer", exact: true })
+      .click();
+    await expect(
+      page.getByText("La description doit contenir au moins 80 caractères."),
+    ).toBeVisible();
+  });
+
   test("health endpoint returns ok", async ({ request }) => {
     const response = await request.get("/api/health");
     expect(response.ok()).toBeTruthy();

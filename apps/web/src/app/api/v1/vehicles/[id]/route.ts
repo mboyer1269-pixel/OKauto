@@ -1,5 +1,5 @@
 import { prisma } from "@okauto/database";
-import { updateVehicleSchema } from "@okauto/shared";
+import { normalizeVin, updateVehicleSchema } from "@okauto/shared";
 import { withAuth, jsonResponse, errorResponse, parseBody } from "@/lib/api";
 import { createAuditLog } from "@/lib/auth";
 import { notifySoldVehicle } from "@/lib/services";
@@ -8,6 +8,7 @@ export const GET = withAuth(async (_request, { auth, params }) => {
   const vehicle = await prisma.vehicle.findFirst({
     where: { id: params!.id, organizationId: auth.orgId },
     include: {
+      organization: { select: { includeCarfaxSourceUrl: true } },
       photos: { orderBy: { sortOrder: "asc" } },
       assignedTo: { select: { id: true, name: true, email: true } },
       listings: {
@@ -36,6 +37,9 @@ export const PATCH = withAuth(async (request, { auth, params }) => {
   if (!existing) return errorResponse("Vehicle not found", 404);
 
   const wasSold = existing.status !== "SOLD" && data.status === "SOLD";
+  const vinChanged =
+    data.vin !== undefined &&
+    normalizeVin(data.vin ?? "") !== normalizeVin(existing.vin ?? "");
 
   const vehicle = await prisma.vehicle.update({
     where: { id: params!.id },
@@ -65,6 +69,17 @@ export const PATCH = withAuth(async (request, { auth, params }) => {
       location: data.location,
       notes: data.notes,
       assignedToId: data.assignedToId === null ? null : data.assignedToId,
+      includeCarfaxSourceUrl: data.includeCarfaxSourceUrl,
+      ...(vinChanged
+        ? {
+            vinDecodedAt: null,
+            vinDecodedVin: null,
+            vinDecodedFields: [],
+            vinDecodeAttempts: 0,
+            vinDecodeError: null,
+            vinDecodeLastAttemptAt: null,
+          }
+        : {}),
       soldAt: wasSold
         ? new Date()
         : data.status === "SOLD"

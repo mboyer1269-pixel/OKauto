@@ -35,6 +35,8 @@ export interface VehiclePayload {
   drivetrain?: string;
   engine?: string;
   features?: string[];
+  sourceUrl?: string | null;
+  includeCarfaxSourceUrl?: boolean;
   photos?: string[];
 }
 

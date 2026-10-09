@@ -2,7 +2,8 @@ import { NextRequest } from "next/server";
 import { prisma } from "@okauto/database";
 import {
   generateMarketplaceTitle,
-  generateTemplateDescription,
+  listingDescriptionForExtension,
+  resolveIncludeCarfaxSourceUrl,
 } from "@okauto/shared";
 import { authenticateApiKey } from "@/lib/auth";
 import { errorResponse, handleApiError, jsonResponse } from "@/lib/api";
@@ -61,6 +62,10 @@ export async function GET(
       vin: vehicle.vin,
       stockNumber: vehicle.stockNumber,
       sourceUrl: vehicle.sourceUrl,
+      includeCarfaxSourceUrl: resolveIncludeCarfaxSourceUrl(
+        auth.organization.includeCarfaxSourceUrl,
+        vehicle.includeCarfaxSourceUrl,
+      ),
       location: [
         auth.organization.address,
         auth.organization.city,
@@ -90,13 +95,20 @@ export async function GET(
         engine: vehicle.engine,
         features: vehicle.features,
         title: draft?.title || generateMarketplaceTitle(marketplaceData),
-        description:
-          draft?.description || generateTemplateDescription(marketplaceData),
+        description: listingDescriptionForExtension(
+          draft?.description,
+          marketplaceData,
+        ),
         contactName: auth.user.name,
         dealershipName: auth.organization.name,
         phone: auth.organization.phone,
         bodyStyle: vehicle.bodyStyle,
         condition: vehicle.condition,
+        sourceUrl: vehicle.sourceUrl,
+        includeCarfaxSourceUrl: resolveIncludeCarfaxSourceUrl(
+          auth.organization.includeCarfaxSourceUrl,
+          vehicle.includeCarfaxSourceUrl,
+        ),
         photos: vehicle.photos.map((photo) => photo.url),
         hasActiveListing: vehicle.listings.length > 0,
       },

@@ -12,6 +12,11 @@ import {
   formatDateTime,
 } from "@/lib/utils";
 import { PhotoManager } from "@/components/photo-manager";
+import {
+  carfaxSourceUrlCheckboxState,
+  isVinSourcedField,
+  type VinDecodeField,
+} from "@okauto/shared";
 import { ExternalLink, Sparkles, Search } from "lucide-react";
 
 export default function VehicleDetailPage() {
@@ -28,6 +33,8 @@ function VehicleDetail() {
   const router = useRouter();
   const [vehicle, setVehicle] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
+  const [decodeError, setDecodeError] = useState("");
+  const [carfaxSaving, setCarfaxSaving] = useState(false);
 
   const load = useCallback(async () => {
     const res = await apiFetch(`/api/v1/vehicles/${id}`);
@@ -40,14 +47,33 @@ function VehicleDetail() {
   }, [load]);
 
   const handleDecodeVin = async () => {
+    setDecodeError("");
     const res = await apiFetch(`/api/v1/vehicles/${id}/decode-vin`, {
       method: "POST",
     });
     if (res.ok) load();
     else {
       const err = await res.json();
-      alert(err.error);
+      setDecodeError(
+        typeof err.error === "string"
+          ? err.error
+          : "Le NIV n’a pas pu être décodé.",
+      );
     }
+  };
+
+  const handleCarfaxLinkToggle = async (checked: boolean) => {
+    setCarfaxSaving(true);
+    const res = await apiFetch(`/api/v1/vehicles/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ includeCarfaxSourceUrl: checked }),
+    });
+    if (res.ok) {
+      setVehicle((current) =>
+        current ? { ...current, includeCarfaxSourceUrl: checked } : current,
+      );
+    }
+    setCarfaxSaving(false);
   };
 
   const handleGenerateDesc = async () => {
@@ -79,6 +105,41 @@ function VehicleDetail() {
   const marketplaceDraft = (
     vehicle.marketplaceDrafts as Array<{ description: string }> | undefined
   )?.[0];
+  const fromVin = (field: VinDecodeField) =>
+    isVinSourcedField(
+      {
+        vinDecodedAt: vehicle.vinDecodedAt as string | null | undefined,
+        vinDecodedFields: vehicle.vinDecodedFields as string[] | undefined,
+        year: vehicle.year as number | null,
+        make: vehicle.make as string | null,
+        model: vehicle.model as string | null,
+        trim: vehicle.trim as string | null,
+        bodyStyle: vehicle.bodyStyle as string | null,
+        engine: vehicle.engine as string | null,
+        fuelType: vehicle.fuelType as string | null,
+        transmission: vehicle.transmission as string | null,
+        drivetrain: vehicle.drivetrain as string | null,
+        doors: vehicle.doors as number | null,
+        cylinders: vehicle.cylinders as number | null,
+      },
+      field,
+    );
+  const VinBadge = ({ field }: { field: VinDecodeField }) =>
+    fromVin(field) ? (
+      <span
+        className="ml-1.5 rounded bg-slate-100 px-1 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500"
+        title="Complété depuis le NIV (NHTSA vPIC)"
+      >
+        NIV
+      </span>
+    ) : null;
+  const carfaxLink = carfaxSourceUrlCheckboxState(
+    Boolean(
+      (vehicle.organization as { includeCarfaxSourceUrl?: boolean } | undefined)
+        ?.includeCarfaxSourceUrl,
+    ),
+    Boolean(vehicle.includeCarfaxSourceUrl),
+  );
 
   return (
     <div>
@@ -134,15 +195,44 @@ function VehicleDetail() {
               <p>
                 <strong>Transmission :</strong>{" "}
                 {(vehicle.transmission as string) ?? "—"}
+                <VinBadge field="transmission" />
               </p>
               <p>
                 <strong>Rouage :</strong>{" "}
                 {(vehicle.drivetrain as string) ?? "—"}
+                <VinBadge field="drivetrain" />
               </p>
               <p>
                 <strong>Moteur :</strong> {(vehicle.engine as string) ?? "—"}
+                <VinBadge field="engine" />
               </p>
             </div>
+            {decodeError && (
+              <p className="mt-3 p-2 bg-red-50 text-red-700 rounded-lg text-xs">
+                {decodeError}
+              </p>
+            )}
+            <label className="mt-4 flex items-start gap-2 text-xs text-slate-700">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={carfaxLink.checked}
+                disabled={
+                  carfaxSaving ||
+                  !vehicle.sourceUrl ||
+                  carfaxLink.lockedByOrganization
+                }
+                onChange={(e) => void handleCarfaxLinkToggle(e.target.checked)}
+              />
+              <span>
+                Inclure le lien de cette fiche dans la mention Carfax de
+                l’annonce (pour tester avant de l’activer partout). Sans URL par
+                défaut.
+                {carfaxLink.lockedByOrganization
+                  ? " Activé pour toute l’organisation (Paramètres) — la case reflète l’état effectif."
+                  : null}
+              </span>
+            </label>
             <div className="flex flex-wrap gap-2 mt-4">
               {Boolean(vehicle.vin) && (
                 <button

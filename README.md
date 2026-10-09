@@ -10,8 +10,21 @@
 - **Sold Vehicle Alerts** — Notifications when inventory is marked sold
 - **Chrome Extension (MV3)** — Human-in-the-loop Marketplace form assist (no auto-bypass)
 - **API Keys** — Secure extension authentication
-- **Background Worker** — BullMQ job processing for sync and notifications
+- **Background Worker** — BullMQ job processing for sync, VIN decode catch-up, and notifications
 - **Docker** — Full stack with PostgreSQL and Redis
+
+### Décodage NIV (NHTSA vPIC, gratuit)
+
+Le décodage ne remplit **que les champs vides**. La version, les options et les autres données du site du concessionnaire priment toujours sur vPIC.
+
+- Formulaire d’ajout : un NIV valide de 17 caractères est décodé tout seul.
+- Synchro et parc existant : le worker enrichit automatiquement les NIV pas encore décodés (`vinDecodedAt` vide), 50 par minute, 1 appel vPIC / ~1,1 s. Une valeur vide du site n’écrase jamais un champ **enregistré** dans `vinDecodedFields` ; une valeur non vide du concessionnaire gagne toujours. Une liste vide ne protège aucun champ.
+- **Rattrapage (~203 véhicules)** : au déploiement, le worker démarre un job `vin-decode` tout de suite, puis toutes les minutes jusqu’à ce que la file soit vide. Durée estimée : **environ 5 minutes** (203 × 1,1 s de vPIC, par lots de 50). Relançable sans risque : un NIV déjà tamponné est ignoré.
+- Commande manuelle (optionnelle), après `pnpm --filter @okauto/worker build` : `pnpm --filter @okauto/worker vin-decode` (exécute `node dist/vin-decode-cli.js`). Dans l’image worker : `node dist/vin-decode-cli.js`. Requiert `DATABASE_URL`.
+
+### Mention Carfax dans les annonces Marketplace
+
+Pour les **occasions et démonstrateurs** seulement (pas les neufs) : « Rapport Carfax gratuit disponible, écrivez-nous ! » — **sans URL** par défaut. Option (désactivée) pour coller `sourceUrl` à la place : un véhicule (test) ou Paramètres (partout).
 
 ## Quick Start
 

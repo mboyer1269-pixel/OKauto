@@ -1,9 +1,13 @@
 import { prisma } from "@okauto/database";
 import {
+  carfaxMentionEn,
+  carfaxMentionFr,
   classifyInventoryKind,
   composeListingDescription,
+  ensureCarfaxMention,
   generateTemplateDescriptionEn,
   mergePricingFees,
+  resolveIncludeCarfaxSourceUrl,
   resolveListingLocale,
   type ListingLocale,
 } from "@okauto/shared";
@@ -93,6 +97,10 @@ export async function generateVehicleDescription(
     vin: vehicle.vin,
     stockNumber: vehicle.stockNumber,
     sourceUrl: vehicle.sourceUrl,
+    includeCarfaxSourceUrl: resolveIncludeCarfaxSourceUrl(
+      vehicle.organization.includeCarfaxSourceUrl,
+      vehicle.includeCarfaxSourceUrl,
+    ),
     location: vehicle.location,
     language:
       resolvedLocale === "bilingual"
@@ -127,8 +135,8 @@ export async function generateVehicleDescription(
                 role: "system",
                 content:
                   resolvedLocale === "en"
-                    ? "You are an excellent Quebec automotive advisor writing in Canadian English. Write a first-person Facebook Marketplace listing, 140-240 words, specific and scannable. Never invent equipment, warranties, rates or discounts. Show the advertised all-in CAD price (before GST, QST and the Quebec new-tire fee). End by asking the shopper to message the advisor on Messenger. Return only the listing text."
-                    : "Tu es un excellent conseiller automobile québécois. Rédige à la première personne une annonce Facebook Marketplace humaine, précise et facile à parcourir, entre 140 et 240 mots. Commence par une accroche spécifique au véhicule, puis explique sa configuration et ses équipements les plus pertinents avec de courtes phrases et quelques puces. N’utilise aucun cliché vide et ne répète pas deux fois la même information. N’invente jamais une garantie, une certification, un rabais, un taux, une capacité, une performance ni un équipement. Affiche clairement le prix annoncé tout inclus en dollars canadiens (avant TPS, TVQ et droit sur les pneus neufs) et le kilométrage en km. Termine en demandant au client d’écrire directement au conseiller sur Messenger ou d’appeler la concession et de demander ce conseiller. Précise que seules la TPS, la TVQ et le droit sur les pneus neufs peuvent s’ajouter. Retourne seulement le texte final de l’annonce.",
+                    ? "You are an excellent Quebec automotive advisor writing in Canadian English. Write a first-person Facebook Marketplace listing, 140-240 words, specific and scannable. Never invent equipment, warranties, rates or discounts. Show the advertised all-in CAD price (before GST, QST and the Quebec new-tire fee). If a Carfax line is provided, include it verbatim and do not add any other URL. End by asking the shopper to message the advisor on Messenger. Return only the listing text."
+                    : "Tu es un excellent conseiller automobile québécois. Rédige à la première personne une annonce Facebook Marketplace humaine, précise et facile à parcourir, entre 140 et 240 mots. Commence par une accroche spécifique au véhicule, puis explique sa configuration et ses équipements les plus pertinents avec de courtes phrases et quelques puces. N’utilise aucun cliché vide et ne répète pas deux fois la même information. N’invente jamais une garantie, une certification, un rabais, un taux, une capacité, une performance ni un équipement. Affiche clairement le prix annoncé tout inclus en dollars canadiens (avant TPS, TVQ et droit sur les pneus neufs) et le kilométrage en km. Si une mention Carfax est fournie, inclus-la telle quelle, sans ajouter d’autre lien. Termine en demandant au client d’écrire directement au conseiller sur Messenger ou d’appeler la concession et de demander ce conseiller. Précise que seules la TPS, la TVQ et le droit sur les pneus neufs peuvent s’ajouter. Retourne seulement le texte final de l’annonce.",
               },
               {
                 role: "user",
@@ -154,6 +162,10 @@ export async function generateVehicleDescription(
                   dealership: vehicle.organization.name,
                   contactName,
                   phone: vehicle.organization.phone,
+                  carfaxLine:
+                    resolvedLocale === "en"
+                      ? carfaxMentionEn(vehicleData)
+                      : carfaxMentionFr(vehicleData),
                 })}`,
               },
             ],
@@ -168,11 +180,14 @@ export async function generateVehicleDescription(
         const content = data.choices?.[0]?.message?.content;
         if (content) {
           const descriptionEn = generateTemplateDescriptionEn(vehicleData);
+          const french = ensureCarfaxMention(content, vehicleData, "fr");
           return {
             description:
               resolvedLocale === "bilingual"
-                ? `${content}\n\n————————\nEnglish\n————————\n\n${descriptionEn}`
-                : content,
+                ? `${french}\n\n————————\nEnglish\n————————\n\n${descriptionEn}`
+                : resolvedLocale === "en"
+                  ? ensureCarfaxMention(content, vehicleData, "en")
+                  : french,
             descriptionEn,
             locale: resolvedLocale,
             source: "ai",

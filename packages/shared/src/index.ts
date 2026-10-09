@@ -98,6 +98,9 @@ export const createVehicleSchema = z.object({
   location: z.string().max(200).optional().nullable(),
   notes: z.string().max(5000).optional().nullable(),
   assignedToId: z.string().optional().nullable(),
+  includeCarfaxSourceUrl: z.boolean().optional(),
+  vinDecoded: z.boolean().optional(),
+  vinDecodedFields: z.array(z.string()).optional(),
   photos: z
     .array(
       z.object({
@@ -237,6 +240,11 @@ export const updateOrganizationSchema = z.object({
   adminFee: z.number().min(0).max(50000).optional().nullable(),
   acExciseFee: z.number().min(0).max(5000).optional().nullable(),
   metaCatalogStateForDemo: z.enum(["Used", "New"]).optional(),
+  includeCarfaxSourceUrl: z.boolean().optional(),
+});
+
+export const decodeVinRequestSchema = z.object({
+  vin: z.string().min(1).max(32),
 });
 
 // API key schema

@@ -116,6 +116,7 @@ describe("S1-4 Quebec descriptions", () => {
       "Seules la TPS, la TVQ et, le cas échéant, le droit spécifique sur les pneus neufs s'ajoutent.",
     );
     expect(desc).not.toMatch(/^Aucun frais obligatoire additionnel$/m);
+    expect(desc).toContain("Rapport Carfax gratuit disponible, écrivez-nous !");
   });
 
   it("blocks when all-in price is not confirmed", () => {
