@@ -103,6 +103,7 @@ test.describe("Suivia Auto", () => {
     await page.goto("/dashboard/inventory");
     await page
       .locator('a[href^="/dashboard/inventory/"]:not([href$="/new"])')
+      .locator("visible=true")
       .first()
       .click();
     await page.waitForURL(/\/dashboard\/inventory\/[^/]+$/, { timeout: 10000 });
