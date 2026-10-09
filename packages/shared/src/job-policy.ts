@@ -3,6 +3,25 @@ export const SYNC_TICK_JOB_NAME = "tick";
 export const REMINDER_JOB_NAME = "reminders";
 export const DEGRADED_JOB_NAME = "degraded";
 export const VIN_DECODE_JOB_NAME = "vin-decode";
+export const ACCESS_REQUEST_RETENTION_JOB_NAME = "access-request-retention";
+
+/** Loi 25: erase stored IP after 30 days. */
+export const ACCESS_REQUEST_IP_RETENTION_DAYS = 30;
+/** Loi 25: delete the access-request row after 12 months. */
+export const ACCESS_REQUEST_RETENTION_MONTHS = 12;
+export const ACCESS_REQUEST_RETENTION_EVERY_MS = 24 * 60 * 60 * 1000;
+
+export function accessRequestIpCutoff(now: Date = new Date()): Date {
+  return new Date(
+    now.getTime() - ACCESS_REQUEST_IP_RETENTION_DAYS * 24 * 60 * 60 * 1000,
+  );
+}
+
+export function accessRequestRecordCutoff(now: Date = new Date()): Date {
+  const cutoff = new Date(now.getTime());
+  cutoff.setUTCMonth(cutoff.getUTCMonth() - ACCESS_REQUEST_RETENTION_MONTHS);
+  return cutoff;
+}
 
 export const SYNC_JOB_ATTEMPTS = 3;
 export const SYNC_JOB_BACKOFF_MS = 5_000;

@@ -3,8 +3,10 @@ import {
   completeness,
   daysInStock,
   daysTone,
+  isInventoryShortcutTarget,
   marketplaceStatus,
   matchesSavedView,
+  SAVED_VIEWS,
 } from "../inventory-ui";
 
 const base = {
@@ -74,5 +76,31 @@ describe("inventory-ui", () => {
     expect(matchesSavedView({ ...base, trim: null, engine: null }, "nobuild")).toBe(
       true,
     );
+    expect(SAVED_VIEWS.find((view) => view.id === "ready")?.label).toBe(
+      "Sans annonce active",
+    );
+  });
+
+  it("ignore les raccourcis quand un élément interactif a le focus", () => {
+    expect(isInventoryShortcutTarget(null)).toBe(false);
+    expect(isInventoryShortcutTarget({ tagName: "BUTTON" })).toBe(true);
+    expect(isInventoryShortcutTarget({ tagName: "A" })).toBe(true);
+    expect(isInventoryShortcutTarget({ tagName: "INPUT" })).toBe(true);
+    expect(isInventoryShortcutTarget({ tagName: "TEXTAREA" })).toBe(true);
+    expect(isInventoryShortcutTarget({ tagName: "SELECT" })).toBe(true);
+    expect(isInventoryShortcutTarget({ isContentEditable: true })).toBe(true);
+    expect(
+      isInventoryShortcutTarget({
+        tagName: "svg",
+        closest: (selector: string) =>
+          selector.includes("button") ? {} : null,
+      }),
+    ).toBe(true);
+    expect(
+      isInventoryShortcutTarget({
+        tagName: "DIV",
+        closest: () => null,
+      }),
+    ).toBe(false);
   });
 });

@@ -22,6 +22,9 @@ test.describe("Suivia Auto", () => {
     ).toBeVisible();
     const consent = page.getByRole("checkbox");
     await expect(consent).not.toBeChecked();
+    await expect(page.getByText(/adresse IP/)).toBeVisible();
+    await expect(page.getByText(/30 jours/)).toBeVisible();
+    await expect(page.getByText(/12 mois/)).toBeVisible();
     await expect(
       page.getByRole("link", { name: "Confidentialité" }),
     ).toHaveAttribute("href", "/confidentialite");
@@ -70,6 +73,9 @@ test.describe("Suivia Auto", () => {
     await expect(
       page.getByLabel("SUIVIA AUTO").locator("visible=true").first(),
     ).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Demandes d’accès" }),
+    ).toHaveCount(0);
   });
 
   test("inventory page loads after login", async ({ page }) => {
@@ -83,6 +89,29 @@ test.describe("Suivia Auto", () => {
       page.getByRole("heading", { name: "Inventaire" }),
     ).toBeVisible();
     await expect(page.getByText("Ajouter un véhicule")).toBeVisible();
+  });
+
+  test("inventory Véhicule sort header Enter sorts instead of opening a row", async ({
+    page,
+  }) => {
+    await page.goto("/login");
+    await page.fill('input[type="email"]', "owner@demo.okauto.local");
+    await page.fill('input[type="password"]', "Demo1234!");
+    await page.click('button[type="submit"]');
+    await page.waitForURL("**/dashboard**", { timeout: 15000 });
+    await page.goto("/dashboard/inventory");
+    await expect(
+      page.getByRole("heading", { name: "Inventaire" }),
+    ).toBeVisible();
+
+    const sortButton = page.getByRole("button", { name: "Véhicule" });
+    await expect(sortButton).toBeVisible({ timeout: 15000 });
+    const header = page.locator("th", { has: sortButton });
+    await expect(header).toHaveAttribute("aria-sort", "none");
+    await sortButton.focus();
+    await page.keyboard.press("Enter");
+    await expect(header).toHaveAttribute("aria-sort", /ascending|descending/);
+    await expect(page).toHaveURL(/\/dashboard\/inventory\/?$/);
   });
 
   test("sync health page loads after login", async ({ page }) => {

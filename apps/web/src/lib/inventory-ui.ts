@@ -90,7 +90,7 @@ export type SavedView =
 
 export const SAVED_VIEWS: Array<{ id: SavedView; label: string }> = [
   { id: "all", label: "Tous" },
-  { id: "ready", label: "Prêts à publier" },
+  { id: "ready", label: "Sans annonce active" },
   { id: "renew", label: "À renouveler" },
   { id: "nophoto", label: "Sans photos" },
   { id: "aged", label: "> 45 jours" },
@@ -112,4 +112,33 @@ export function matchesSavedView(
   if (view === "aged") return daysInStock(vehicle.createdAt) > 45;
   if (view === "nobuild") return !complete.parts.build;
   return true;
+}
+
+const INVENTORY_SHORTCUT_IGNORE =
+  "a,button,input,textarea,select,summary,option,[contenteditable],[contenteditable=''],[contenteditable='true'],[role='button'],[role='link'],[role='tab'],[role='menuitem'],[role='checkbox'],[role='radio'],[role='switch'],[role='combobox'],[role='option'],[role='slider'],[tabindex]:not([tabindex='-1'])";
+
+export function isInventoryShortcutTarget(target: EventTarget | null): boolean {
+  if (!target || typeof target !== "object") return false;
+  const el = target as {
+    tagName?: string;
+    isContentEditable?: boolean;
+    closest?: (selector: string) => unknown;
+  };
+  const tag = el.tagName?.toUpperCase();
+  if (
+    tag === "INPUT" ||
+    tag === "TEXTAREA" ||
+    tag === "SELECT" ||
+    tag === "BUTTON" ||
+    tag === "A" ||
+    tag === "SUMMARY" ||
+    tag === "OPTION"
+  ) {
+    return true;
+  }
+  if (el.isContentEditable) return true;
+  if (typeof el.closest === "function") {
+    return Boolean(el.closest(INVENTORY_SHORTCUT_IGNORE));
+  }
+  return false;
 }

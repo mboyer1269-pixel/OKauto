@@ -13,15 +13,18 @@ export const accessRequestCopy = {
     message: "Message",
   },
   consent:
-    "J’accepte que ces renseignements soient conservés uniquement pour traiter ma demande d’accès (Loi 25).",
+    "J’accepte que ces renseignements soient conservés 12 mois pour traiter ma demande d’accès (Loi 25). L’adresse IP est enregistrée 30 jours pour prévenir les abus.",
   privacy: landingCopy.footer.privacy,
   submit: "Envoyer la demande",
   login: landingCopy.nav.login,
   dashboard: {
     title: "Demandes d’accès",
     empty: "Aucune demande pour le moment.",
-    forbidden: "Réservé au propriétaire.",
+    forbidden: "Réservé aux administrateurs de la plateforme.",
     consent: "Consentement",
+    actions: "Actions",
+    delete: "Supprimer",
+    deleteConfirm: "Supprimer définitivement cette demande d’accès ?",
   },
 } as const;
 

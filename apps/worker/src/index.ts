@@ -2,6 +2,8 @@ import { Worker, Queue } from "bullmq";
 import IORedis from "ioredis";
 import { prisma } from "@okauto/database";
 import {
+  ACCESS_REQUEST_RETENTION_EVERY_MS,
+  ACCESS_REQUEST_RETENTION_JOB_NAME,
   DEGRADED_EVERY_MS,
   DEGRADED_JOB_NAME,
   MAINTENANCE_JOB_OPTS,
@@ -25,6 +27,7 @@ import { startWorkerHeartbeat } from "./heartbeat.js";
 import { checkSyncDegraded } from "./degraded.js";
 import { captureWorkerException, initWorkerSentry } from "./sentry.js";
 import { processVinDecodeBatch } from "./vin-decode.js";
+import { processAccessRequestRetention } from "./access-request-retention.js";
 
 const REDIS_URL = process.env.REDIS_URL ?? "redis://localhost:6379";
 
@@ -126,6 +129,9 @@ const maintenanceWorker = new Worker(
     if (job.name === DEGRADED_JOB_NAME) {
       return checkSyncDegraded();
     }
+    if (job.name === ACCESS_REQUEST_RETENTION_JOB_NAME) {
+      return processAccessRequestRetention();
+    }
     return { skipped: true };
   },
   { connection },
@@ -177,7 +183,9 @@ console.log("Suivia Auto worker started");
 console.log("  - Import queue: listening");
 console.log("  - Sync queue: listening");
 console.log("  - Notification queue: listening");
-console.log("  - Maintenance schedulers: tick / reminders / degraded");
+  console.log(
+    "  - Maintenance schedulers: tick / reminders / degraded / access-request-retention",
+  );
 console.log("  - VIN decode (vPIC): catch-up + post-sync empty fields");
 
 export async function scheduleSyncJobs() {
@@ -225,6 +233,15 @@ async function startSchedulers() {
     {
       name: DEGRADED_JOB_NAME,
       data: { kind: DEGRADED_JOB_NAME },
+      opts: MAINTENANCE_JOB_OPTS,
+    },
+  );
+  await maintenanceQueue.upsertJobScheduler(
+    "suivia-access-request-retention",
+    { every: ACCESS_REQUEST_RETENTION_EVERY_MS },
+    {
+      name: ACCESS_REQUEST_RETENTION_JOB_NAME,
+      data: { kind: ACCESS_REQUEST_RETENTION_JOB_NAME },
       opts: MAINTENANCE_JOB_OPTS,
     },
   );

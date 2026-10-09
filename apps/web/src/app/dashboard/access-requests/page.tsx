@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { ProtectedRoute } from "@/components/protected-route";
 import { useAuth } from "@/components/auth-provider";
 import { accessRequestCopy } from "@/content/access-request";
-import { hasMinRole, type RoleType } from "@okauto/shared";
 import { formatDateTime } from "@/lib/utils";
 
 interface AccessRequestRow {
@@ -27,15 +26,14 @@ export default function AccessRequestsPage() {
 }
 
 function AccessRequestsContent() {
-  const { apiFetch, role } = useAuth();
+  const { apiFetch, isPlatformAdmin } = useAuth();
   const [requests, setRequests] = useState<AccessRequestRow[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
-  const canView =
-    role !== null && hasMinRole(role as RoleType, "OWNER");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!canView) {
+    if (!isPlatformAdmin) {
       setLoading(false);
       return;
     }
@@ -57,9 +55,35 @@ function AccessRequestsContent() {
         );
       })
       .finally(() => setLoading(false));
-  }, [apiFetch, canView]);
+  }, [apiFetch, isPlatformAdmin]);
 
-  if (!canView) {
+  const handleDelete = async (id: string) => {
+    if (!window.confirm(accessRequestCopy.dashboard.deleteConfirm)) return;
+    setDeletingId(id);
+    setError("");
+    try {
+      const response = await apiFetch(`/api/v1/access-requests/${id}`, {
+        method: "DELETE",
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(
+          data.error ?? "La demande n’a pas pu être supprimée.",
+        );
+      }
+      setRequests((current) => current.filter((row) => row.id !== id));
+    } catch (deleteError: unknown) {
+      setError(
+        deleteError instanceof Error
+          ? deleteError.message
+          : "La demande n’a pas pu être supprimée.",
+      );
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  if (!isPlatformAdmin) {
     return (
       <p className="text-muted-foreground">
         {accessRequestCopy.dashboard.forbidden}
@@ -89,8 +113,13 @@ function AccessRequestsContent() {
               <th className="pb-3 pr-4">{accessRequestCopy.fields.email}</th>
               <th className="pb-3 pr-4">{accessRequestCopy.fields.phone}</th>
               <th className="pb-3 pr-4">{accessRequestCopy.fields.message}</th>
-              <th className="pb-3">
+              <th className="pb-3 pr-4">
                 {accessRequestCopy.dashboard.consent}
+              </th>
+              <th className="pb-3">
+                <span className="sr-only">
+                  {accessRequestCopy.dashboard.actions}
+                </span>
               </th>
             </tr>
           </thead>
@@ -107,8 +136,18 @@ function AccessRequestsContent() {
                 <td className="max-w-xs py-3 pr-4 whitespace-pre-wrap">
                   {request.message}
                 </td>
-                <td className="py-3 text-muted-foreground">
+                <td className="py-3 pr-4 text-muted-foreground">
                   {formatDateTime(request.consentAt)}
+                </td>
+                <td className="py-3">
+                  <button
+                    type="button"
+                    className="btn-secondary text-destructive"
+                    onClick={() => handleDelete(request.id)}
+                    disabled={deletingId === request.id}
+                  >
+                    {accessRequestCopy.dashboard.delete}
+                  </button>
                 </td>
               </tr>
             ))}

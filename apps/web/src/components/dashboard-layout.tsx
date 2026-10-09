@@ -32,6 +32,7 @@ const navItems: Array<{
   label: string;
   icon: typeof LayoutDashboard;
   minRole?: RoleType;
+  platformAdmin?: boolean;
 }> = [
   { href: "/dashboard", label: "Vue du matin", icon: LayoutDashboard },
   { href: "/dashboard/inventory", label: "Inventaire", icon: Car },
@@ -49,7 +50,7 @@ const navItems: Array<{
     href: "/dashboard/access-requests",
     label: "Demandes d’accès",
     icon: Inbox,
-    minRole: "OWNER",
+    platformAdmin: true,
   },
   { href: "/dashboard/notifications", label: "Notifications", icon: Bell },
   { href: "/dashboard/settings", label: "Paramètres", icon: Settings },
@@ -68,15 +69,17 @@ const navItems: Array<{
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { user, organization, role, logout } = useAuth();
+  const { user, organization, role, logout, isPlatformAdmin } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const professionalTitle = getTeamMemberTitle(role, user);
   const currentRole = role as RoleType | null;
-  const visibleNavItems = navItems.filter(
-    (item) =>
+  const visibleNavItems = navItems.filter((item) => {
+    if (item.platformAdmin) return isPlatformAdmin;
+    return (
       !item.minRole ||
-      (currentRole !== null && hasMinRole(currentRole, item.minRole)),
-  );
+      (currentRole !== null && hasMinRole(currentRole, item.minRole))
+    );
+  });
 
   return (
     <div className="cockpit-grid min-h-screen bg-background">

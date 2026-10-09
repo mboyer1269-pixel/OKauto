@@ -4,6 +4,8 @@ import {
   handleApiError,
   errorResponse,
   tooManyRequestsResponse,
+  InvalidJsonError,
+  parseBody,
 } from "@/lib/api";
 
 describe("handleApiError", () => {
@@ -26,6 +28,14 @@ describe("handleApiError", () => {
     expect(res.status).toBe(400);
     expect(data.error).toBe("Les données envoyées sont invalides");
     expect(data.details).toBeTruthy();
+    expect(data.correlationId).toBeUndefined();
+  });
+
+  it("returns 400 for malformed JSON instead of 500", async () => {
+    const res = handleApiError(new InvalidJsonError());
+    const data = await res.json();
+    expect(res.status).toBe(400);
+    expect(data.error).toMatch(/JSON/);
     expect(data.correlationId).toBeUndefined();
   });
 
@@ -71,6 +81,17 @@ describe("handleApiError", () => {
 
     expect(res.status).toBe(500);
     expect(data.error).not.toContain("JWT_SECRET");
+  });
+});
+
+describe("parseBody", () => {
+  it("throws InvalidJsonError on malformed JSON", async () => {
+    const request = new Request("http://localhost/api/v1/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{not-json",
+    });
+    await expect(parseBody(request)).rejects.toBeInstanceOf(InvalidJsonError);
   });
 });
 

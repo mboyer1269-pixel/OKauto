@@ -68,5 +68,5 @@ export const GET = withAuth(
 
     return jsonResponse({ requests });
   },
-  { minRole: "OWNER" },
+  { platformAdmin: true },
 );

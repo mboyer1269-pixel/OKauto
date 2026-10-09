@@ -25,6 +25,7 @@ interface AuthState {
   user: User | null;
   organization: Organization | null;
   role: string | null;
+  isPlatformAdmin: boolean;
   accessToken: string | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
@@ -56,6 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [role, setRole] = useState<string | null>(null);
+  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [refreshToken, setRefreshToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -159,11 +161,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             user: User;
             organization: Organization;
             role: string;
+            isPlatformAdmin?: boolean;
           };
           if (!cancelled) {
             setUser(profile.user);
             setOrganization(profile.organization);
             setRole(profile.role);
+            setIsPlatformAdmin(Boolean(profile.isPlatformAdmin));
           }
           localStorage.setItem("user", JSON.stringify(profile.user));
           localStorage.setItem(
@@ -183,6 +187,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setUser(null);
             setOrganization(null);
             setRole(null);
+            setIsPlatformAdmin(false);
             setAccessToken(null);
             setRefreshToken(null);
           }
@@ -206,12 +211,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user: User;
     organization: Organization;
     role?: string;
+    isPlatformAdmin?: boolean;
   }) => {
     setAccessToken(data.accessToken);
     setRefreshToken(data.refreshToken);
     setUser(data.user);
     setOrganization(data.organization);
     setRole(data.role ?? null);
+    setIsPlatformAdmin(Boolean(data.isPlatformAdmin));
     localStorage.setItem("accessToken", data.accessToken);
     localStorage.setItem("refreshToken", data.refreshToken);
     localStorage.setItem("user", JSON.stringify(data.user));
@@ -267,6 +274,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setOrganization(null);
     setRole(null);
+    setIsPlatformAdmin(false);
     setAccessToken(null);
     setRefreshToken(null);
     ["accessToken", "refreshToken", "user", "organization", "role"].forEach(
@@ -281,6 +289,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         organization,
         role,
+        isPlatformAdmin,
         accessToken,
         isLoading,
         login,

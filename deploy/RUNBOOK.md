@@ -188,6 +188,7 @@ Logs toujours : `docker compose --env-file /opt/okauto/.env -f /opt/okauto/compo
    - `DATABASE_URL=…@postgres:5432/…` (**pas** `127.0.0.1:5433`)
    - `REDIS_URL=redis://redis:6379`
    - `ALLOW_PUBLIC_SIGNUP=false`, `TRUST_PROXY=true`
+   - `PLATFORM_ADMIN_EMAILS=` (courriels admins plateforme, virgules ; vide = personne n’accède aux demandes d’accès)
    - conserver `POSTGRES_*`, `JWT_SECRET`, AWS/OpenAI existants
 6. Copier `compose.prod.yml` + `scripts/` ; **arrêter** d’utiliser `docker-compose.yml` + build local `src/`.
    **Leçon cutover :** arrêter l’ancienne stack avec `docker compose stop` puis `docker compose rm -f`. **Pas** `down` (ça supprime le réseau `okauto` que le nouveau compose attend `external`). **Jamais** `down -v`.

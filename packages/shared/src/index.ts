@@ -379,3 +379,4 @@ export * from "./uptime-ping";
 export * from "./sentry-scrub";
 export * from "./sync-degraded";
 export * from "./job-policy";
+export * from "./platform-admin";

@@ -83,6 +83,11 @@ describe("Cockpit — logo D et thème", () => {
     expect(dashboard).toContain("font-mono text-2xl font-bold tabular-nums");
     expect(inventory).toContain("CockpitSkeleton");
     expect(inventory).toContain("cockpit-scan");
+    expect(inventory).toContain("isInventoryShortcutTarget");
+    expect(inventory).not.toMatch(/Générer les descriptions/);
+    expect(inventory).not.toMatch(/handleBulkGenerate/);
+    expect(dashboard).toContain("Sans annonce active");
+    expect(dashboard).not.toMatch(/Prêts à publier/);
     expect(vehicle).toContain("CockpitSkeleton");
     expect(vehicle).toContain("font-mono text-3xl font-bold tabular-nums");
     expect(vehicle).toContain("Build d’usine");

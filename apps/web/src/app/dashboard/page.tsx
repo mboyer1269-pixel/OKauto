@@ -161,7 +161,7 @@ function DashboardContent() {
           </Link>
         </div>
         <div className="grid border-t border-white/10 sm:grid-cols-4">
-          <HeroMetric label="Prêts à publier" value={stats.readyToList} />
+          <HeroMetric label="Sans annonce active" value={stats.readyToList} />
           <HeroMetric
             label="Publications / quota"
             value={queue?.usedThisMonth ?? 0}

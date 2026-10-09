@@ -22,7 +22,7 @@ export const cockpitLight = {
   primaryForeground: "#FFFFFF",
   signal: "#0B7A56",
   warning: "#B45309",
-  danger: "#DC2626",
+  danger: "#B91C1C",
 } as const;
 
 export const cockpitDark = {

@@ -16,6 +16,7 @@ import {
   completeness,
   daysInStock,
   daysTone,
+  isInventoryShortcutTarget,
   MARKETPLACE_LABEL,
   marketplaceStatus,
   matchesSavedView,
@@ -100,7 +101,6 @@ function InventoryContent() {
   const [density, setDensity] = useState<"comfortable" | "compact">(
     "comfortable",
   );
-  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [cursor, setCursor] = useState(0);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const hasLoaded = useRef(false);
@@ -186,21 +186,11 @@ function InventoryContent() {
 
   useEffect(() => {
     setCursor(0);
-    setSelected(new Set());
   }, [filtered.length, view, page]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null;
-      if (
-        target &&
-        (target.tagName === "INPUT" ||
-          target.tagName === "TEXTAREA" ||
-          target.tagName === "SELECT" ||
-          target.isContentEditable)
-      ) {
-        return;
-      }
+      if (isInventoryShortcutTarget(event.target)) return;
       if (filtered.length === 0) return;
       if (event.key === "j" || event.key === "J") {
         event.preventDefault();
@@ -268,14 +258,6 @@ function InventoryContent() {
       text: "La description Marketplace a été mise à jour.",
     });
     await load();
-  };
-
-  const handleBulkGenerate = async () => {
-    const ids = [...selected];
-    for (const id of ids) {
-      await handleGenerateDesc(id);
-    }
-    setSelected(new Set());
   };
 
   const copyVin = async (vin: string, id: string) => {
@@ -524,22 +506,6 @@ function InventoryContent() {
             <table className="w-full min-w-[64rem] text-left text-sm">
               <thead className="border-b border-border bg-muted/40 font-mono text-[11px] uppercase tracking-[0.12em] text-muted-foreground">
                 <tr>
-                  <th className="w-10 px-3 py-2">
-                    <span className="sr-only">Sélection</span>
-                    <input
-                      type="checkbox"
-                      checked={
-                        filtered.length > 0 &&
-                        filtered.every((row) => selected.has(row.id))
-                      }
-                      onChange={(event) => {
-                        if (event.target.checked) {
-                          setSelected(new Set(filtered.map((row) => row.id)));
-                        } else setSelected(new Set());
-                      }}
-                      aria-label="Tout sélectionner"
-                    />
-                  </th>
                   <th className="px-2 py-2">Photo</th>
                   <SortHeader
                     label="Véhicule"
@@ -599,19 +565,6 @@ function InventoryContent() {
                           : "hover:bg-muted/60",
                       )}
                     >
-                      <td className="px-3">
-                        <input
-                          type="checkbox"
-                          checked={selected.has(vehicle.id)}
-                          onChange={(event) => {
-                            const next = new Set(selected);
-                            if (event.target.checked) next.add(vehicle.id);
-                            else next.delete(vehicle.id);
-                            setSelected(next);
-                          }}
-                          aria-label={`Sélectionner ${title}`}
-                        />
-                      </td>
                       <td className="px-2">
                         <div
                           className={cn(
@@ -707,19 +660,6 @@ function InventoryContent() {
             </table>
           </div>
         </>
-      )}
-
-      {selected.size > 0 && (
-        <div className="cockpit-panel sticky bottom-4 z-20 mx-auto flex max-w-xl items-center justify-between gap-3 px-4 py-3 text-sm">
-          <span className="font-medium">
-            {selected.size} véhicule{selected.size > 1 ? "s" : ""} sélectionné
-            {selected.size > 1 ? "s" : ""}
-          </span>
-          <button type="button" className="btn-primary" onClick={handleBulkGenerate}>
-            <Sparkles size={14} className="mr-1" />
-            Générer les descriptions
-          </button>
-        </div>
       )}
 
       {!loading && pagination.totalPages > 1 && (

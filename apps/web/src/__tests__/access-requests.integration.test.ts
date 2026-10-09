@@ -5,6 +5,7 @@ import {
   GET as listAccessRequests,
   POST as createAccessRequest,
 } from "@/app/api/v1/access-requests/route";
+import { DELETE as deleteAccessRequest } from "@/app/api/v1/access-requests/[id]/route";
 import { POST as loginHandler } from "@/app/api/v1/auth/login/route";
 import {
   ACCESS_REQUEST_RATE_LIMIT,
@@ -38,10 +39,15 @@ const validBody = {
 
 describe("demandes d’accès", () => {
   const previousTrustProxy = process.env.TRUST_PROXY;
+  const previousPlatformAdmins = process.env.PLATFORM_ADMIN_EMAILS;
   let ownerToken: string;
   let salesToken: string;
+  let otherOwnerToken: string;
+  let platformAdminToken: string;
   let createdId: string | undefined;
   const createdEmails: string[] = [];
+  const platformAdminEmail = `platform-admin-${Date.now()}@okauto.test`;
+  const otherOwnerEmail = `other-owner-${Date.now()}@example.com`;
 
   beforeAll(async () => {
     process.env.TRUST_PROXY = "true";
@@ -90,6 +96,48 @@ describe("demandes d’accès", () => {
       },
     });
 
+    const otherOrg = await prisma.organization.create({
+      data: {
+        name: "Concession rivale",
+        slug: `autre-concession-${Date.now()}`,
+      },
+    });
+    const otherOwner = await prisma.user.create({
+      data: {
+        email: otherOwnerEmail,
+        passwordHash,
+        name: "Autre propriétaire",
+      },
+    });
+    await prisma.organizationMember.create({
+      data: {
+        organizationId: otherOrg.id,
+        userId: otherOwner.id,
+        role: "OWNER",
+      },
+    });
+
+    const adminOrg = await prisma.organization.create({
+      data: {
+        name: "Ops plateforme",
+        slug: `ops-plateforme-${Date.now()}`,
+      },
+    });
+    const platformAdmin = await prisma.user.create({
+      data: {
+        email: platformAdminEmail,
+        passwordHash,
+        name: "Admin plateforme",
+      },
+    });
+    await prisma.organizationMember.create({
+      data: {
+        organizationId: adminOrg.id,
+        userId: platformAdmin.id,
+        role: "OWNER",
+      },
+    });
+
     const ownerLogin = await loginHandler(
       makeRequest("http://localhost/api/v1/auth/login", {
         method: "POST",
@@ -110,11 +158,38 @@ describe("demandes d’accès", () => {
       }) as never,
     );
     salesToken = (await salesLogin.json()).accessToken;
+
+    const otherOwnerLogin = await loginHandler(
+      makeRequest("http://localhost/api/v1/auth/login", {
+        method: "POST",
+        body: JSON.stringify({
+          email: otherOwnerEmail,
+          password: "Demo1234!",
+        }),
+      }) as never,
+    );
+    otherOwnerToken = (await otherOwnerLogin.json()).accessToken;
+
+    const platformAdminLogin = await loginHandler(
+      makeRequest("http://localhost/api/v1/auth/login", {
+        method: "POST",
+        body: JSON.stringify({
+          email: platformAdminEmail,
+          password: "Demo1234!",
+        }),
+      }) as never,
+    );
+    platformAdminToken = (await platformAdminLogin.json()).accessToken;
   });
 
   afterAll(async () => {
     if (previousTrustProxy === undefined) delete process.env.TRUST_PROXY;
     else process.env.TRUST_PROXY = previousTrustProxy;
+    if (previousPlatformAdmins === undefined) {
+      delete process.env.PLATFORM_ADMIN_EMAILS;
+    } else {
+      process.env.PLATFORM_ADMIN_EMAILS = previousPlatformAdmins;
+    }
     setAuthRateLimitStoreForTests(new MemoryRateLimitStore());
     if (createdEmails.length > 0) {
       await prisma.accessRequest.deleteMany({
@@ -172,7 +247,22 @@ describe("demandes d’accès", () => {
     expect(res.status).toBe(400);
   });
 
-  it("exige une authentification propriétaire pour lister", async () => {
+  it("refuse un JSON malformé avec 400", async () => {
+    const res = await createAccessRequest(
+      makeRequest("http://localhost/api/v1/access-requests", {
+        method: "POST",
+        body: "{not-json",
+      }),
+    );
+    const data = await res.json();
+    expect(res.status).toBe(400);
+    expect(data.error).toMatch(/JSON/);
+    expect(data.correlationId).toBeUndefined();
+  });
+
+  it("réserve la lecture aux admins plateforme", async () => {
+    process.env.PLATFORM_ADMIN_EMAILS = platformAdminEmail;
+
     const anonymous = await listAccessRequests(
       makeRequest("http://localhost/api/v1/access-requests"),
       { params: Promise.resolve({}) },
@@ -187,20 +277,111 @@ describe("demandes d’accès", () => {
     );
     expect(salesperson.status).toBe(403);
 
-    const owner = await listAccessRequests(
+    const demoOwner = await listAccessRequests(
       makeRequest("http://localhost/api/v1/access-requests", {
         headers: { Authorization: `Bearer ${ownerToken}` },
       }),
       { params: Promise.resolve({}) },
     );
-    const data = await owner.json();
-    expect(owner.status).toBe(200);
+    expect(demoOwner.status).toBe(403);
+
+    const otherOwner = await listAccessRequests(
+      makeRequest("http://localhost/api/v1/access-requests", {
+        headers: { Authorization: `Bearer ${otherOwnerToken}` },
+      }),
+      { params: Promise.resolve({}) },
+    );
+    expect(otherOwner.status).toBe(403);
+
+    const admin = await listAccessRequests(
+      makeRequest("http://localhost/api/v1/access-requests", {
+        headers: { Authorization: `Bearer ${platformAdminToken}` },
+      }),
+      { params: Promise.resolve({}) },
+    );
+    const data = await admin.json();
+    expect(admin.status).toBe(200);
     expect(Array.isArray(data.requests)).toBe(true);
     const row = data.requests.find(
       (item: { id: string }) => item.id === createdId,
     );
     expect(row?.name).toBe(validBody.name);
     expect(row?.ipAddress).toBeUndefined();
+  });
+
+  it("n’accorde l’accès à personne si PLATFORM_ADMIN_EMAILS est absente", async () => {
+    delete process.env.PLATFORM_ADMIN_EMAILS;
+
+    const otherOwner = await listAccessRequests(
+      makeRequest("http://localhost/api/v1/access-requests", {
+        headers: { Authorization: `Bearer ${otherOwnerToken}` },
+      }),
+      { params: Promise.resolve({}) },
+    );
+    expect(otherOwner.status).toBe(403);
+
+    const admin = await listAccessRequests(
+      makeRequest("http://localhost/api/v1/access-requests", {
+        headers: { Authorization: `Bearer ${platformAdminToken}` },
+      }),
+      { params: Promise.resolve({}) },
+    );
+    expect(admin.status).toBe(403);
+
+    const demoOwner = await listAccessRequests(
+      makeRequest("http://localhost/api/v1/access-requests", {
+        headers: { Authorization: `Bearer ${ownerToken}` },
+      }),
+      { params: Promise.resolve({}) },
+    );
+    expect(demoOwner.status).toBe(403);
+  });
+
+  it("laisse l’admin plateforme supprimer une demande", async () => {
+    const email = `access-delete-${Date.now()}@example.com`;
+    createdEmails.push(email);
+    const created = await createAccessRequest(
+      makeRequest("http://localhost/api/v1/access-requests", {
+        method: "POST",
+        body: JSON.stringify({ ...validBody, email }),
+      }),
+    );
+    const { id } = (await created.json()) as { id: string };
+    expect(created.status).toBe(201);
+
+    process.env.PLATFORM_ADMIN_EMAILS = platformAdminEmail;
+    const otherOwner = await deleteAccessRequest(
+      makeRequest(`http://localhost/api/v1/access-requests/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${otherOwnerToken}` },
+      }),
+      { params: Promise.resolve({ id }) },
+    );
+    expect(otherOwner.status).toBe(403);
+    expect(
+      await prisma.accessRequest.findUnique({ where: { id } }),
+    ).not.toBeNull();
+
+    delete process.env.PLATFORM_ADMIN_EMAILS;
+    const unset = await deleteAccessRequest(
+      makeRequest(`http://localhost/api/v1/access-requests/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${platformAdminToken}` },
+      }),
+      { params: Promise.resolve({ id }) },
+    );
+    expect(unset.status).toBe(403);
+
+    process.env.PLATFORM_ADMIN_EMAILS = platformAdminEmail;
+    const admin = await deleteAccessRequest(
+      makeRequest(`http://localhost/api/v1/access-requests/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${platformAdminToken}` },
+      }),
+      { params: Promise.resolve({ id }) },
+    );
+    expect(admin.status).toBe(200);
+    expect(await prisma.accessRequest.findUnique({ where: { id } })).toBeNull();
   });
 
   it("limite le débit par adresse IP", async () => {
