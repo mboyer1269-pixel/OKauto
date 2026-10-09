@@ -1,6 +1,8 @@
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import specJson from "./spec.json";
 import type { BrandSpec } from "./types";
+import { layoutHatchedArrow, layoutHatchedS } from "./geometry";
+import { HatchShape } from "./hatch";
 import { cn } from "@/lib/utils";
 
 const spec = specJson as BrandSpec;
@@ -107,6 +109,30 @@ function MapPin() {
   );
 }
 
+function HatchedS({ size }: { size: MarkSize }) {
+  const uid = useId().replace(/:/g, "");
+  const view = spec.mark.viewBox;
+  const pitch = size === "small" ? 4.2 : (spec.mark.hatchPitch ?? 3.2);
+  const bar = size === "small" ? 2.8 : (spec.mark.hatchBar ?? 2.05);
+  const parts = [...layoutHatchedS(view), ...layoutHatchedArrow(view)];
+  const from = spec.colors.gradientFrom ?? spec.colors.ink;
+  const to = spec.colors.gradientTo ?? spec.colors.accent;
+  return (
+    <HatchShape
+      parts={parts}
+      clipId={`${uid}-clip`}
+      gradientId={`${uid}-grad`}
+      hatchId={`${uid}-hatch`}
+      pitch={pitch}
+      bar={bar}
+      from={from}
+      to={to}
+      width={view}
+      height={view}
+    />
+  );
+}
+
 export function LogoMark({
   className,
   size = "full",
@@ -124,6 +150,7 @@ export function LogoMark({
   if (kind === "vin-bars") inner = <VinBars size={size} />;
   else if (kind === "stroke-s") inner = <StrokeS size={size} />;
   else if (kind === "map-pin") inner = <MapPin />;
+  else if (kind === "hatched-s") inner = <HatchedS size={size} />;
   else {
     throw new Error(
       `LogoMark: kind « ${kind} » non implémenté. Voir src/brand/README.md.`,

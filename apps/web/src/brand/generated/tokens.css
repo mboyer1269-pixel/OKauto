@@ -1,8 +1,11 @@
-/* Généré par pnpm brand:assets — ne pas éditer à la main. Direction B « Le Code ». */
+/* Généré par pnpm brand:assets — ne pas éditer à la main. Direction D « Le NIV ». */
 :root {
-  --brand-graphite: 223 17% 8%;
+  --brand-graphite: 218 85% 29%;
   --brand-ivory: 43 26% 95%;
-  --brand-amber: 39 100% 56%;
-  --brand-mark-bg: 223 17% 8%;
-  --brand-mark-fg: 39 100% 56%;
+  --brand-amber: 188 83% 51%;
+  --brand-navy: 218 85% 29%;
+  --brand-cyan: 188 83% 51%;
+  --brand-mark-bg: 218 85% 22%;
+  --brand-mark-fg: 188 83% 51%;
+  --sidebar-accent: 188 83% 51%;
 }

@@ -5,14 +5,14 @@ import "./globals.css";
 import { AuthProvider } from "@/components/auth-provider";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { landingCopy } from "@/content/landing";
 
 export const metadata: Metadata = {
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_APP_URL ?? "https://suivia.ca",
   ),
-  title: "Suivia — Inventaire et publications automobiles",
-  description:
-    "Suivez votre inventaire, préparez vos publications et travaillez efficacement en équipe. Auto.",
+  title: landingCopy.meta.title,
+  description: landingCopy.meta.description,
 };
 
 export default function RootLayout({

@@ -15,8 +15,8 @@
         --primary: #2556e0;
         --primary-fg: #ffffff;
         --signal: #2ee6a6;
-        --amber: #ffb020;
-        --graphite: #111318;
+        --amber: #1ad0ea;
+        --graphite: #0b3a8a;
       }
       * {
         box-sizing: border-box;
@@ -206,9 +206,29 @@
   <body>
     <div class="header">
       <!-- brand-mark -->
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" fill="none" aria-hidden="true">
-        <rect width="40" height="40" rx="8.80" fill="#111318"/>
-        <rect x="7.000" y="2.06" width="2.453" height="9.88" rx="0.981" fill="#FFB020"/><rect x="10.925" y="3.282" width="2.453" height="10.92" rx="0.981" fill="#FFB020"/><rect x="14.849" y="7.659" width="2.453" height="11.681" rx="0.981" fill="#FFB020"/><rect x="18.774" y="14.02" width="2.453" height="11.96" rx="0.981" fill="#FFB020"/><rect x="22.698" y="20.659" width="2.453" height="11.681" rx="0.981" fill="#FFB020"/><rect x="26.623" y="25.798" width="2.453" height="10.92" rx="0.981" fill="#FFB020"/><rect x="30.547" y="28.06" width="2.453" height="9.88" rx="0.981" fill="#FFB020"/>
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" fill="none" role="img" aria-label="Suivia Auto">
+        <defs>
+          <linearGradient id="g" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stop-color="#0B3A8A"/>
+            <stop offset="100%" stop-color="#1AD0EA"/>
+          </linearGradient>
+          <pattern id="h" width="3.2" height="40" patternUnits="userSpaceOnUse">
+            <rect width="2.05" height="40" fill="#fff"/>
+          </pattern>
+          <mask id="m"><rect width="40" height="40" fill="url(#h)"/></mask>
+          <clipPath id="c" clip-rule="evenodd">
+          <path d="M 6.2 5.184 H 23.128 A 2.2 2.2 0 0 1 25.328 7.384 V 8.440000000000001 A 2.2 2.2 0 0 1 23.128 10.64 H 6.2 A 2.2 2.2 0 0 1 4 8.440000000000001 V 7.384 A 2.2 2.2 0 0 1 6.2 5.184 Z" />
+          <path d="M 6.2 5.184 H 7.255999999999999 A 2.2 2.2 0 0 1 9.456 7.384 V 15.880000000000003 A 2.2 2.2 0 0 1 7.255999999999999 18.080000000000002 H 6.2 A 2.2 2.2 0 0 1 4 15.880000000000003 V 7.384 A 2.2 2.2 0 0 1 6.2 5.184 Z" />
+          <path d="M 6.2 13.864 H 23.128 A 2.2 2.2 0 0 1 25.328 16.064 V 17.12 A 2.2 2.2 0 0 1 23.128 19.32 H 6.2 A 2.2 2.2 0 0 1 4 17.12 V 16.064 A 2.2 2.2 0 0 1 6.2 13.864 Z" />
+          <path d="M 22.072 15.600000000000001 H 23.128 A 2.2 2.2 0 0 1 25.328 17.8 V 25.8 A 2.2 2.2 0 0 1 23.128 28 H 22.072 A 2.2 2.2 0 0 1 19.872 25.8 V 17.8 A 2.2 2.2 0 0 1 22.072 15.600000000000001 Z" />
+          <path d="M 6.2 22.544 H 23.128 A 2.2 2.2 0 0 1 25.328 24.744 V 25.8 A 2.2 2.2 0 0 1 23.128 28 H 6.2 A 2.2 2.2 0 0 1 4 25.8 V 24.744 A 2.2 2.2 0 0 1 6.2 22.544 Z" />
+          <path d="M 23.535999999999998 14.224 L 31.6 19.6 L 23.535999999999998 24.976000000000003 L 25.887999999999998 19.6 Z" />
+          </clipPath>
+        </defs>
+        <rect width="40" height="40" rx="8.80" fill="#082A66"/>
+        <g clip-path="url(#c)">
+          <rect width="40" height="40" fill="url(#g)" mask="url(#m)"/>
+        </g>
       </svg>
       <!-- /brand-mark -->
       <div>

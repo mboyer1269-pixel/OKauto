@@ -12,8 +12,11 @@ import {
   barLayout,
   cssBrandTokens,
   hexToRgb,
+  layoutHatchedIcon,
+  layoutWordmark,
   resolveBarCount,
   svgMark,
+  svgWordmark,
 } from "./brand-mark.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -255,11 +258,142 @@ function rasterMapPin(size) {
   return buf;
 }
 
+function lerpColor(a, b, t) {
+  return [
+    Math.round(a[0] + (b[0] - a[0]) * t),
+    Math.round(a[1] + (b[1] - a[1]) * t),
+    Math.round(a[2] + (b[2] - a[2]) * t),
+    255,
+  ];
+}
+
+function pointInPoly(px, py, points) {
+  let inside = false;
+  for (let i = 0, j = points.length - 1; i < points.length; j = i, i += 1) {
+    const xi = points[i][0];
+    const yi = points[i][1];
+    const xj = points[j][0];
+    const yj = points[j][1];
+    const intersect =
+      yi > py !== yj > py && px < ((xj - xi) * (py - yi)) / (yj - yi + 0.0) + xi;
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+function partContains(part, px, py) {
+  if (part.type === "rect") {
+    return insideRoundedRect(px, py, part.x, part.y, part.w, part.h, 2.2);
+  }
+  if (part.type === "poly") return pointInPoly(px, py, part.points);
+  const inOuter = insideRoundedRect(
+    px,
+    py,
+    part.x,
+    part.y,
+    part.w,
+    part.h,
+    part.rx,
+  );
+  const inInner = insideRoundedRect(
+    px,
+    py,
+    part.ix,
+    part.iy,
+    part.iw,
+    part.ih,
+    part.irx,
+  );
+  return inOuter && !inInner;
+}
+
+function paintHatched(buf, width, height, parts, from, to, pitch, bar) {
+  for (const part of parts) {
+    let x0 = width;
+    let y0 = height;
+    let x1 = 0;
+    let y1 = 0;
+    if (part.type === "rect" || part.type === "ring") {
+      x0 = Math.floor(part.x);
+      y0 = Math.floor(part.y);
+      x1 = Math.ceil(part.x + part.w);
+      y1 = Math.ceil(part.y + part.h);
+    } else {
+      x0 = Math.floor(Math.min(...part.points.map((p) => p[0])));
+      y0 = Math.floor(Math.min(...part.points.map((p) => p[1])));
+      x1 = Math.ceil(Math.max(...part.points.map((p) => p[0])));
+      y1 = Math.ceil(Math.max(...part.points.map((p) => p[1])));
+    }
+    x0 = Math.max(0, x0);
+    y0 = Math.max(0, y0);
+    x1 = Math.min(width, x1);
+    y1 = Math.min(height, y1);
+    for (let py = y0; py < y1; py += 1) {
+      for (let px = x0; px < x1; px += 1) {
+        if (!partContains(part, px + 0.5, py + 0.5)) continue;
+        if ((px + 0.5) % pitch > bar) continue;
+        const t = width <= 1 ? 0 : px / (width - 1);
+        setPixel(buf, width, px, py, lerpColor(from, to, t));
+      }
+    }
+  }
+}
+
+function rasterHatchedS(size, sizeName) {
+  const buf = Buffer.alloc(size * size * 4);
+  paintBackground(buf, size);
+  const pitch = sizeName === "small" ? Math.max(2.2, size * 0.12) : size * 0.08;
+  const bar = pitch * 0.64;
+  const scale = size / view;
+  const parts = layoutHatchedIcon(view).map((part) => {
+    if (part.type === "rect") {
+      return {
+        type: "rect",
+        x: part.x * scale,
+        y: part.y * scale,
+        w: part.w * scale,
+        h: part.h * scale,
+      };
+    }
+    if (part.type === "poly") {
+      return {
+        type: "poly",
+        points: part.points.map(([x, y]) => [x * scale, y * scale]),
+      };
+    }
+    return {
+      type: "ring",
+      x: part.x * scale,
+      y: part.y * scale,
+      w: part.w * scale,
+      h: part.h * scale,
+      ix: part.ix * scale,
+      iy: part.iy * scale,
+      iw: part.iw * scale,
+      ih: part.ih * scale,
+      rx: part.rx * scale,
+      irx: part.irx * scale,
+    };
+  });
+  paintHatched(
+    buf,
+    size,
+    size,
+    parts,
+    parseHex(spec.colors.gradientFrom),
+    parseHex(spec.colors.gradientTo),
+    pitch,
+    bar,
+  );
+  return buf;
+}
+
 function rasterMark(size, sizeName) {
   const kind = spec.mark.kind;
   if (kind === "vin-bars") return rasterVinBars(size, resolveBarCount(spec, sizeName));
   if (kind === "stroke-s") return rasterStrokeS(size, sizeName !== "small");
   if (kind === "map-pin") return rasterMapPin(size);
+  if (kind === "hatched-s") return rasterHatchedS(size, sizeName);
   throw new Error(`kind « ${kind} » non implémenté pour le raster PNG.`);
 }
 
@@ -268,11 +402,59 @@ function drawLockup(width, height) {
   const ink = parseHex(spec.colors.ink);
   const paper = parseHex(spec.colors.paper);
   const accent = parseHex(spec.colors.accent);
+  const bg = spec.mark.kind === "hatched-s" ? paper : ink;
   for (let i = 0; i < width * height; i += 1) {
-    buf[i * 4] = ink[0];
-    buf[i * 4 + 1] = ink[1];
-    buf[i * 4 + 2] = ink[2];
+    buf[i * 4] = bg[0];
+    buf[i * 4 + 1] = bg[1];
+    buf[i * 4 + 2] = bg[2];
     buf[i * 4 + 3] = 255;
+  }
+  if (spec.mark.kind === "hatched-s") {
+    const layout = layoutWordmark(spec);
+    const scale = Math.min((width * 0.82) / layout.width, (height * 0.5) / layout.height);
+    const ox = (width - layout.width * scale) / 2;
+    const oy = (height - layout.height * scale) / 2;
+    const parts = layout.parts.map((part) => {
+      if (part.type === "rect") {
+        return {
+          type: "rect",
+          x: ox + part.x * scale,
+          y: oy + part.y * scale,
+          w: part.w * scale,
+          h: part.h * scale,
+        };
+      }
+      if (part.type === "poly") {
+        return {
+          type: "poly",
+          points: part.points.map(([x, y]) => [ox + x * scale, oy + y * scale]),
+        };
+      }
+      return {
+        type: "ring",
+        x: ox + part.x * scale,
+        y: oy + part.y * scale,
+        w: part.w * scale,
+        h: part.h * scale,
+        ix: ox + part.ix * scale,
+        iy: oy + part.iy * scale,
+        iw: part.iw * scale,
+        ih: part.ih * scale,
+        rx: part.rx * scale,
+        irx: part.irx * scale,
+      };
+    });
+    paintHatched(
+      buf,
+      width,
+      height,
+      parts,
+      parseHex(spec.colors.gradientFrom),
+      parseHex(spec.colors.gradientTo),
+      8,
+      5.2,
+    );
+    return buf;
   }
   const markSize = Math.round(height * 0.42);
   const mark = rasterMark(markSize, "full");
@@ -338,6 +520,9 @@ writeFileSync(join(webBrand, "mark.svg"), fullSvg);
 writeFileSync(join(webBrand, "mark-simple.svg"), mediumSvg);
 writeFileSync(join(webApp, "icon.svg"), smallSvg);
 writeFileSync(join(generated, "tokens.css"), cssBrandTokens(spec));
+if (spec.mark.kind === "hatched-s") {
+  writeFileSync(join(webBrand, "wordmark.svg"), svgWordmark(spec));
+}
 
 const icons = [
   [join(extIcons, "icon16.png"), 16, "small"],

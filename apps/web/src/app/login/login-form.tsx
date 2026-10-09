@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth-provider";
-import { BrandMark } from "@/components/brand-mark";
+import { ThemedBrandLockup } from "@/components/themed-brand-mark";
 
 export function LoginForm({
   publicSignupEnabled,
@@ -36,7 +36,7 @@ export function LoginForm({
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="card w-full max-w-md rounded-2xl p-7 sm:p-8">
         <div className="mb-8 text-center">
-          <BrandMark className="justify-center" />
+          <ThemedBrandLockup className="justify-center" />
           <h1 className="brand-display mt-6 text-2xl font-bold tracking-tight">
             Bon retour
           </h1>

@@ -3,6 +3,7 @@ import spec from "../spec.json";
 import directionA from "../directions/A.json";
 import directionB from "../directions/B.json";
 import directionC from "../directions/C.json";
+import directionD from "../directions/D.json";
 import { brandColors, contrastPairs, contrastRatio } from "../tokens";
 
 describe("jetons Cockpit — contraste WCAG AA", () => {
@@ -17,15 +18,15 @@ describe("jetons Cockpit — contraste WCAG AA", () => {
   });
 });
 
-describe("marque — piste active B, swap A/C prêt", () => {
-  it("expose 17 barres et des simplifications 7 et 5", () => {
-    expect(spec.id).toBe("B");
-    expect(spec.mark.kind).toBe("vin-bars");
+describe("marque — piste active D, A/B/C conservées", () => {
+  it("expose le mot-symbole hachuré SUIVIA AUTO et un pictogramme S", () => {
+    expect(spec.id).toBe("D");
+    expect(spec.mark.kind).toBe("hatched-s");
+    expect(spec.lockup).toBe("SUIVIA AUTO");
     expect(spec.wordmark).toBe("SUIVIA");
-    expect(spec.descriptor).toBe("Auto");
-    expect(spec.bars["17"]).toHaveLength(17);
-    expect(spec.bars["7"]).toHaveLength(7);
-    expect(spec.bars["5"]).toHaveLength(5);
+    expect(spec.descriptor).toBe("AUTO");
+    expect(spec.wordmarkView?.sequence.join("")).toBe("SUIVIA AUTO");
+    expect(spec.wordmarkView?.arrow).toBe(true);
   });
 
   it("aligne les jetons TS sur spec.json", () => {
@@ -36,8 +37,13 @@ describe("marque — piste active B, swap A/C prêt", () => {
     expect(brandColors.markFg).toBe(spec.colors.markFg);
   });
 
-  it("garde A, B et C interchangeables (mêmes clés de couleurs)", () => {
-    for (const direction of [directionA, directionB, directionC]) {
+  it("garde A, B, C et D interchangeables (mêmes clés de couleurs)", () => {
+    for (const direction of [
+      directionA,
+      directionB,
+      directionC,
+      directionD,
+    ]) {
       expect(direction.colors).toEqual(
         expect.objectContaining({
           ink: expect.any(String),
@@ -47,15 +53,25 @@ describe("marque — piste active B, swap A/C prêt", () => {
           markFg: expect.any(String),
         }),
       );
-      expect(["stroke-s", "vin-bars", "map-pin"]).toContain(direction.mark.kind);
+      expect(["stroke-s", "vin-bars", "map-pin", "hatched-s"]).toContain(
+        direction.mark.kind,
+      );
       expect(direction.wordmark).toBeTruthy();
-      expect(direction.descriptor).toBe("Auto");
+      expect(direction.descriptor.toUpperCase()).toBe("AUTO");
     }
   });
 
   it("respecte AA pour le pictogramme de chaque piste", () => {
-    for (const direction of [directionA, directionB, directionC]) {
-      const ratio = contrastRatio(direction.colors.markFg, direction.colors.markBg);
+    for (const direction of [
+      directionA,
+      directionB,
+      directionC,
+      directionD,
+    ]) {
+      const ratio = contrastRatio(
+        direction.colors.markFg,
+        direction.colors.markBg,
+      );
       expect(
         ratio,
         `${direction.id} markFg sur markBg = ${ratio.toFixed(2)}`,

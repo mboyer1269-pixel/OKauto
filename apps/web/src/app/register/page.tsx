@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BrandMark } from "@/components/brand-mark";
+import { ThemedBrandLockup } from "@/components/themed-brand-mark";
 import {
   isPublicSignupEnabled,
   PUBLIC_SIGNUP_CLOSED_MESSAGE,
@@ -11,7 +11,7 @@ export default function RegisterPage() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
         <div className="card w-full max-w-md rounded-2xl p-7 text-center sm:p-8">
-          <BrandMark className="justify-center" />
+          <ThemedBrandLockup className="justify-center" />
           <h1 className="brand-display mt-6 text-2xl font-bold tracking-tight">
             Inscriptions fermées
           </h1>

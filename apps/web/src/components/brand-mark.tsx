@@ -1,6 +1,7 @@
 import specJson from "@/brand/spec.json";
 import type { BrandSpec } from "@/brand/types";
 import { LogoMark } from "@/brand/logo-mark";
+import { Wordmark } from "@/brand/wordmark";
 import { cn } from "@/lib/utils";
 
 const spec = specJson as BrandSpec;
@@ -10,6 +11,7 @@ interface BrandMarkProps {
   inverted?: boolean;
   className?: string;
   showDescriptor?: boolean;
+  lockup?: boolean;
 }
 
 export function BrandMark({
@@ -17,12 +19,19 @@ export function BrandMark({
   inverted = false,
   className,
   showDescriptor = true,
+  lockup = false,
 }: BrandMarkProps) {
-  const label = showDescriptor
-    ? `${spec.ariaLabel}, ${spec.descriptor}`
-    : spec.ariaLabel;
+  const label = spec.lockup ?? `${spec.ariaLabel}, ${spec.descriptor}`;
   const wordmarkFont =
     spec.typography.wordmarkFont === "mono" ? "font-mono" : "font-sans";
+
+  if (lockup && !compact) {
+    return (
+      <span className={cn("inline-flex items-center", className)} aria-label={label}>
+        <Wordmark inverted={inverted} className="h-8 sm:h-9" />
+      </span>
+    );
+  }
 
   return (
     <span

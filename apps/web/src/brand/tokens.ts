@@ -1,6 +1,6 @@
 /**
  * Jetons de marque et de surface (Cockpit).
- * Les couleurs de marque viennent de spec.json (piste A, B ou C).
+ * Les couleurs de marque viennent de spec.json (piste A, B, C ou D).
  * Les valeurs CSS générées vivent dans generated/tokens.css.
  */
 import spec from "./spec.json";
@@ -18,7 +18,7 @@ export const cockpitLight = {
   surface: "#FFFFFF",
   text: "#0A0F1C",
   muted: "#5B6474",
-  primary: "#2556E0",
+  primary: "#0B3A8A",
   primaryForeground: "#FFFFFF",
   signal: "#0B7A56",
   warning: "#B45309",
@@ -30,9 +30,9 @@ export const cockpitDark = {
   surface: "#11141A",
   text: "#E8ECF2",
   muted: "#8A93A3",
-  primary: "#2556E0",
+  primary: "#0B3A8A",
   primaryForeground: "#FFFFFF",
-  electric: "#3D7BFF",
+  electric: "#1AD0EA",
   signal: "#2EE6A6",
   warning: "#FFB020",
   danger: "#FF5A5F",
