@@ -1,7 +1,11 @@
 import { prisma } from "@okauto/database";
 import { jsonResponse, errorResponse, handleApiError } from "@/lib/api";
 import { hashToken } from "@/lib/auth";
-import { MEMBER_INVITE_INVALID_MESSAGE } from "@/lib/member-provisioning";
+import {
+  MEMBER_INVITE_INVALID_MESSAGE,
+  MEMBER_INVITE_LOGIN_OR_CREATE_MESSAGE,
+  inviteLoginPath,
+} from "@/lib/member-provisioning";
 
 export async function GET(
   _request: Request,
@@ -27,6 +31,8 @@ export async function GET(
       role: invite.role,
       organizationName: invite.organization.name,
       expiresAt: invite.expiresAt.toISOString(),
+      loginUrl: inviteLoginPath(token),
+      prompt: MEMBER_INVITE_LOGIN_OR_CREATE_MESSAGE,
     });
   } catch (err) {
     return handleApiError(err);

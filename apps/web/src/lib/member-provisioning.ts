@@ -4,6 +4,14 @@ export const MEMBER_INVITE_NOTICE =
 export const MEMBER_INVITE_INVALID_MESSAGE =
   "Invitation invalide ou expirée.";
 
+export const MEMBER_INVITE_LOGIN_OR_CREATE_MESSAGE =
+  "Connectez-vous ou créez votre mot de passe.";
+
+export const MEMBER_INVITE_SESSION_MISMATCH_MESSAGE =
+  "Connectez-vous avec le courriel de cette invitation.";
+
+export const ACCEPT_INVITE_MAX_FAILURES = 5;
+
 export const MEMBER_PASSWORD_RESET_FORBIDDEN_MESSAGE =
   "Vous ne pouvez pas réinitialiser le mot de passe de ce compte.";
 
@@ -22,6 +30,22 @@ export function publicAppUrl(): string {
 
 export function inviteUrlFor(token: string): string {
   return `${publicAppUrl()}/invitation/${token}`;
+}
+
+export function inviteLoginPath(token: string): string {
+  return `/login?next=/invitation/${encodeURIComponent(token)}`;
+}
+
+export function safeInvitationNext(
+  next: string | null | undefined,
+): string | null {
+  if (!next) return null;
+  if (!next.startsWith("/invitation/")) return null;
+  if (next.includes("//") || next.includes("\\") || next.includes("?")) {
+    return null;
+  }
+  if (!/^\/invitation\/[a-f0-9]{64}$/i.test(next)) return null;
+  return next;
 }
 
 /**

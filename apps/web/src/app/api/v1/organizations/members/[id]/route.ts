@@ -112,20 +112,6 @@ export const DELETE = withAuth(
       return errorResponse("Cannot remove owner", 400);
 
     await prisma.organizationMember.delete({ where: { id: params!.id } });
-
-    const remaining = await prisma.organizationMember.count({
-      where: { userId: member.userId },
-    });
-    if (remaining === 0) {
-      await prisma.$transaction([
-        prisma.user.update({
-          where: { id: member.userId },
-          data: { isActive: false, sessionInvalidatedAt: new Date() },
-        }),
-        prisma.refreshToken.deleteMany({ where: { userId: member.userId } }),
-      ]);
-    }
-
     return jsonResponse({ success: true });
   },
   { minRole: "ADMIN" },

@@ -1,3 +1,4 @@
+import bcrypt from "bcryptjs";
 import { prisma } from "@okauto/database";
 import { acceptInviteSchema, isPlatformAdminUserId } from "@okauto/shared";
 import {
@@ -14,11 +15,19 @@ import {
   hashToken,
   isAccessTokenRevoked,
   signAccessToken,
-  verifyPassword,
 } from "@/lib/auth";
-import { MEMBER_INVITE_INVALID_MESSAGE } from "@/lib/member-provisioning";
-
-const GENERIC_CREDENTIALS_ERROR = "Courriel ou mot de passe invalide";
+import {
+  ACCEPT_INVITE_MAX_FAILURES,
+  INVITE_DUMMY_PASSWORD_HASH,
+  MEMBER_INVITE_INVALID_MESSAGE,
+  MEMBER_INVITE_LOGIN_OR_CREATE_MESSAGE,
+  MEMBER_INVITE_SESSION_MISMATCH_MESSAGE,
+  inviteLoginPath,
+} from "@/lib/member-provisioning";
+import {
+  enforceAcceptInviteRateLimit,
+  recordAcceptInviteFailure,
+} from "@/lib/rate-limit";
 
 export async function POST(
   request: Request,
@@ -26,8 +35,13 @@ export async function POST(
 ) {
   try {
     const { token } = await segmentData.params;
+    const tokenHash = hashToken(token);
+
+    const limited = await enforceAcceptInviteRateLimit(request, tokenHash);
+    if (limited) return limited;
+
     const invite = await prisma.organizationInvite.findUnique({
-      where: { tokenHash: hashToken(token) },
+      where: { tokenHash },
       include: { organization: true },
     });
     if (
@@ -49,44 +63,107 @@ export async function POST(
     const existing = await prisma.user.findUnique({
       where: { email: invite.email },
     });
+    await bcrypt.compare("invite", INVITE_DUMMY_PASSWORD_HASH);
 
-    let userId: string;
-    let userEmail = invite.email;
-    let userName = invite.name;
-    let provisionedNewAccount = false;
+    const fail = async (status: 401 | 403, message: string) => {
+      const failures = await recordAcceptInviteFailure(tokenHash);
+      if (failures >= ACCEPT_INVITE_MAX_FAILURES) {
+        await prisma.organizationInvite.updateMany({
+          where: { id: invite.id, consumedAt: null },
+          data: { consumedAt: new Date() },
+        });
+      }
+      return errorResponse(message, status, {
+        loginUrl: inviteLoginPath(token),
+      });
+    };
+
+    if (existing) {
+      if (
+        !auth ||
+        auth.email.toLocaleLowerCase("fr-CA") !==
+          invite.email.toLocaleLowerCase("fr-CA")
+      ) {
+        if (auth) {
+          return fail(403, MEMBER_INVITE_SESSION_MISMATCH_MESSAGE);
+        }
+        return fail(401, MEMBER_INVITE_LOGIN_OR_CREATE_MESSAGE);
+      }
+
+      const member = await prisma.$transaction(async (tx) => {
+        const consumed = await tx.organizationInvite.updateMany({
+          where: { id: invite.id, consumedAt: null },
+          data: { consumedAt: new Date() },
+        });
+        if (consumed.count === 0) return null;
+
+        await tx.user.update({
+          where: { id: existing.id },
+          data: { isActive: true },
+        });
+
+        const already = await tx.organizationMember.findUnique({
+          where: {
+            organizationId_userId: {
+              organizationId: invite.organizationId,
+              userId: existing.id,
+            },
+          },
+        });
+        if (already) return already;
+
+        return tx.organizationMember.create({
+          data: {
+            organizationId: invite.organizationId,
+            userId: existing.id,
+            role: invite.role,
+          },
+        });
+      });
+
+      if (!member) {
+        return errorResponse(MEMBER_INVITE_INVALID_MESSAGE, 404);
+      }
+
+      await createAuditLog({
+        organizationId: invite.organizationId,
+        userId: existing.id,
+        action: "INVITE",
+        entityType: "organization_invite",
+        entityId: invite.id,
+        metadata: { accepted: true, provisionedNewAccount: false },
+        request: request as never,
+      });
+
+      return jsonResponse({
+        memberId: member.id,
+        attached: true,
+      });
+    }
 
     if (auth) {
-      if (auth.email.toLocaleLowerCase("fr-CA") !== invite.email) {
-        return errorResponse(
-          "Connectez-vous avec le courriel de cette invitation.",
-          403,
-        );
+      if (
+        auth.email.toLocaleLowerCase("fr-CA") !==
+        invite.email.toLocaleLowerCase("fr-CA")
+      ) {
+        return fail(403, MEMBER_INVITE_SESSION_MISMATCH_MESSAGE);
       }
-      userId = auth.sub;
-      userEmail = auth.email;
-    } else if (existing) {
-      if (!data.password) {
-        return errorResponse(
-          "Connectez-vous avec le courriel de cette invitation.",
-          401,
-        );
-      }
-      const passwordOk = await verifyPassword(
-        data.password,
-        existing.passwordHash,
-      );
-      if (!existing.isActive || !passwordOk) {
-        return errorResponse(GENERIC_CREDENTIALS_ERROR, 401);
-      }
-      userId = existing.id;
-      userEmail = existing.email;
-      userName = existing.name;
-    } else {
-      if (!data.password) {
-        return errorResponse("Un mot de passe est requis.", 400);
-      }
-      const passwordHash = await hashPassword(data.password);
-      const created = await prisma.user.create({
+      return fail(401, MEMBER_INVITE_LOGIN_OR_CREATE_MESSAGE);
+    }
+
+    if (!data.password) {
+      return fail(401, MEMBER_INVITE_LOGIN_OR_CREATE_MESSAGE);
+    }
+
+    const passwordHash = await hashPassword(data.password);
+    const created = await prisma.$transaction(async (tx) => {
+      const consumed = await tx.organizationInvite.updateMany({
+        where: { id: invite.id, consumedAt: null },
+        data: { consumedAt: new Date() },
+      });
+      if (consumed.count === 0) return null;
+
+      const user = await tx.user.create({
         data: {
           email: invite.email,
           passwordHash,
@@ -94,74 +171,55 @@ export async function POST(
           provisionedByOrganizationId: invite.organizationId,
         },
       });
-      userId = created.id;
-      userName = created.name;
-      provisionedNewAccount = true;
-    }
-
-    const member = await prisma.$transaction(async (tx) => {
-      const consumed = await tx.organizationInvite.updateMany({
-        where: { id: invite.id, consumedAt: null },
-        data: { consumedAt: new Date() },
-      });
-      if (consumed.count === 0) {
-        return null;
-      }
-
-      const already = await tx.organizationMember.findUnique({
-        where: {
-          organizationId_userId: {
-            organizationId: invite.organizationId,
-            userId,
-          },
-        },
-      });
-      if (already) return already;
-
-      return tx.organizationMember.create({
+      const member = await tx.organizationMember.create({
         data: {
           organizationId: invite.organizationId,
-          userId,
+          userId: user.id,
           role: invite.role,
         },
       });
+      return { user, member };
     });
 
-    if (!member) {
+    if (!created) {
       return errorResponse(MEMBER_INVITE_INVALID_MESSAGE, 404);
     }
 
     await createAuditLog({
       organizationId: invite.organizationId,
-      userId,
+      userId: created.user.id,
       action: "INVITE",
       entityType: "organization_invite",
       entityId: invite.id,
-      metadata: { accepted: true, provisionedNewAccount },
+      metadata: { accepted: true, provisionedNewAccount: true },
       request: request as never,
     });
 
     const accessToken = await signAccessToken({
-      sub: userId,
-      email: userEmail,
+      sub: created.user.id,
+      email: created.user.email,
       orgId: invite.organizationId,
-      role: member.role,
+      role: created.member.role,
     });
     const refreshToken = await createRefreshToken(
-      userId,
+      created.user.id,
       invite.organizationId,
     );
 
     const response = jsonResponse({
-      memberId: member.id,
-      user: { id: userId, email: userEmail, name: userName },
+      memberId: created.member.id,
+      user: {
+        id: created.user.id,
+        email: created.user.email,
+        name: created.user.name,
+      },
       organization: {
         id: invite.organization.id,
         name: invite.organization.name,
         slug: invite.organization.slug,
       },
-      role: member.role,
-      isPlatformAdmin: isPlatformAdminUserId(userId),
+      role: created.member.role,
+      isPlatformAdmin: isPlatformAdminUserId(created.user.id),
       accessToken,
       refreshToken,
     });

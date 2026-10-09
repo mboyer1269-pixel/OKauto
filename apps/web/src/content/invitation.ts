@@ -1,10 +1,9 @@
 export const invitationCopy = {
   title: "Rejoindre une équipe",
-  lede:
-    "Choisissez votre mot de passe si vous n’avez pas encore de compte. Si vous en avez déjà un, utilisez ce même mot de passe — la concession ne le connaît pas.",
+  lede: "Connectez-vous ou créez votre mot de passe.",
   loginHint:
     "Vous êtes déjà connecté avec ce courriel ? Acceptez l’invitation sans saisir de mot de passe.",
-  passwordLabel: "Mot de passe",
+  passwordLabel: "Mot de passe (nouveau compte)",
   submitNew: "Créer mon accès",
   submitExisting: "Rejoindre l’équipe",
   invalid: "Cette invitation n’est plus valide.",

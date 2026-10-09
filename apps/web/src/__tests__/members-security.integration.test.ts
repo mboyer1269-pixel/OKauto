@@ -324,16 +324,44 @@ describe("member takeover prevention", () => {
     expect(refresh.status).toBe(401);
   });
 
-  it("attaches an existing account only after the owner accepts with their password", async () => {
+  it("rejects accept from another account's session", async () => {
     expect(inviteAToken).toBeTruthy();
     const accept = await acceptInviteHandler(
       makeRequest(`http://localhost/api/v1/invitations/${inviteAToken}/accept`, {
         method: "POST",
-        body: JSON.stringify({ password: passwordA }),
+        headers: { Authorization: `Bearer ${ownerBToken}` },
+        body: JSON.stringify({}),
       }),
       { params: Promise.resolve({ token: inviteAToken }) },
     );
+    expect(accept.status).toBe(403);
+    expect((await accept.json()).accessToken).toBeUndefined();
+
+    const memberships = await prisma.organizationMember.findMany({
+      where: { userId: userAId, organizationId: orgBId },
+    });
+    expect(memberships).toHaveLength(0);
+  });
+
+  it("attaches an existing account only after that account's session accepts", async () => {
+    expect(inviteAToken).toBeTruthy();
+    const session = await login(ownerAEmail, passwordA);
+    expect(session.status).toBe(200);
+
+    const accept = await acceptInviteHandler(
+      makeRequest(`http://localhost/api/v1/invitations/${inviteAToken}/accept`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session.data.accessToken}` },
+        body: JSON.stringify({}),
+      }),
+      { params: Promise.resolve({ token: inviteAToken }) },
+    );
+    const accepted = await accept.json();
     expect(accept.status).toBe(200);
+    expect(accepted.attached).toBe(true);
+    expect(accepted.memberId).toBeTruthy();
+    expect(accepted.accessToken).toBeUndefined();
+    expect(accepted.refreshToken).toBeUndefined();
 
     const memberships = await prisma.organizationMember.findMany({
       where: { userId: userAId },

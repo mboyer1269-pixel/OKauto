@@ -22,3 +22,22 @@ WHERE u.id IN (
   HAVING COUNT(*) > 1
 )
 ORDER BY u.email, m."joinedAt";
+
+-- Comptes créés par une organisation dont ils ne sont plus membres.
+SELECT
+  u.id AS user_id,
+  u.email,
+  u."createdAt" AS user_created_at,
+  u."isActive" AS is_active,
+  u."provisionedByOrganizationId" AS provisioned_by_organization_id,
+  o.name AS provisioned_by_organization_name
+FROM users AS u
+LEFT JOIN organizations AS o ON o.id = u."provisionedByOrganizationId"
+WHERE u."provisionedByOrganizationId" IS NOT NULL
+  AND NOT EXISTS (
+    SELECT 1
+    FROM organization_members AS m
+    WHERE m."userId" = u.id
+      AND m."organizationId" = u."provisionedByOrganizationId"
+  )
+ORDER BY u.email;
