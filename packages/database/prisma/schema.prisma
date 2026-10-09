@@ -127,6 +127,7 @@ model Organization {
   metaCatalogFeedEnabled         Boolean   @default(false)
   metaCatalogFeedToken           String?   @unique
   metaCatalogStateForDemo        String    @default("Used")
+  includeCarfaxSourceUrl         Boolean   @default(false)
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
@@ -205,6 +206,9 @@ model Vehicle {
   managerPriorityNote   String?
   managerPriorityById   String?
   priceDroppedAt        DateTime?
+  includeCarfaxSourceUrl Boolean  @default(false)
+  vinDecodedAt           DateTime?
+  vinDecodedVin          String?
   createdAt          DateTime          @default(now())
   updatedAt          DateTime          @updatedAt
 
@@ -221,6 +225,7 @@ model Vehicle {
   @@index([organizationId, stockNumber])
   @@index([organizationId, feedAbsenceStatus])
   @@index([syncSourceId])
+  @@index([vinDecodedAt])
   @@map("vehicles")
 }
 

@@ -36,6 +36,11 @@ export interface VehicleData {
   vehicleFees?: PricingFees | null;
   allInPriceConfirmed?: boolean;
   highlights?: { fr?: string; en?: string } | null;
+  /**
+   * When true, the Carfax line uses `sourceUrl` instead of the text-only CTA.
+   * Resolved from organization OR vehicle flag before generation.
+   */
+  includeCarfaxSourceUrl?: boolean | null;
 }
 
 export interface MarketplacePackage {
@@ -115,6 +120,76 @@ export function classifyInventoryKind(
     return "new";
   }
   return vehicle.mileage != null ? "used" : null;
+}
+
+/**
+ * Mention Carfax dans les annonces Marketplace.
+ *
+ * Règle : véhicules d'occasion et démonstrateurs seulement. Les neufs n'ont
+ * pas d'historique Carfax utile. Par défaut le texte n'inclut **aucune URL**
+ * (un lien externe sur Marketplace peut faire signaler l'annonce). L'option
+ * `includeCarfaxSourceUrl` (organisation ou véhicule) substitue `sourceUrl`.
+ */
+export const CARFAX_MENTION_FR =
+  "Rapport Carfax gratuit disponible, écrivez-nous !";
+export const CARFAX_MENTION_EN =
+  "Free Carfax report available — message us!";
+
+export function shouldIncludeCarfaxMention(vehicle: VehicleData): boolean {
+  const kind = classifyInventoryKind(vehicle);
+  return kind === "used" || kind === "demo";
+}
+
+export function resolveIncludeCarfaxSourceUrl(
+  organizationFlag?: boolean | null,
+  vehicleFlag?: boolean | null,
+): boolean {
+  return Boolean(vehicleFlag) || Boolean(organizationFlag);
+}
+
+export function listingHasCarfaxMention(text: string): boolean {
+  return /carfax/i.test(text);
+}
+
+export function carfaxMentionFr(vehicle: VehicleData): string | null {
+  if (!shouldIncludeCarfaxMention(vehicle)) return null;
+  const url =
+    vehicle.includeCarfaxSourceUrl === true
+      ? cleanValue(vehicle.sourceUrl)
+      : "";
+  if (url) return `Rapport Carfax gratuit disponible : ${url}`;
+  return CARFAX_MENTION_FR;
+}
+
+export function carfaxMentionEn(vehicle: VehicleData): string | null {
+  if (!shouldIncludeCarfaxMention(vehicle)) return null;
+  const url =
+    vehicle.includeCarfaxSourceUrl === true
+      ? cleanValue(vehicle.sourceUrl)
+      : "";
+  if (url) return `Free Carfax report available: ${url}`;
+  return CARFAX_MENTION_EN;
+}
+
+export function appendCarfaxMention(
+  text: string,
+  mention: string | null,
+): string {
+  if (!mention) return text;
+  if (listingHasCarfaxMention(text)) return text;
+  const trimmed = text.trimEnd();
+  if (!trimmed) return mention;
+  return `${trimmed}\n\n${mention}`;
+}
+
+export function ensureCarfaxMention(
+  text: string,
+  vehicle: VehicleData,
+  locale: ListingLocale = "fr",
+): string {
+  const mention =
+    locale === "en" ? carfaxMentionEn(vehicle) : carfaxMentionFr(vehicle);
+  return appendCarfaxMention(text, mention);
 }
 
 export const ALL_IN_PRICE_VIOLATIONS: RegExp[] = [
@@ -364,6 +439,9 @@ export function generateTemplateDescription(vehicle: VehicleData): string {
 
   if (location) lines.push(`Emplacement : ${location}`);
 
+  const carfaxFr = carfaxMentionFr(vehicle);
+  if (carfaxFr) lines.push("", carfaxFr);
+
   const references = [
     cleanValue(vehicle.stockNumber)
       ? `stock ${cleanValue(vehicle.stockNumber)}`
@@ -469,6 +547,9 @@ export function generateTemplateDescriptionEn(vehicle: VehicleData): string {
   }
 
   if (location) lines.push(`Location: ${location}`);
+
+  const carfaxEn = carfaxMentionEn(vehicle);
+  if (carfaxEn) lines.push("", carfaxEn);
 
   const references = [
     cleanValue(vehicle.stockNumber)

@@ -12,7 +12,8 @@
     "test": "vitest run",
     "test:unit": "vitest run --config vitest.unit.config.ts",
     "test:int": "vitest run --config vitest.int.config.ts",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "vin-decode": "node --env-file=../../.env ./node_modules/tsx/dist/cli.mjs src/vin-decode-cli.ts"
   },
   "dependencies": {
     "@okauto/database": "workspace:*",

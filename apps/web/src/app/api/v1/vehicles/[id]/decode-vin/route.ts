@@ -1,34 +1,44 @@
-import { decodeVin } from '@okauto/shared';
-import { prisma } from '@okauto/database';
-import { withAuth, jsonResponse, errorResponse } from '@/lib/api';
+import {
+  decodeVin,
+  emptyFieldsFromVinDecode,
+  vinDecodeErrorMessageFr,
+} from "@okauto/shared";
+import { prisma } from "@okauto/database";
+import { withAuth, jsonResponse, errorResponse } from "@/lib/api";
 
 export const POST = withAuth(async (_request, { auth, params }) => {
   const vehicle = await prisma.vehicle.findFirst({
     where: { id: params!.id, organizationId: auth.orgId },
   });
-  if (!vehicle) return errorResponse('Vehicle not found', 404);
-  if (!vehicle.vin) return errorResponse('Vehicle has no VIN', 400);
+  if (!vehicle) return errorResponse("Véhicule introuvable", 404);
+  if (!vehicle.vin) return errorResponse("Ce véhicule n’a pas de NIV", 400);
 
   const decoded = await decodeVin(vehicle.vin);
-  if (decoded.error) return errorResponse(decoded.error, 400);
+  if (decoded.error) {
+    const status = /NHTSA API error/i.test(decoded.error) ? 503 : 400;
+    return errorResponse(vinDecodeErrorMessageFr(decoded.error), status);
+  }
 
+  const { patch, filled, skipped } = emptyFieldsFromVinDecode(vehicle, decoded);
   const updated = await prisma.vehicle.update({
     where: { id: vehicle.id },
     data: {
-      year: decoded.year ?? vehicle.year,
-      make: decoded.make ?? vehicle.make,
-      model: decoded.model ?? vehicle.model,
-      trim: decoded.trim ?? vehicle.trim,
-      bodyStyle: decoded.bodyStyle ?? vehicle.bodyStyle,
-      engine: decoded.engine ?? vehicle.engine,
-      fuelType: decoded.fuelType ?? vehicle.fuelType,
-      transmission: decoded.transmission ?? vehicle.transmission,
-      drivetrain: decoded.drivetrain ?? vehicle.drivetrain,
-      doors: decoded.doors ?? vehicle.doors,
-      cylinders: decoded.cylinders ?? vehicle.cylinders,
+      year: patch.year as number | undefined,
+      make: patch.make as string | undefined,
+      model: patch.model as string | undefined,
+      trim: patch.trim as string | undefined,
+      bodyStyle: patch.bodyStyle as string | undefined,
+      engine: patch.engine as string | undefined,
+      fuelType: patch.fuelType as string | undefined,
+      transmission: patch.transmission as string | undefined,
+      drivetrain: patch.drivetrain as string | undefined,
+      doors: patch.doors as number | undefined,
+      cylinders: patch.cylinders as number | undefined,
+      vinDecodedAt: new Date(),
+      vinDecodedVin: decoded.vin,
     },
     include: { photos: true },
   });
 
-  return jsonResponse({ vehicle: updated, decode: decoded });
+  return jsonResponse({ vehicle: updated, decode: decoded, filled, skipped });
 });

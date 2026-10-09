@@ -11,6 +11,13 @@ export interface SyncResult {
   queuedForReview: number;
 }
 
+/** Dealer/site values win over vPIC, but empty feed fields must not wipe a decode. */
+function dealerPresent<T>(value: T | null | undefined): T | undefined {
+  if (value == null) return undefined;
+  if (typeof value === "string" && value.trim() === "") return undefined;
+  return value;
+}
+
 export async function runSyncSource(syncSourceId: string): Promise<SyncResult> {
   const source = await prisma.syncSource.findUnique({
     where: { id: syncSourceId },
@@ -111,22 +118,22 @@ export async function runSyncSource(syncSourceId: string): Promise<SyncResult> {
             syncSourceId: source.id,
             sourceUrl: v.sourceUrl,
             stockNumber: v.stockNumber,
-            year: v.year,
-            make: v.make,
-            model: v.model,
-            trim: v.trim,
+            year: dealerPresent(v.year),
+            make: dealerPresent(v.make),
+            model: dealerPresent(v.model),
+            trim: dealerPresent(v.trim),
             mileage: v.mileage,
             price: newPrice,
             exteriorColor: v.exteriorColor,
             interiorColor: v.interiorColor,
             description: v.description,
-            transmission: v.transmission,
-            fuelType: v.fuelType,
-            drivetrain: v.drivetrain,
-            engine: v.engine,
-            bodyStyle: v.bodyStyle,
-            doors: v.doors,
-            cylinders: v.cylinders,
+            transmission: dealerPresent(v.transmission),
+            fuelType: dealerPresent(v.fuelType),
+            drivetrain: dealerPresent(v.drivetrain),
+            engine: dealerPresent(v.engine),
+            bodyStyle: dealerPresent(v.bodyStyle),
+            doors: dealerPresent(v.doors),
+            cylinders: dealerPresent(v.cylinders),
             condition: v.condition,
             status,
             soldAt: status === "SOLD" ? new Date() : null,

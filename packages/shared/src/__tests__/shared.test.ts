@@ -1,9 +1,14 @@
 import { describe, it, expect } from "vitest";
 import {
-  generateTemplateDescription,
+  appendCarfaxMention,
+  CARFAX_MENTION_FR,
+  carfaxMentionFr,
+  ensureCarfaxMention,
   generateListingTitle,
-  generateMarketplaceTitle,
   generateMarketplacePackage,
+  generateMarketplaceTitle,
+  generateTemplateDescription,
+  shouldIncludeCarfaxMention,
 } from "../description";
 import {
   createListingSchema,
@@ -12,7 +17,14 @@ import {
   registerSchema,
   updateMarketplaceDraftSchema,
 } from "../index";
-import { isValidVinFormat, normalizeVin } from "../vin";
+import {
+  emptyFieldsFromVinDecode,
+  fillEmptyStringFieldsFromVinDecode,
+  isRetryableVinDecodeError,
+  isValidVinFormat,
+  normalizeVin,
+  vehicleNeedsVinDecode,
+} from "../vin";
 
 describe("description", () => {
   it("generates listing title from vehicle data", () => {
@@ -67,6 +79,7 @@ describe("description", () => {
       "Seules la TPS, la TVQ et, le cas échéant, le droit spécifique sur les pneus neufs s'ajoutent.",
     );
     expect(desc).not.toMatch(/^Aucun frais obligatoire additionnel$/m);
+    expect(desc).toContain(CARFAX_MENTION_FR);
   });
 
   it("does not invent missing vehicle details", () => {
@@ -133,6 +146,141 @@ describe("vin", () => {
     expect(isValidVinFormat("1HGBH41JXMN109186")).toBe(true);
     expect(isValidVinFormat("INVALID")).toBe(false);
     expect(isValidVinFormat("1HGBH41JXMN10918")).toBe(false);
+  });
+
+  it("fills only empty fields and never overwrites dealer trim", () => {
+    const { patch, filled, skipped } = emptyFieldsFromVinDecode(
+      {
+        year: 2024,
+        make: "GMC",
+        model: "",
+        trim: "SLE",
+        engine: null,
+      },
+      {
+        vin: "1GNEVHKW0RJ123456",
+        year: 2023,
+        make: "Chevrolet",
+        model: "Equinox",
+        trim: "SLT",
+        engine: "1.5L L4",
+        bodyStyle: "SUV",
+      },
+    );
+    expect(patch.year).toBeUndefined();
+    expect(patch.make).toBeUndefined();
+    expect(patch.trim).toBeUndefined();
+    expect(patch.model).toBe("Equinox");
+    expect(patch.engine).toBe("1.5L L4");
+    expect(filled).toEqual(["model", "bodyStyle", "engine"]);
+    expect(skipped).toEqual(["year", "make", "trim"]);
+  });
+
+  it("skips vPIC when the current NIV was already decoded", () => {
+    expect(
+      vehicleNeedsVinDecode({
+        vin: "1GNEVHKW0RJ123456",
+        vinDecodedAt: new Date(),
+        vinDecodedVin: "1GNEVHKW0RJ123456",
+        engine: null,
+      }),
+    ).toBe(false);
+    expect(
+      vehicleNeedsVinDecode({
+        vin: "1GNEVHKW0RJ123456",
+        vinDecodedAt: null,
+        engine: null,
+      }),
+    ).toBe(true);
+  });
+
+  it("applies decode results to empty form strings only", () => {
+    const { next, filled } = fillEmptyStringFieldsFromVinDecode(
+      { year: "2024", make: "", model: "Terrain" },
+      { vin: "1GKS2BKC1FR123456", year: 2020, make: "GMC", model: "Yukon" },
+    );
+    expect(next.year).toBe("2024");
+    expect(next.make).toBe("GMC");
+    expect(next.model).toBe("Terrain");
+    expect(filled).toEqual(["make"]);
+  });
+
+  it("retries only network and HTTP vPIC failures", () => {
+    expect(isRetryableVinDecodeError("NHTSA API error: 503")).toBe(true);
+    expect(isRetryableVinDecodeError("VIN decode failed")).toBe(true);
+    expect(isRetryableVinDecodeError("Invalid VIN format. Must be 17 characters.")).toBe(
+      false,
+    );
+    expect(isRetryableVinDecodeError("1 - Check Digit")).toBe(false);
+  });
+});
+
+describe("Carfax listing mention", () => {
+  it("adds the text-only mention for used and demo vehicles, never for new", () => {
+    expect(
+      shouldIncludeCarfaxMention({
+        mileage: 12000,
+        sourceUrl: "https://www.buckinghamgm.com/occasion/terrain.html",
+      }),
+    ).toBe(true);
+    expect(
+      shouldIncludeCarfaxMention({
+        stockNumber: "X-DEMO",
+        sourceUrl: "https://www.buckinghamgm.com/demonstrateurs/envision.html",
+      }),
+    ).toBe(true);
+    expect(
+      shouldIncludeCarfaxMention({
+        condition: "New",
+        mileage: 12,
+        stockNumber: "N-NEUF",
+        sourceUrl: "https://www.buckinghamgm.com/neufs/trax.html",
+      }),
+    ).toBe(false);
+    expect(
+      generateTemplateDescription({
+        year: 2024,
+        make: "GMC",
+        model: "Terrain",
+        mileage: 20000,
+        price: 28995,
+      }),
+    ).toContain(CARFAX_MENTION_FR);
+    expect(
+      generateTemplateDescription({
+        year: 2026,
+        make: "Chevrolet",
+        model: "Trax",
+        condition: "New",
+        mileage: 8,
+        stockNumber: "N-NEUF",
+        sourceUrl: "https://www.buckinghamgm.com/neufs/trax.html",
+        price: 28995,
+      }),
+    ).not.toMatch(/carfax/i);
+  });
+
+  it("substitutes sourceUrl only when the option is on, and never duplicates", () => {
+    const url = "https://www.buckinghamgm.com/occasion/terrain.html";
+    expect(
+      carfaxMentionFr({
+        mileage: 10000,
+        sourceUrl: url,
+        includeCarfaxSourceUrl: true,
+      }),
+    ).toBe(`Rapport Carfax gratuit disponible : ${url}`);
+    expect(
+      carfaxMentionFr({
+        mileage: 10000,
+        sourceUrl: url,
+        includeCarfaxSourceUrl: false,
+      }),
+    ).toBe(CARFAX_MENTION_FR);
+    const once = ensureCarfaxMention("Annonce.", {
+      mileage: 10000,
+    });
+    expect(once).toContain(CARFAX_MENTION_FR);
+    expect(appendCarfaxMention(once, CARFAX_MENTION_FR)).toBe(once);
   });
 });
 

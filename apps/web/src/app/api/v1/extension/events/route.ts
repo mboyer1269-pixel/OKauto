@@ -5,6 +5,7 @@ import {
   generateMarketplaceTitle,
   generateTemplateDescription,
   isFacebookMarketplaceItemUrl,
+  resolveIncludeCarfaxSourceUrl,
 } from "@okauto/shared";
 import { authenticateApiKey } from "@/lib/auth";
 import {
@@ -74,6 +75,10 @@ export async function POST(request: NextRequest) {
         vin: vehicle.vin,
         stockNumber: vehicle.stockNumber,
         sourceUrl: vehicle.sourceUrl,
+        includeCarfaxSourceUrl: resolveIncludeCarfaxSourceUrl(
+          vehicle.organization.includeCarfaxSourceUrl,
+          vehicle.includeCarfaxSourceUrl,
+        ),
         location: vehicle.location,
       };
 

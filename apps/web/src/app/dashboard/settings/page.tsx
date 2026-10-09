@@ -17,6 +17,7 @@ function SettingsContent() {
   const [org, setOrg] = useState<Record<string, string>>({});
   const [saved, setSaved] = useState(false);
   const [allInConfirmedAt, setAllInConfirmedAt] = useState<string | null>(null);
+  const [includeCarfaxSourceUrl, setIncludeCarfaxSourceUrl] = useState(false);
   const [catalog, setCatalog] = useState<{
     enabled?: boolean;
     feedUrl?: string | null;
@@ -52,6 +53,7 @@ function SettingsContent() {
           acExciseFee: String(d.acExciseFee ?? 0),
         });
         setAllInConfirmedAt(d.allInPriceConfirmedAt ?? null);
+        setIncludeCarfaxSourceUrl(Boolean(d.includeCarfaxSourceUrl));
       });
     apiFetch("/api/v1/admin/meta-catalog")
       .then((r) => (r.ok ? r.json() : null))
@@ -82,6 +84,7 @@ function SettingsContent() {
         pdiFee: Number(org.pdiFee || 0),
         adminFee: Number(org.adminFee || 0),
         acExciseFee: Number(org.acExciseFee || 0),
+        includeCarfaxSourceUrl,
       }),
     });
     setSaved(true);
@@ -258,6 +261,25 @@ function SettingsContent() {
           La version française apparaît en premier et reste au moins aussi
           complète (Charte de la langue française).
         </p>
+        <label className="flex items-start gap-2 pt-2 text-sm">
+          <input
+            type="checkbox"
+            className="mt-1"
+            checked={includeCarfaxSourceUrl}
+            onChange={(e) => setIncludeCarfaxSourceUrl(e.target.checked)}
+            disabled={!canEdit}
+          />
+          <span>
+            Inclure le lien de la fiche concessionnaire (
+            <code className="text-xs">sourceUrl</code>) dans la mention Carfax
+            des annonces. Désactivé par défaut : le texte est « Rapport Carfax
+            gratuit disponible, écrivez-nous ! » sans URL, pour éviter qu’une
+            annonce Marketplace soit signalée. Testez d’abord sur un seul
+            véhicule (fiche inventaire), puis activez ici pour tout le parc.
+            Occasion et démonstrateurs seulement ; les neufs n’ont pas la
+            mention.
+          </span>
+        </label>
         <label className="block text-sm font-medium" htmlFor="listingLocale">
           Gabarit d’aperçu
         </label>

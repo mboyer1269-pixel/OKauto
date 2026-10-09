@@ -10,9 +10,12 @@ import {
   SYNC_JOB_NAME,
   SYNC_TICK_EVERY_MS,
   SYNC_TICK_JOB_NAME,
+  VIN_DECODE_EVERY_MS,
+  VIN_DECODE_JOB_NAME,
   isLastAttempt,
   pingUptime,
   syncJobOptions,
+  vinDecodeJobOptions,
   workerHeartbeatUrl,
 } from "@okauto/shared";
 import { runSyncSource } from "./sync.js";
@@ -20,6 +23,7 @@ import { processRemovalReminders } from "./reminders.js";
 import { startWorkerHeartbeat } from "./heartbeat.js";
 import { checkSyncDegraded } from "./degraded.js";
 import { captureWorkerException, initWorkerSentry } from "./sentry.js";
+import { processVinDecodeBatch } from "./vin-decode.js";
 
 const REDIS_URL = process.env.REDIS_URL ?? "redis://localhost:6379";
 
@@ -29,6 +33,7 @@ export const importQueue = new Queue("import", { connection });
 export const syncQueue = new Queue("sync", { connection });
 export const notificationQueue = new Queue("notifications", { connection });
 export const maintenanceQueue = new Queue("maintenance", { connection });
+export const vinDecodeQueue = new Queue("vin-decode", { connection });
 
 const importWorker = new Worker(
   "import",
@@ -125,6 +130,15 @@ const maintenanceWorker = new Worker(
   { connection },
 );
 
+const vinDecodeWorker = new Worker(
+  "vin-decode",
+  async (job) => {
+    if (job.name !== VIN_DECODE_JOB_NAME) return { skipped: true };
+    return processVinDecodeBatch();
+  },
+  { connection },
+);
+
 importWorker.on("completed", (job) =>
   console.log(`Import job ${job.id} completed`),
 );
@@ -143,6 +157,13 @@ maintenanceWorker.on("failed", (job, err) => {
   console.error(`Maintenance job ${job?.id} failed:`, err);
   void captureWorkerException(err);
 });
+vinDecodeWorker.on("completed", (job) =>
+  console.log(`VIN decode job ${job.id} completed`, job.returnvalue),
+);
+vinDecodeWorker.on("failed", (job, err) => {
+  console.error(`VIN decode job ${job?.id} failed:`, err);
+  void captureWorkerException(err);
+});
 
 const heartbeatTimer = startWorkerHeartbeat(connection, () =>
   pingUptime(workerHeartbeatUrl()),
@@ -153,6 +174,7 @@ console.log("  - Import queue: listening");
 console.log("  - Sync queue: listening");
 console.log("  - Notification queue: listening");
 console.log("  - Maintenance schedulers: tick / reminders / degraded");
+console.log("  - VIN decode (vPIC): catch-up + post-sync empty fields");
 
 export async function scheduleSyncJobs() {
   const sources = await prisma.syncSource.findMany({
@@ -202,6 +224,20 @@ async function startSchedulers() {
       opts: MAINTENANCE_JOB_OPTS,
     },
   );
+  await vinDecodeQueue.upsertJobScheduler(
+    "suivia-vin-decode",
+    { every: VIN_DECODE_EVERY_MS },
+    {
+      name: VIN_DECODE_JOB_NAME,
+      data: { kind: VIN_DECODE_JOB_NAME },
+      opts: vinDecodeJobOptions(),
+    },
+  );
+  await vinDecodeQueue.add(
+    VIN_DECODE_JOB_NAME,
+    { kind: VIN_DECODE_JOB_NAME, reason: "startup" },
+    vinDecodeJobOptions(),
+  );
 }
 
 void initWorkerSentry();
@@ -217,10 +253,12 @@ process.on("SIGTERM", async () => {
   await syncWorker.close();
   await notificationWorker.close();
   await maintenanceWorker.close();
+  await vinDecodeWorker.close();
   await importQueue.close();
   await syncQueue.close();
   await notificationQueue.close();
   await maintenanceQueue.close();
+  await vinDecodeQueue.close();
   await prisma.$disconnect();
   process.exit(0);
 });

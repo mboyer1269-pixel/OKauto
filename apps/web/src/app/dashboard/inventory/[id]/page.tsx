@@ -28,6 +28,8 @@ function VehicleDetail() {
   const router = useRouter();
   const [vehicle, setVehicle] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
+  const [decodeError, setDecodeError] = useState("");
+  const [carfaxSaving, setCarfaxSaving] = useState(false);
 
   const load = useCallback(async () => {
     const res = await apiFetch(`/api/v1/vehicles/${id}`);
@@ -40,14 +42,33 @@ function VehicleDetail() {
   }, [load]);
 
   const handleDecodeVin = async () => {
+    setDecodeError("");
     const res = await apiFetch(`/api/v1/vehicles/${id}/decode-vin`, {
       method: "POST",
     });
     if (res.ok) load();
     else {
       const err = await res.json();
-      alert(err.error);
+      setDecodeError(
+        typeof err.error === "string"
+          ? err.error
+          : "Le NIV n’a pas pu être décodé.",
+      );
     }
+  };
+
+  const handleCarfaxLinkToggle = async (checked: boolean) => {
+    setCarfaxSaving(true);
+    const res = await apiFetch(`/api/v1/vehicles/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ includeCarfaxSourceUrl: checked }),
+    });
+    if (res.ok) {
+      setVehicle((current) =>
+        current ? { ...current, includeCarfaxSourceUrl: checked } : current,
+      );
+    }
+    setCarfaxSaving(false);
   };
 
   const handleGenerateDesc = async () => {
@@ -143,6 +164,25 @@ function VehicleDetail() {
                 <strong>Moteur :</strong> {(vehicle.engine as string) ?? "—"}
               </p>
             </div>
+            {decodeError && (
+              <p className="mt-3 p-2 bg-red-50 text-red-700 rounded-lg text-xs">
+                {decodeError}
+              </p>
+            )}
+            <label className="mt-4 flex items-start gap-2 text-xs text-slate-700">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={Boolean(vehicle.includeCarfaxSourceUrl)}
+                disabled={carfaxSaving || !vehicle.sourceUrl}
+                onChange={(e) => void handleCarfaxLinkToggle(e.target.checked)}
+              />
+              <span>
+                Inclure le lien de cette fiche dans la mention Carfax de
+                l’annonce (pour tester avant de l’activer partout). Sans URL par
+                défaut.
+              </span>
+            </label>
             <div className="flex flex-wrap gap-2 mt-4">
               {Boolean(vehicle.vin) && (
                 <button

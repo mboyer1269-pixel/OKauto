@@ -30,6 +30,7 @@ import {
   generateMarketplacePackage,
   isFacebookMarketplaceItemUrl,
   isListingDueForRenewal,
+  resolveIncludeCarfaxSourceUrl,
   type ListingLocale,
 } from "@okauto/shared";
 import { ProtectedRoute } from "@/components/protected-route";
@@ -57,6 +58,7 @@ interface Vehicle {
   bodyStyle: string | null;
   condition: string | null;
   location: string | null;
+  includeCarfaxSourceUrl?: boolean;
   features: string[];
   updatedAt: string;
   photos: Array<{ url: string; isPrimary: boolean }>;
@@ -119,6 +121,7 @@ interface Organization {
   pdiFee?: number | string | null;
   adminFee?: number | string | null;
   acExciseFee?: number | string | null;
+  includeCarfaxSourceUrl?: boolean;
 }
 
 type Queue = "today" | "prepare" | "active" | "remove" | "renew" | "history";
@@ -580,6 +583,10 @@ function ListingsContent() {
         },
         allInPriceConfirmed: Boolean(organization.allInPriceConfirmedAt),
         language: draftLocale === "bilingual" ? "fr_en" : "fr",
+        includeCarfaxSourceUrl: resolveIncludeCarfaxSourceUrl(
+          organization.includeCarfaxSourceUrl,
+          selected.includeCarfaxSourceUrl,
+        ),
       },
       draftLocale,
     );
@@ -665,6 +672,10 @@ function ListingsContent() {
           },
           allInPriceConfirmed: Boolean(organization.allInPriceConfirmedAt),
           language: draftLocale === "bilingual" ? "fr_en" : "fr",
+          includeCarfaxSourceUrl: resolveIncludeCarfaxSourceUrl(
+            organization.includeCarfaxSourceUrl,
+            vehicle.includeCarfaxSourceUrl,
+          ),
         },
         draftLocale,
       );
@@ -1584,6 +1595,42 @@ function ListingsContent() {
                       )
                     }
                   />
+                  <label className="flex items-start gap-2 rounded-xl border border-slate-200 bg-white p-3 text-sm">
+                    <input
+                      type="checkbox"
+                      className="mt-1"
+                      checked={Boolean(selected.includeCarfaxSourceUrl)}
+                      disabled={!selected.sourceUrl}
+                      onChange={(event) => {
+                        const checked = event.target.checked;
+                        void apiFetch(`/api/v1/vehicles/${selected.id}`, {
+                          method: "PATCH",
+                          body: JSON.stringify({
+                            includeCarfaxSourceUrl: checked,
+                          }),
+                        }).then((response) => {
+                          if (!response.ok) return;
+                          const apply = (vehicle: Vehicle) =>
+                            vehicle.id === selected.id
+                              ? { ...vehicle, includeCarfaxSourceUrl: checked }
+                              : vehicle;
+                          setVehicles((current) => current.map(apply));
+                          setSelected((current) =>
+                            current ? apply(current) : current,
+                          );
+                        });
+                      }}
+                    />
+                    <span>
+                      Inclure le lien de cette fiche (
+                      <code className="text-xs">sourceUrl</code>) dans la
+                      mention Carfax, à la place du texte sans URL. Pour tester
+                      une annonce avant de l’activer partout (Paramètres).
+                      Occasion et démonstrateurs seulement. Régénérez la
+                      description pour appliquer le changement à un brouillon
+                      déjà enregistré.
+                    </span>
+                  </label>
                   <EditableDraftField
                     label="Description"
                     value={listingPackage.description}

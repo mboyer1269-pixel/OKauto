@@ -5,6 +5,7 @@ import {
   generateTemplateDescription,
   hasMinRole,
   isFacebookMarketplaceItemUrl,
+  resolveIncludeCarfaxSourceUrl,
 } from "@okauto/shared";
 import { withAuth, jsonResponse, errorResponse, parseBody } from "@/lib/api";
 import { createAuditLog } from "@/lib/auth";
@@ -160,6 +161,10 @@ export const POST = withAuth(async (request, { auth }) => {
     vin: vehicle.vin,
     stockNumber: vehicle.stockNumber,
     sourceUrl: vehicle.sourceUrl,
+    includeCarfaxSourceUrl: resolveIncludeCarfaxSourceUrl(
+      vehicle.organization.includeCarfaxSourceUrl,
+      vehicle.includeCarfaxSourceUrl,
+    ),
     location: vehicle.location,
   };
   const photoUrls = draft?.photoOrder.length
