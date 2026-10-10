@@ -41,6 +41,9 @@ export const GET = withAuth(async (_request, { auth }) => {
             ? staleUnseenReviewReason(vehicle.lastSeenAt)
             : null,
       confirmable: vehicle.feedAbsenceStatus === "PENDING_REVIEW",
+      keepable:
+        vehicle.feedAbsenceStatus === "PENDING_REVIEW" ||
+        staleIdSet.has(vehicle.id),
     })),
     total: vehicles.length,
   });

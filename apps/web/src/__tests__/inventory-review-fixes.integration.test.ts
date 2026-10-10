@@ -7,8 +7,13 @@ import { GET as dashboardHandler } from "@/app/api/v1/analytics/dashboard/route"
 import { GET as publishQueueHandler } from "@/app/api/v1/analytics/publish-queue/route";
 import { GET as directorHandler } from "@/app/api/v1/analytics/director/route";
 import { GET as vehiclesHandler } from "@/app/api/v1/vehicles/route";
-import { GET as feedAbsenceHandler } from "@/app/api/v1/vehicles/feed-absence/route";
+import {
+  GET as feedAbsenceHandler,
+  POST as feedAbsencePostHandler,
+} from "@/app/api/v1/vehicles/feed-absence/route";
 import { GET as extensionInventoryHandler } from "@/app/api/v1/extension/route";
+import { GET as extensionVehicleHandler } from "@/app/api/v1/extension/vehicles/[id]/route";
+import { GET as extensionPhotosHandler } from "@/app/api/v1/extension/photos/[vehicleId]/route";
 import { hashToken } from "@/lib/auth";
 
 function makeRequest(url: string, options: RequestInit = {}): Request {
@@ -49,6 +54,8 @@ describe("revue inventaire — renouveler, retirer, périmés", { timeout: 30_00
   let failedSourceVehicleId: string;
   let unseenButSourceLagVehicleId: string;
   let salesSoldVehicleId: string;
+  let alreadyKeptStaleVehicleId: string;
+  let onSalePhotoId: string;
 
   let onSaleListingId: string;
   let soldListingId: string;
@@ -124,6 +131,7 @@ describe("revue inventaire — renouveler, retirer, périmés", { timeout: 30_00
       failedSourceVehicle,
       unseenButSourceLag,
       salesSoldVehicle,
+      alreadyKeptStale,
     ] = await Promise.all([
       prisma.vehicle.create({
         data: {
@@ -224,6 +232,19 @@ describe("revue inventaire — renouveler, retirer, périmés", { timeout: 30_00
           feedAbsenceStatus: "IN_FEED",
         },
       }),
+      prisma.vehicle.create({
+        data: {
+          organizationId: org.id,
+          stockNumber: `RV-KEPT-${stamp}`,
+          year: 2015,
+          make: "Subaru",
+          model: "Outback",
+          status: "AVAILABLE",
+          feedAbsenceStatus: "KEPT",
+          lastSeenAt: lastSeenStale,
+          syncSourceId: onSaleSource.id,
+        },
+      }),
     ]);
 
     onSaleVehicleId = onSaleVehicle.id;
@@ -234,6 +255,17 @@ describe("revue inventaire — renouveler, retirer, périmés", { timeout: 30_00
     failedSourceVehicleId = failedSourceVehicle.id;
     unseenButSourceLagVehicleId = unseenButSourceLag.id;
     salesSoldVehicleId = salesSoldVehicle.id;
+    alreadyKeptStaleVehicleId = alreadyKeptStale.id;
+
+    const photo = await prisma.vehiclePhoto.create({
+      data: {
+        vehicleId: onSaleVehicle.id,
+        url: `https://example.com/review-onsale-${stamp}.jpg`,
+        sortOrder: 0,
+        isPrimary: true,
+      },
+    });
+    onSalePhotoId = photo.id;
 
     const [
       onSaleListing,
@@ -347,6 +379,7 @@ describe("revue inventaire — renouveler, retirer, périmés", { timeout: 30_00
         },
       },
     });
+    await prisma.vehiclePhoto.deleteMany({ where: { id: onSalePhotoId } });
     await prisma.vehicle.deleteMany({
       where: {
         id: {
@@ -359,6 +392,7 @@ describe("revue inventaire — renouveler, retirer, périmés", { timeout: 30_00
             failedSourceVehicleId,
             unseenButSourceLagVehicleId,
             salesSoldVehicleId,
+            alreadyKeptStaleVehicleId,
           ],
         },
       },
@@ -534,13 +568,14 @@ describe("revue inventaire — renouveler, retirer, périmés", { timeout: 30_00
         manualVehicleId,
         failedSourceVehicleId,
         unseenButSourceLagVehicleId,
+        alreadyKeptStaleVehicleId,
       ]),
     );
     expect(inventoryIds).not.toContain(staleVehicleId);
     expect(inventoryIds).not.toContain(soldVehicleId);
     expect(inventoryIds).not.toContain(absentVehicleId);
-    expect(vehiclesData.pagination.total).toBe(4);
-    expect(dashboardData.totalVehicles).toBe(4);
+    expect(vehiclesData.pagination.total).toBe(5);
+    expect(dashboardData.totalVehicles).toBe(5);
 
     const staleRow = absenceData.vehicles.find(
       (vehicle: { id: string }) => vehicle.id === staleVehicleId,
@@ -549,6 +584,7 @@ describe("revue inventaire — renouveler, retirer, périmés", { timeout: 30_00
       expect.objectContaining({
         id: staleVehicleId,
         confirmable: false,
+        keepable: true,
         reviewReason: expect.stringMatching(/^non vu depuis \d+ jours?$/),
       }),
     );
@@ -561,7 +597,8 @@ describe("revue inventaire — renouveler, retirer, périmés", { timeout: 30_00
       (vehicle: { id: string }) => vehicle.id,
     );
     expect(extensionIds).not.toContain(staleVehicleId);
-    expect(extensionData.pagination.total).toBe(4);
+    expect(extensionIds).toContain(alreadyKeptStaleVehicleId);
+    expect(extensionData.pagination.total).toBe(5);
 
     const persisted = await prisma.vehicle.findUnique({
       where: { id: staleVehicleId },
@@ -571,5 +608,145 @@ describe("revue inventaire — renouveler, retirer, périmés", { timeout: 30_00
       status: "AVAILABLE",
       feedAbsenceStatus: "IN_FEED",
     });
+  });
+
+  it("P1-A: la fiche et les photos visent le véhicule demandé malgré un périmé", async () => {
+    const missingId = `missing-${stamp}`;
+    const headers = { "X-API-Key": apiKey };
+
+    const onSaleDetail = await extensionVehicleHandler(
+      makeRequest(
+        `http://localhost/api/v1/extension/vehicles/${onSaleVehicleId}`,
+        { headers },
+      ) as never,
+      { params: Promise.resolve({ id: onSaleVehicleId }) },
+    );
+    const onSaleData = await onSaleDetail.json();
+    expect(onSaleDetail.status).toBe(200);
+    expect(onSaleData.vehicle.id).toBe(onSaleVehicleId);
+
+    for (const id of [staleVehicleId, soldVehicleId, missingId]) {
+      const detail = await extensionVehicleHandler(
+        makeRequest(`http://localhost/api/v1/extension/vehicles/${id}`, {
+          headers,
+        }) as never,
+        { params: Promise.resolve({ id }) },
+      );
+      expect(detail.status).toBe(404);
+    }
+
+    const onSalePhotos = await extensionPhotosHandler(
+      makeRequest(
+        `http://localhost/api/v1/extension/photos/${onSaleVehicleId}`,
+        { headers },
+      ) as never,
+      { params: Promise.resolve({ vehicleId: onSaleVehicleId }) },
+    );
+    const onSalePhotoBody = await onSalePhotos.json();
+    expect(onSalePhotos.status).not.toBe(404);
+    expect(onSalePhotoBody.error).not.toBe("Vehicle not found");
+
+    const noPhoto = await extensionPhotosHandler(
+      makeRequest(
+        `http://localhost/api/v1/extension/photos/${manualVehicleId}`,
+        { headers },
+      ) as never,
+      { params: Promise.resolve({ vehicleId: manualVehicleId }) },
+    );
+    const noPhotoBody = await noPhoto.json();
+    expect(noPhoto.status).toBe(404);
+    expect(noPhotoBody.error).toBe("Photo not found");
+
+    for (const id of [staleVehicleId, soldVehicleId, missingId]) {
+      const photos = await extensionPhotosHandler(
+        makeRequest(`http://localhost/api/v1/extension/photos/${id}`, {
+          headers,
+        }) as never,
+        { params: Promise.resolve({ vehicleId: id }) },
+      );
+      const body = await photos.json();
+      expect(photos.status).toBe(404);
+      expect(body.error).toBe("Vehicle not found");
+    }
+  });
+
+  it("P2-A: garder un périmé le remet en inventaire et il y reste", async () => {
+    const before = await prisma.vehicle.findUnique({
+      where: { id: staleVehicleId },
+      select: { lastSeenAt: true, feedAbsenceStatus: true },
+    });
+    expect(before?.feedAbsenceStatus).toBe("IN_FEED");
+
+    const keep = await feedAbsencePostHandler(
+      makeRequest("http://localhost/api/v1/vehicles/feed-absence", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${ownerToken}` },
+        body: JSON.stringify({
+          vehicleIds: [staleVehicleId],
+          action: "keep",
+        }),
+      }),
+      { params: Promise.resolve({}) },
+    );
+    expect(keep.status).toBe(200);
+    expect(await keep.json()).toEqual({ updated: 1 });
+
+    const afterKeep = await prisma.vehicle.findUnique({
+      where: { id: staleVehicleId },
+      select: { lastSeenAt: true, feedAbsenceStatus: true, status: true },
+    });
+    expect(afterKeep?.status).toBe("AVAILABLE");
+    expect(afterKeep?.feedAbsenceStatus).toBe("KEPT");
+    expect(afterKeep?.lastSeenAt?.toISOString()).toBe(
+      before?.lastSeenAt?.toISOString(),
+    );
+
+    const [vehiclesRes, extensionRes, absenceRes] = await Promise.all([
+      vehiclesHandler(
+        makeRequest("http://localhost/api/v1/vehicles?limit=100", {
+          headers: { Authorization: `Bearer ${ownerToken}` },
+        }),
+        { params: Promise.resolve({}) },
+      ),
+      extensionInventoryHandler(
+        makeRequest("http://localhost/api/v1/extension?limit=50", {
+          headers: { "X-API-Key": apiKey },
+        }) as never,
+      ),
+      feedAbsenceHandler(
+        makeRequest("http://localhost/api/v1/vehicles/feed-absence", {
+          headers: { Authorization: `Bearer ${ownerToken}` },
+        }),
+        { params: Promise.resolve({}) },
+      ),
+    ]);
+    const vehiclesData = await vehiclesRes.json();
+    const extensionData = await extensionRes.json();
+    const absenceData = await absenceRes.json();
+    const inventoryIds = vehiclesData.vehicles.map(
+      (vehicle: { id: string }) => vehicle.id,
+    );
+    const extensionIds = extensionData.vehicles.map(
+      (vehicle: { id: string }) => vehicle.id,
+    );
+
+    expect(inventoryIds).toContain(staleVehicleId);
+    expect(extensionIds).toContain(staleVehicleId);
+    expect(vehiclesData.pagination.total).toBe(6);
+    expect(extensionData.pagination.total).toBe(6);
+    expect(
+      absenceData.vehicles.map((vehicle: { id: string }) => vehicle.id),
+    ).not.toContain(staleVehicleId);
+
+    const stillThere = await vehiclesHandler(
+      makeRequest("http://localhost/api/v1/vehicles?limit=100", {
+        headers: { Authorization: `Bearer ${ownerToken}` },
+      }),
+      { params: Promise.resolve({}) },
+    );
+    const stillData = await stillThere.json();
+    expect(stillData.vehicles.map((vehicle: { id: string }) => vehicle.id)).toContain(
+      staleVehicleId,
+    );
   });
 });

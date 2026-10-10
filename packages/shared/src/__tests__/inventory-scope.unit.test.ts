@@ -4,6 +4,7 @@ import {
   isStaleUnseenFromSync,
   listingNeedsMarketplaceRemoval,
   listingNeedsMarketplaceRemovalWhere,
+  onSaleListingVehicleWhere,
   onSaleVehicleWhere,
   soldHistoryVehicleWhere,
   staleUnseenReviewReason,
@@ -111,6 +112,58 @@ describe("inventaire en vente", () => {
         now,
       ),
     ).toBe(false);
+    expect(
+      isStaleUnseenFromSync(
+        {
+          ...stale,
+          feedAbsenceStatus: "KEPT",
+        },
+        now,
+      ),
+    ).toBe(false);
+    expect(
+      isOnSaleVehicle(
+        {
+          ...stale,
+          feedAbsenceStatus: "KEPT",
+        },
+        now,
+      ),
+    ).toBe(true);
+    expect(
+      isStaleUnseenFromSync(
+        {
+          ...stale,
+          syncSource: {
+            isActive: true,
+            lastSyncStatus: "partial",
+            lastSyncAt: "2026-10-10T11:00:00.000Z",
+          },
+        },
+        now,
+      ),
+    ).toBe(false);
+    expect(
+      isOnSaleVehicle(
+        {
+          ...stale,
+          syncSource: {
+            isActive: true,
+            lastSyncStatus: "partial",
+            lastSyncAt: "2026-10-10T11:00:00.000Z",
+          },
+        },
+        now,
+      ),
+    ).toBe(true);
+  });
+
+  it("n’émet jamais de clé id qui écraserait un where de détail", () => {
+    const clause = onSaleListingVehicleWhere(["stale-1", "stale-2"]);
+    expect(clause).not.toHaveProperty("id");
+    expect(clause.NOT).toEqual({ id: { in: ["stale-1", "stale-2"] } });
+    expect(onSaleListingVehicleWhere()).not.toHaveProperty("id");
+    expect(onSaleListingVehicleWhere()).not.toHaveProperty("NOT");
   });
 
   it("exclut SOLD, ARCHIVED et PENDING_REVIEW de la clause Prisma", () => {
@@ -158,6 +211,25 @@ describe("inventaire en vente", () => {
         status: "ACTIVE",
         vehicle: { status: "AVAILABLE", feedAbsenceStatus: "IN_FEED" },
       }),
+    ).toBe(false);
+    expect(
+      listingNeedsMarketplaceRemoval(
+        {
+          status: "ACTIVE",
+          vehicle: {
+            status: "AVAILABLE",
+            feedAbsenceStatus: "KEPT",
+            syncSourceId: "src1",
+            lastSeenAt: "2026-10-07T10:00:00.000Z",
+            syncSource: {
+              isActive: true,
+              lastSyncStatus: "success",
+              lastSyncAt: "2026-10-10T11:00:00.000Z",
+            },
+          },
+        },
+        now,
+      ),
     ).toBe(false);
     expect(
       listingNeedsMarketplaceRemoval({

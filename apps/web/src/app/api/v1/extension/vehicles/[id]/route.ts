@@ -23,9 +23,8 @@ export async function GET(
     const { id } = await params;
     const vehicle = await prisma.vehicle.findFirst({
       where: {
-        id,
         organizationId: auth.orgId,
-        ...(await onSaleInventoryWhere(auth.orgId)),
+        AND: [{ id }, await onSaleInventoryWhere(auth.orgId)],
       },
       include: {
         photos: { orderBy: { sortOrder: "asc" } },

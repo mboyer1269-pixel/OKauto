@@ -260,12 +260,19 @@ export async function confirmFeedAbsenceVehicles(
   vehicleIds: string[],
   action: "sold" | "keep",
 ) {
+  const staleUnseenIds =
+    action === "keep" ? await staleUnseenVehicleIds(organizationId) : [];
   const vehicles = await prisma.vehicle.findMany({
     where: {
       organizationId,
       id: { in: vehicleIds },
       status: { in: ["AVAILABLE", "PENDING"] },
-      feedAbsenceStatus: "PENDING_REVIEW",
+      OR: [
+        { feedAbsenceStatus: "PENDING_REVIEW" },
+        ...(staleUnseenIds.length > 0
+          ? [{ id: { in: staleUnseenIds } }]
+          : []),
+      ],
     },
     select: { id: true },
   });

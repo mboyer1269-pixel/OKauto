@@ -50,11 +50,20 @@ export function staleUnseenReviewReason(
 /**
  * AVAILABLE encore en base, mais la synchro active a réussi depuis
  * plus de 48 h sans revoir le véhicule. Filtre d’affichage seulement.
+ *
+ * KEPT (décision humaine « garder en inventaire ») est exclu : on ne
+ * retouche pas lastSeenAt. La synchro le remet en IN_FEED si elle le
+ * revoit, puis en PENDING_REVIEW s’il disparaît à nouveau.
+ *
+ * lastSyncStatus doit être exactement "success". Un statut "partial"
+ * (ou error / null) est prudent : le véhicule reste compté, le flux
+ * ayant pu être tronqué.
  */
 export function isStaleUnseenFromSync(
   vehicle: InventoryScopeVehicle,
   now = new Date(),
 ): boolean {
+  if (vehicle.feedAbsenceStatus === "KEPT") return false;
   if (!vehicle.syncSourceId && !vehicle.syncSource) return false;
   const source = vehicle.syncSource;
   if (!source?.isActive) return false;
@@ -93,10 +102,17 @@ export function onSaleVehicleWhere() {
   };
 }
 
+/**
+ * Clause Prisma « en vente », sans jamais poser de clé `id`.
+ * Les IDs périmés passent par `NOT` pour ne pas écraser un `id`
+ * (ni un `AND` / `OR`) déjà présent sur le where de l’appelant.
+ */
 export function onSaleListingVehicleWhere(staleUnseenIds: string[] = []) {
   return {
     ...onSaleVehicleWhere(),
-    ...(staleUnseenIds.length > 0 ? { id: { notIn: staleUnseenIds } } : {}),
+    ...(staleUnseenIds.length > 0
+      ? { NOT: { id: { in: staleUnseenIds } } }
+      : {}),
   };
 }
 

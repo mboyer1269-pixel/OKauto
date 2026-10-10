@@ -20,6 +20,8 @@ export const GET = withAuth(async (request, { auth }) => {
   } else if (query.status === "ARCHIVED") {
     where.status = "ARCHIVED";
   } else {
+    // Le filtre partagé n’émet pas de clé `id` (NOT pour les périmés).
+    // `status` ci-dessous restreint volontairement AVAILABLE/PENDING.
     Object.assign(where, await onSaleInventoryWhere(auth.orgId));
     if (query.status === "AVAILABLE" || query.status === "PENDING") {
       where.status = query.status;

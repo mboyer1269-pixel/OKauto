@@ -41,7 +41,10 @@ export async function GET(
     const parsedIndex = Number.parseInt(new URL(request.url).searchParams.get('index') ?? '0', 10);
     const index = Number.isFinite(parsedIndex) && parsedIndex >= 0 ? parsedIndex : 0;
     const vehicle = await prisma.vehicle.findFirst({
-      where: { id: vehicleId, organizationId: auth.orgId, ...(await onSaleInventoryWhere(auth.orgId)) },
+      where: {
+        organizationId: auth.orgId,
+        AND: [{ id: vehicleId }, await onSaleInventoryWhere(auth.orgId)],
+      },
       select: {
         id: true,
         stockNumber: true,
