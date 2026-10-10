@@ -564,7 +564,9 @@ function ListingsContent() {
   const staleListings = listings.filter(
     (listing) => listing.status === "STALE",
   );
-  const listingsToRemove = listings.filter(listingNeedsMarketplaceRemoval);
+  const listingsToRemove = listings.filter((listing) =>
+    listingNeedsMarketplaceRemoval(listing),
+  );
   const alertListingsToRemove =
     orgListingsToRemove.length > 0 ? orgListingsToRemove : listingsToRemove;
   const removalListings = [...listingsToRemove, ...staleListings];
