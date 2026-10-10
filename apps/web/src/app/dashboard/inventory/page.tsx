@@ -105,9 +105,12 @@ function InventoryContent() {
   const [cursor, setCursor] = useState(0);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const hasLoaded = useRef(false);
+  const loadRequestId = useRef(0);
   const tableRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
+    const requestId = loadRequestId.current + 1;
+    loadRequestId.current = requestId;
     if (hasLoaded.current) setRefreshing(true);
     else setLoading(true);
     setLoadError(null);
@@ -130,12 +133,14 @@ function InventoryContent() {
       }
 
       const data = await res.json();
+      if (requestId !== loadRequestId.current) return;
       setVehicles(data.vehicles ?? []);
       setPagination({
         total: data.pagination?.total ?? 0,
         totalPages: data.pagination?.totalPages ?? 1,
       });
     } catch (error) {
+      if (requestId !== loadRequestId.current) return;
       console.error("Unable to load inventory:", error);
       setVehicles([]);
       setPagination({ total: 0, totalPages: 1 });
@@ -143,6 +148,7 @@ function InventoryContent() {
         "Impossible de charger l’inventaire. Réessayez; si le problème persiste, redémarrez Suivia.",
       );
     } finally {
+      if (requestId !== loadRequestId.current) return;
       hasLoaded.current = true;
       setLoading(false);
       setRefreshing(false);

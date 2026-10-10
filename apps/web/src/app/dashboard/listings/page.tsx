@@ -223,6 +223,14 @@ function ListingsContent() {
   const [readyTotal, setReadyTotal] = useState(0);
   const [allReadyTotal, setAllReadyTotal] = useState(0);
   const [listings, setListings] = useState<Listing[]>([]);
+  const [orgListingsToRemove, setOrgListingsToRemove] = useState<
+    Array<{
+      id: string;
+      externalUrl: string | null;
+      user?: { name: string } | null;
+      vehicle: Vehicle;
+    }>
+  >([]);
   const [listingCounts, setListingCounts] = useState<Record<string, number>>(
     {},
   );
@@ -315,6 +323,7 @@ function ListingsContent() {
         setAllReadyTotal(vehicleData.pagination?.total ?? 0);
         setReadyPage(1);
         setListings(listingData.listings ?? []);
+        setOrgListingsToRemove(listingData.listingsToRemove ?? []);
         setListingCounts(listingData.counts ?? {});
         setOrganization(orgData);
         setDraftLocale(
@@ -443,6 +452,7 @@ function ListingsContent() {
       if (!response.ok) return;
       const data = await response.json();
       setListings(data.listings ?? []);
+      setOrgListingsToRemove(data.listingsToRemove ?? []);
       setListingCounts(data.counts ?? {});
       lastListingRefresh.current = Date.now();
     },
@@ -555,6 +565,8 @@ function ListingsContent() {
     (listing) => listing.status === "STALE",
   );
   const listingsToRemove = listings.filter(listingNeedsMarketplaceRemoval);
+  const alertListingsToRemove =
+    orgListingsToRemove.length > 0 ? orgListingsToRemove : listingsToRemove;
   const removalListings = [...listingsToRemove, ...staleListings];
   const historyListings = listings.filter((listing) =>
     ["REMOVED", "SOLD"].includes(listing.status),
@@ -1137,7 +1149,7 @@ function ListingsContent() {
         </div>
       </header>
 
-      {listingsToRemove.length > 0 && (
+      {alertListingsToRemove.length > 0 && (
         <section
           className="rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3"
           aria-labelledby="annonce-a-retirer-heading"
@@ -1149,13 +1161,13 @@ function ListingsContent() {
                 Annonce à retirer
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                {formatNumber(listingsToRemove.length)} annonce
-                {listingsToRemove.length > 1 ? "s" : ""} encore active
-                {listingsToRemove.length > 1 ? "s" : ""} pour un véhicule vendu
+                {formatNumber(alertListingsToRemove.length)} annonce
+                {alertListingsToRemove.length > 1 ? "s" : ""} encore active
+                {alertListingsToRemove.length > 1 ? "s" : ""} pour un véhicule vendu
                 ou absent du flux.
               </p>
               <ul className="mt-2 space-y-1 text-sm">
-                {listingsToRemove.map((listing) => (
+                {alertListingsToRemove.map((listing) => (
                   <li
                     key={listing.id}
                     className="flex flex-wrap items-center gap-3"
@@ -1164,6 +1176,9 @@ function ListingsContent() {
                       {vehicleName(listing.vehicle)}
                       {listing.vehicle.stockNumber
                         ? ` · ${listing.vehicle.stockNumber}`
+                        : ""}
+                      {"user" in listing && listing.user?.name
+                        ? ` · ${listing.user.name}`
                         : ""}
                     </span>
                     {listing.externalUrl ? (

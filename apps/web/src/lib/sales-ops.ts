@@ -18,8 +18,9 @@ import {
   toMetaVehicleCatalogRow,
   validateMetaVehicleRow,
   type ListingLocale,
-  onSaleVehicleWhere,
+  onSaleListingVehicleWhere,
 } from "@okauto/shared";
+import { onSaleInventoryWhere, staleUnseenVehicleIds } from "@/lib/on-sale-query";
 
 function money(value: unknown): number {
   if (value == null) return 0;
@@ -63,6 +64,8 @@ function advertisedForVehicle(
 }
 
 export async function getPublishQueue(organizationId: string, userId: string) {
+  const staleUnseenIds = await staleUnseenVehicleIds(organizationId);
+  const onSaleWhere = onSaleListingVehicleWhere(staleUnseenIds);
   const [organization, monthListings, vehicles, staleCount, activeListings, openLeads] =
     await Promise.all([
       prisma.organization.findUnique({ where: { id: organizationId } }),
@@ -77,7 +80,7 @@ export async function getPublishQueue(organizationId: string, userId: string) {
       prisma.vehicle.findMany({
         where: {
           organizationId,
-          ...onSaleVehicleWhere(),
+          ...onSaleWhere,
           listings: { none: { status: "ACTIVE", userId } },
         },
         include: {
@@ -90,7 +93,12 @@ export async function getPublishQueue(organizationId: string, userId: string) {
         where: { organizationId, userId, status: "STALE" },
       }),
       prisma.listing.findMany({
-        where: { organizationId, userId, status: "ACTIVE" },
+        where: {
+          organizationId,
+          userId,
+          status: "ACTIVE",
+          vehicle: onSaleListingVehicleWhere(staleUnseenIds),
+        },
         include: {
           vehicle: {
             select: {
@@ -207,6 +215,8 @@ export async function getPublishQueue(organizationId: string, userId: string) {
 export async function getDirectorStats(organizationId: string) {
   const weekAgo = new Date();
   weekAgo.setDate(weekAgo.getDate() - 7);
+  const staleUnseenIds = await staleUnseenVehicleIds(organizationId);
+  const onSaleWhere = onSaleListingVehicleWhere(staleUnseenIds);
   const monthStart = startOfCalendarMonth();
 
   const [
@@ -231,7 +241,7 @@ export async function getDirectorStats(organizationId: string) {
       _count: { _all: true },
     }),
     prisma.vehicle.count({
-      where: { organizationId, ...onSaleVehicleWhere() },
+      where: { organizationId, ...onSaleWhere },
     }),
     prisma.listing.groupBy({
       by: ["status"],
@@ -241,7 +251,7 @@ export async function getDirectorStats(organizationId: string) {
     prisma.vehicle.findMany({
       where: {
         organizationId,
-        ...onSaleVehicleWhere(),
+        ...onSaleWhere,
         listings: { none: { status: "ACTIVE" } },
         createdAt: { lte: new Date(Date.now() - 21 * 86_400_000) },
       },
@@ -362,7 +372,11 @@ export async function getDirectorStats(organizationId: string) {
   );
 
   const dueForRenewal = await prisma.listing.findMany({
-    where: { organizationId, status: "ACTIVE" },
+    where: {
+      organizationId,
+      status: "ACTIVE",
+      vehicle: onSaleListingVehicleWhere(staleUnseenIds),
+    },
     select: {
       id: true,
       listedAt: true,
@@ -428,7 +442,7 @@ export async function buildOrganizationCatalogCsv(organizationId: string) {
   if (!organization) throw new Error("Organization not found");
 
   const vehicles = await prisma.vehicle.findMany({
-    where: { organizationId, ...onSaleVehicleWhere() },
+    where: { organizationId, ...(await onSaleInventoryWhere(organizationId)) },
     include: {
       photos: { orderBy: { sortOrder: "asc" }, take: 20 },
     },
@@ -495,7 +509,7 @@ export async function getTodayQueue(organizationId: string, userId: string) {
       select: { id: true },
     }),
     prisma.vehicle.findMany({
-      where: { organizationId, ...onSaleVehicleWhere() },
+      where: { organizationId, ...(await onSaleInventoryWhere(organizationId)) },
       include: {
         photos: { orderBy: { sortOrder: "asc" } },
         listings: {
@@ -613,7 +627,7 @@ export async function previewMetaCatalog(organizationId: string) {
   });
   if (!organization) throw new Error("Organization not found");
   const vehicles = await prisma.vehicle.findMany({
-    where: { organizationId, ...onSaleVehicleWhere() },
+    where: { organizationId, ...(await onSaleInventoryWhere(organizationId)) },
     include: { photos: { orderBy: { sortOrder: "asc" }, take: 20 } },
   });
   const dealer = {

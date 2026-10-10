@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@okauto/database';
-import { onSaleVehicleWhere } from '@okauto/shared';
+import { onSaleInventoryWhere } from '@/lib/on-sale-query';
 import { authenticateApiKey } from '@/lib/auth';
 import { errorResponse, handleApiError } from '@/lib/api';
 
@@ -41,7 +41,7 @@ export async function GET(
     const parsedIndex = Number.parseInt(new URL(request.url).searchParams.get('index') ?? '0', 10);
     const index = Number.isFinite(parsedIndex) && parsedIndex >= 0 ? parsedIndex : 0;
     const vehicle = await prisma.vehicle.findFirst({
-      where: { id: vehicleId, organizationId: auth.orgId, ...onSaleVehicleWhere() },
+      where: { id: vehicleId, organizationId: auth.orgId, ...(await onSaleInventoryWhere(auth.orgId)) },
       select: {
         id: true,
         stockNumber: true,

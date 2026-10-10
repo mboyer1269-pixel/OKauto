@@ -14,6 +14,9 @@ interface AbsenceVehicle {
   vin: string | null;
   price: string | number | null;
   feedAbsenceNotedAt: string | null;
+  lastSeenAt?: string | null;
+  reviewReason?: string | null;
+  confirmable?: boolean;
   photos: Array<{ url: string }>;
   listings: Array<{ status: string; externalUrl: string | null }>;
 }
@@ -74,7 +77,12 @@ export function FeedAbsenceQueue({
 
   if (vehicles.length === 0) return null;
 
-  const allSelected = selected.length === vehicles.length;
+  const confirmableVehicles = vehicles.filter(
+    (vehicle) => vehicle.confirmable !== false,
+  );
+  const allSelected =
+    confirmableVehicles.length > 0 &&
+    selected.length === confirmableVehicles.length;
 
   return (
     <section className="card mb-6 border-warning/30 bg-warning/10/60">
@@ -88,9 +96,9 @@ export function FeedAbsenceQueue({
             {formatNumber(vehicles.length)} véhicule
             {vehicles.length > 1 ? "s" : ""} du lot n’
             {vehicles.length > 1 ? "étaient" : "était"} plus dans le flux
-            BuckinghamGM. Le garde-fou n’a <strong>marqué aucun vendu</strong>.
-            Confirmez en lot : vendu (retrait Marketplace ensuite) ou garder en
-            inventaire.
+            BuckinghamGM, ou non vus par une synchro récente. Ils ne comptent
+            pas dans l’inventaire. Confirmez les absents du flux : vendu
+            (retrait Marketplace ensuite) ou garder en inventaire.
           </p>
         </div>
       </div>
@@ -103,7 +111,13 @@ export function FeedAbsenceQueue({
             type="button"
             className="btn-secondary"
             onClick={() =>
-              setSelected(allSelected ? [] : vehicles.map((vehicle) => vehicle.id))
+              setSelected(
+                allSelected
+                  ? []
+                  : vehicles
+                      .filter((vehicle) => vehicle.confirmable !== false)
+                      .map((vehicle) => vehicle.id),
+              )
             }
           >
             {allSelected ? "Tout désélectionner" : "Tout sélectionner"}
@@ -133,7 +147,7 @@ export function FeedAbsenceQueue({
             key={vehicle.id}
             className="flex items-center gap-3 rounded-xl border border-warning/30 bg-card p-3"
           >
-            {canManage && (
+            {canManage && vehicle.confirmable !== false && (
               <input
                 type="checkbox"
                 checked={selected.includes(vehicle.id)}
@@ -154,6 +168,7 @@ export function FeedAbsenceQueue({
                 {formatCurrency(
                   vehicle.price == null ? null : Number(vehicle.price),
                 )}
+                {vehicle.reviewReason ? ` · ${vehicle.reviewReason}` : ""}
                 {vehicle.listings.some((listing) => listing.status === "ACTIVE")
                   ? " · Annonce Marketplace active"
                   : ""}

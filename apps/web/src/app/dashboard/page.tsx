@@ -32,6 +32,7 @@ interface DashboardStats {
   listingsToRemove?: Array<{
     id: string;
     externalUrl: string | null;
+    user?: { name: string } | null;
     vehicle: {
       id: string;
       year: number | null;
@@ -279,6 +280,7 @@ function DashboardContent() {
                     {listing.vehicle.stockNumber
                       ? ` · ${listing.vehicle.stockNumber}`
                       : ""}
+                    {listing.user?.name ? ` · ${listing.user.name}` : ""}
                   </span>
                   <span className="flex flex-wrap gap-3">
                     {listing.externalUrl ? (
@@ -317,8 +319,8 @@ function DashboardContent() {
               {pendingFeed > 1 ? "s" : ""} à vérifier
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Absents du flux, pas encore validés. Ils ne comptent pas dans
-              l’inventaire. Confirmez vendu ou garder dans Synchronisation.
+              Absents du flux ou non vus par une synchro récente. Ils ne
+              comptent pas dans l’inventaire. Ouvrez Synchronisation.
             </p>
           </div>
         </Link>

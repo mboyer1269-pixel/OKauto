@@ -3,9 +3,9 @@ import {
   vehicleQuerySchema,
   createVehicleSchema,
   vinDecodeStampFromCreate,
-  onSaleVehicleWhere,
   soldHistoryVehicleWhere,
 } from "@okauto/shared";
+import { onSaleInventoryWhere } from "@/lib/on-sale-query";
 import { withAuth, jsonResponse, parseBody } from "@/lib/api";
 import { createAuditLog } from "@/lib/auth";
 
@@ -20,7 +20,7 @@ export const GET = withAuth(async (request, { auth }) => {
   } else if (query.status === "ARCHIVED") {
     where.status = "ARCHIVED";
   } else {
-    Object.assign(where, onSaleVehicleWhere());
+    Object.assign(where, await onSaleInventoryWhere(auth.orgId));
     if (query.status === "AVAILABLE" || query.status === "PENDING") {
       where.status = query.status;
     }

@@ -40,6 +40,13 @@ export async function POST(request: NextRequest) {
           where: { userId: auth.user.id, platform: "facebook_marketplace" },
           take: 1,
         },
+        syncSource: {
+          select: {
+            isActive: true,
+            lastSyncStatus: true,
+            lastSyncAt: true,
+          },
+        },
       },
     });
     if (!vehicle) return errorResponse("Vehicle not found", 404);
