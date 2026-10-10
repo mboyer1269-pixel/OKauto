@@ -29,6 +29,18 @@ interface DashboardStats {
   readyToList: number;
   listingsThisWeek: number;
   pendingFeedReview?: number;
+  listingsToRemove?: Array<{
+    id: string;
+    externalUrl: string | null;
+    user?: { name: string } | null;
+    vehicle: {
+      id: string;
+      year: number | null;
+      make: string | null;
+      model: string | null;
+      stockNumber: string | null;
+    };
+  }>;
   syncSources: Array<{
     id: string;
     name: string;
@@ -134,6 +146,7 @@ function DashboardContent() {
   const remaining = queue?.remainingThisMonth ?? 0;
   const monthlyLimit = queue?.monthlyLimit ?? 5;
   const pendingFeed = stats.pendingFeedReview ?? 0;
+  const listingsToRemove = stats.listingsToRemove ?? [];
   const ageBuckets = ageFromPicks(queue?.todayPicks ?? []);
 
   return (
@@ -229,6 +242,71 @@ function DashboardContent() {
         </div>
       </section>
 
+      {listingsToRemove.length > 0 && (
+        <section
+          className="card space-y-3 border-destructive/30 bg-destructive/10 p-5"
+          aria-labelledby="listings-to-remove-heading"
+        >
+          <div className="flex items-start gap-4">
+            <AlertTriangle className="mt-0.5 text-destructive" />
+            <div>
+              <h2 id="listings-to-remove-heading" className="font-bold">
+                Annonce à retirer
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {formatNumber(listingsToRemove.length)} annonce
+                {listingsToRemove.length > 1 ? "s" : ""} encore active
+                {listingsToRemove.length > 1 ? "s" : ""} pour un véhicule vendu
+                ou absent du flux.
+              </p>
+            </div>
+          </div>
+          <ul className="space-y-2">
+            {listingsToRemove.map((listing) => {
+              const label = [
+                listing.vehicle.year,
+                listing.vehicle.make,
+                listing.vehicle.model,
+              ]
+                .filter(Boolean)
+                .join(" ");
+              return (
+                <li
+                  key={listing.id}
+                  className="flex flex-wrap items-center justify-between gap-2 text-sm"
+                >
+                  <span>
+                    {label || "Véhicule"}
+                    {listing.vehicle.stockNumber
+                      ? ` · ${listing.vehicle.stockNumber}`
+                      : ""}
+                    {listing.user?.name ? ` · ${listing.user.name}` : ""}
+                  </span>
+                  <span className="flex flex-wrap gap-3">
+                    {listing.externalUrl ? (
+                      <a
+                        href={listing.externalUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-semibold text-primary hover:underline"
+                      >
+                        Ouvrir l’annonce
+                      </a>
+                    ) : null}
+                    <Link
+                      href="/dashboard/listings?queue=remove"
+                      className="font-semibold text-primary hover:underline"
+                    >
+                      Centre de publication
+                    </Link>
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+
       {pendingFeed > 0 && (
         <Link
           href="/dashboard/sync"
@@ -238,12 +316,11 @@ function DashboardContent() {
           <div>
             <h2 className="font-bold">
               {formatNumber(pendingFeed)} véhicule
-              {pendingFeed > 1 ? "s" : ""} absent
-              {pendingFeed > 1 ? "s" : ""} du flux à confirmer
+              {pendingFeed > 1 ? "s" : ""} à vérifier
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Le garde-fou n’a marqué aucun vendu. Confirmez vendu ou garder
-              dans Synchronisation.
+              Absents du flux ou non vus par une synchro récente. Ils ne
+              comptent pas dans l’inventaire. Ouvrez Synchronisation.
             </p>
           </div>
         </Link>

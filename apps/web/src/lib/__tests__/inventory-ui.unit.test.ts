@@ -79,6 +79,12 @@ describe("inventory-ui", () => {
     expect(SAVED_VIEWS.find((view) => view.id === "ready")?.label).toBe(
       "Sans annonce active",
     );
+    expect(
+      matchesSavedView(
+        { ...base, feedAbsenceStatus: "PENDING_REVIEW" },
+        "ready",
+      ),
+    ).toBe(false);
   });
 
   it("ignore les raccourcis quand un élément interactif a le focus", () => {

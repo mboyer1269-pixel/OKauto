@@ -1,4 +1,4 @@
-import { RENEW_AFTER_DAYS } from "@okauto/shared";
+import { isOnSaleVehicle, RENEW_AFTER_DAYS } from "@okauto/shared";
 
 export type MarketplaceStatus = "never" | "active" | "renew" | "sold";
 
@@ -10,6 +10,7 @@ export interface InventoryListingSummary {
 
 export interface InventoryVehicleLike {
   status: string;
+  feedAbsenceStatus?: string | null;
   createdAt?: string | null;
   price?: number | string | null;
   trim?: string | null;
@@ -105,7 +106,7 @@ export function matchesSavedView(
   const market = marketplaceStatus(vehicle);
   const complete = completeness(vehicle);
   if (view === "ready") {
-    return vehicle.status === "AVAILABLE" && market === "never";
+    return isOnSaleVehicle(vehicle) && market === "never";
   }
   if (view === "renew") return market === "renew";
   if (view === "nophoto") return !complete.parts.photos;

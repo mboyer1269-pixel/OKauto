@@ -4,6 +4,7 @@ import {
   toMetaVehicleCatalogRow,
   validateMetaVehicleRow,
 } from "@okauto/shared";
+import { onSaleInventoryWhere } from "@/lib/on-sale-query";
 import { computeQuebecAdvertisedPrice, mergePricingFees } from "@okauto/shared";
 
 /**
@@ -44,7 +45,10 @@ export async function GET(
   }
 
   const vehicles = await prisma.vehicle.findMany({
-    where: { organizationId: organization.id, status: "AVAILABLE" },
+    where: {
+      organizationId: organization.id,
+      ...(await onSaleInventoryWhere(organization.id)),
+    },
     include: { photos: { orderBy: { sortOrder: "asc" }, take: 20 } },
   });
 

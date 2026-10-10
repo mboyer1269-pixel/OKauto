@@ -82,6 +82,7 @@ function InventoryContent() {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [status, setStatus] = useState("");
+  const [showSold, setShowSold] = useState(false);
   const [inventoryType, setInventoryType] = useState("");
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ total: 0, totalPages: 1 });
@@ -104,9 +105,12 @@ function InventoryContent() {
   const [cursor, setCursor] = useState(0);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const hasLoaded = useRef(false);
+  const loadRequestId = useRef(0);
   const tableRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
+    const requestId = loadRequestId.current + 1;
+    loadRequestId.current = requestId;
     if (hasLoaded.current) setRefreshing(true);
     else setLoading(true);
     setLoadError(null);
@@ -114,7 +118,8 @@ function InventoryContent() {
     try {
       const params = new URLSearchParams();
       if (debouncedSearch) params.set("search", debouncedSearch);
-      if (status) params.set("status", status);
+      if (showSold) params.set("scope", "sold");
+      else if (status) params.set("status", status);
       if (inventoryType) params.set("inventoryType", inventoryType);
       params.set("page", String(page));
       params.set("limit", "50");
@@ -128,12 +133,14 @@ function InventoryContent() {
       }
 
       const data = await res.json();
+      if (requestId !== loadRequestId.current) return;
       setVehicles(data.vehicles ?? []);
       setPagination({
         total: data.pagination?.total ?? 0,
         totalPages: data.pagination?.totalPages ?? 1,
       });
     } catch (error) {
+      if (requestId !== loadRequestId.current) return;
       console.error("Unable to load inventory:", error);
       setVehicles([]);
       setPagination({ total: 0, totalPages: 1 });
@@ -141,11 +148,12 @@ function InventoryContent() {
         "Impossible de charger l’inventaire. Réessayez; si le problème persiste, redémarrez Suivia.",
       );
     } finally {
+      if (requestId !== loadRequestId.current) return;
       hasLoaded.current = true;
       setLoading(false);
       setRefreshing(false);
     }
-  }, [apiFetch, debouncedSearch, inventoryType, page, status]);
+  }, [apiFetch, debouncedSearch, inventoryType, page, showSold, status]);
 
   useEffect(() => {
     load();
@@ -157,7 +165,10 @@ function InventoryContent() {
     );
     return () => window.clearTimeout(timer);
   }, [search]);
-  useEffect(() => setPage(1), [debouncedSearch, inventoryType, status]);
+  useEffect(
+    () => setPage(1),
+    [debouncedSearch, inventoryType, showSold, status],
+  );
 
   const filtered = useMemo(() => {
     const rows = vehicles.filter((vehicle) => matchesSavedView(vehicle, view));
@@ -393,7 +404,7 @@ function InventoryContent() {
         ))}
       </div>
 
-      <div className="cockpit-panel grid gap-3 p-3 sm:grid-cols-2 xl:grid-cols-[1fr_13rem_13rem]">
+      <div className="cockpit-panel grid gap-3 p-3 sm:grid-cols-2 xl:grid-cols-[1fr_13rem_13rem_auto]">
         <label className="relative flex-1">
           <span className="sr-only">Rechercher dans l’inventaire</span>
           <Search
@@ -419,14 +430,13 @@ function InventoryContent() {
           <span className="sr-only">Filtrer par statut</span>
           <select
             className="input min-h-11"
-            value={status}
+            value={showSold ? "" : status}
+            disabled={showSold}
             onChange={(e) => setStatus(e.target.value)}
           >
-            <option value="">Tous les statuts</option>
+            <option value="">En vente</option>
             <option value="AVAILABLE">Disponible</option>
             <option value="PENDING">En attente</option>
-            <option value="SOLD">Vendu</option>
-            <option value="ARCHIVED">Archivé</option>
           </select>
         </label>
         <label>
@@ -441,6 +451,15 @@ function InventoryContent() {
             <option value="USED">Véhicules d’occasion</option>
             <option value="DEMO">Démonstrateurs</option>
           </select>
+        </label>
+        <label className="flex min-h-11 items-center gap-2 rounded-xl border border-border px-3 text-sm text-muted-foreground">
+          <input
+            type="checkbox"
+            className="h-4 w-4 accent-primary"
+            checked={showSold}
+            onChange={(event) => setShowSold(event.target.checked)}
+          />
+          <span>Vendus</span>
         </label>
       </div>
 

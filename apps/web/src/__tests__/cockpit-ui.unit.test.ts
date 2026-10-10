@@ -84,9 +84,12 @@ describe("Cockpit — logo D et thème", () => {
     expect(inventory).toContain("CockpitSkeleton");
     expect(inventory).toContain("cockpit-scan");
     expect(inventory).toContain("isInventoryShortcutTarget");
+    expect(inventory).toContain("Vendus");
+    expect(inventory).toContain('params.set("scope", "sold")');
     expect(inventory).not.toMatch(/Générer les descriptions/);
     expect(inventory).not.toMatch(/handleBulkGenerate/);
     expect(dashboard).toContain("Sans annonce active");
+    expect(dashboard).toContain("Annonce à retirer");
     expect(dashboard).not.toMatch(/Prêts à publier/);
     expect(vehicle).toContain("CockpitSkeleton");
     expect(vehicle).toContain("font-mono text-3xl font-bold tabular-nums");
@@ -95,6 +98,7 @@ describe("Cockpit — logo D et thème", () => {
     expect(vehicle).toContain("Complété depuis le NIV");
     expect(listings).toContain("CockpitSkeleton");
     expect(listings).toContain("cockpit-scan");
+    expect(listings).toContain("Annonce à retirer");
     expect(listings).not.toMatch(/text-slate-950|bg-slate-200|bg-slate-50/);
   });
 });

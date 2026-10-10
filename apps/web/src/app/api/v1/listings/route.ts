@@ -5,8 +5,12 @@ import {
   generateTemplateDescription,
   hasMinRole,
   isFacebookMarketplaceItemUrl,
+  isOnSaleVehicle,
+  listingNeedsMarketplaceRemovalWhere,
+  onSaleListingVehicleWhere,
   resolveIncludeCarfaxSourceUrl,
 } from "@okauto/shared";
+import { staleUnseenVehicleIds } from "@/lib/on-sale-query";
 import { withAuth, jsonResponse, errorResponse, parseBody } from "@/lib/api";
 import { createAuditLog } from "@/lib/auth";
 import { listingHealthPayload } from "@/lib/sales-ops";
@@ -37,12 +41,27 @@ export const GET = withAuth(async (request, { auth }) => {
   if (scope !== "team") where.userId = auth.sub;
   if (status) where.status = status;
 
-  const [listings, total, countsByStatus, activeForHealth] = await Promise.all([
+  const staleUnseenIds = await staleUnseenVehicleIds(auth.orgId);
+  const removalScope = hasMinRole(auth.role, "MANAGER")
+    ? {}
+    : { userId: auth.sub };
+
+  const [listings, total, countsByStatus, activeForHealth, listingsToRemove] =
+    await Promise.all([
     prisma.listing.findMany({
       where,
       include: {
         vehicle: {
-          include: { photos: { where: { isPrimary: true }, take: 1 } },
+          include: {
+            photos: { where: { isPrimary: true }, take: 1 },
+            syncSource: {
+              select: {
+                isActive: true,
+                lastSyncStatus: true,
+                lastSyncAt: true,
+              },
+            },
+          },
         },
         user: { select: { id: true, name: true, email: true } },
         events: { orderBy: { createdAt: "desc" }, take: 5 },
@@ -65,8 +84,32 @@ export const GET = withAuth(async (request, { auth }) => {
         organizationId: auth.orgId,
         status: "ACTIVE",
         ...(scope === "team" ? {} : { userId: auth.sub }),
+        vehicle: onSaleListingVehicleWhere(staleUnseenIds),
       },
       include: { vehicle: { select: { price: true } } },
+    }),
+    prisma.listing.findMany({
+      where: {
+        organizationId: auth.orgId,
+        ...removalScope,
+        ...listingNeedsMarketplaceRemovalWhere(staleUnseenIds),
+      },
+      include: {
+        vehicle: {
+          select: {
+            id: true,
+            year: true,
+            make: true,
+            model: true,
+            stockNumber: true,
+            status: true,
+            feedAbsenceStatus: true,
+          },
+        },
+        user: { select: { name: true } },
+      },
+      orderBy: { listedAt: "asc" },
+      take: 25,
     }),
   ]);
 
@@ -87,13 +130,21 @@ export const GET = withAuth(async (request, { auth }) => {
       hoursStale: listingHealthPayload(listing).hoursStale,
     }))
     .filter((listing) => {
-      if (healthFilter === "price") return Boolean(listing.health.priceMismatch);
-      if (healthFilter === "renew") return listing.health.renewDue;
+      if (healthFilter === "price") {
+        return (
+          Boolean(listing.health.priceMismatch) &&
+          isOnSaleVehicle(listing.vehicle)
+        );
+      }
+      if (healthFilter === "renew") {
+        return listing.health.renewDue && isOnSaleVehicle(listing.vehicle);
+      }
       return true;
     });
 
   return jsonResponse({
     listings: withHealth,
+    listingsToRemove,
     counts,
     pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
   });
@@ -123,6 +174,13 @@ export const POST = withAuth(async (request, { auth }) => {
           take: 1,
         },
         organization: true,
+        syncSource: {
+          select: {
+            isActive: true,
+            lastSyncStatus: true,
+            lastSyncAt: true,
+          },
+        },
       },
     }),
     prisma.user.findUnique({
@@ -131,7 +189,7 @@ export const POST = withAuth(async (request, { auth }) => {
     }),
   ]);
   if (!vehicle) return jsonResponse({ error: "Vehicle not found" }, 404);
-  if (vehicle.status !== "AVAILABLE") {
+  if (!isOnSaleVehicle(vehicle)) {
     return jsonResponse(
       { error: "Only an available vehicle can be published" },
       409,
