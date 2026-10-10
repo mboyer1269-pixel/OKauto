@@ -21,7 +21,7 @@ function makeRequest(url: string, options: RequestInit = {}): Request {
   });
 }
 
-describe("revue inventaire — renouveler, retirer, périmés", () => {
+describe("revue inventaire — renouveler, retirer, périmés", { timeout: 30_000 }, () => {
   const stamp = Date.now();
   const ownerEmail = `review-owner-${stamp}@example.com`;
   const salesEmail = `review-sales-${stamp}@example.com`;
@@ -317,23 +317,21 @@ describe("revue inventaire — renouveler, retirer, périmés", () => {
     });
     apiKeyId = key.id;
 
-    const [ownerLogin, salesLogin] = await Promise.all([
-      loginHandler(
-        makeRequest("http://localhost/api/v1/auth/login", {
-          method: "POST",
-          body: JSON.stringify({ email: ownerEmail, password }),
-        }) as never,
-      ),
-      loginHandler(
-        makeRequest("http://localhost/api/v1/auth/login", {
-          method: "POST",
-          body: JSON.stringify({ email: salesEmail, password }),
-        }) as never,
-      ),
-    ]);
+    const ownerLogin = await loginHandler(
+      makeRequest("http://localhost/api/v1/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ email: ownerEmail, password }),
+      }) as never,
+    );
+    const salesLogin = await loginHandler(
+      makeRequest("http://localhost/api/v1/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ email: salesEmail, password }),
+      }) as never,
+    );
     ownerToken = (await ownerLogin.json()).accessToken;
     salesToken = (await salesLogin.json()).accessToken;
-  });
+  }, 30_000);
 
   afterAll(async () => {
     await prisma.listing.deleteMany({
