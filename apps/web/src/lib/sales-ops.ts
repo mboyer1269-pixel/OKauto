@@ -18,6 +18,7 @@ import {
   toMetaVehicleCatalogRow,
   validateMetaVehicleRow,
   type ListingLocale,
+  onSaleVehicleWhere,
 } from "@okauto/shared";
 
 function money(value: unknown): number {
@@ -76,7 +77,7 @@ export async function getPublishQueue(organizationId: string, userId: string) {
       prisma.vehicle.findMany({
         where: {
           organizationId,
-          status: "AVAILABLE",
+          ...onSaleVehicleWhere(),
           listings: { none: { status: "ACTIVE", userId } },
         },
         include: {
@@ -212,6 +213,7 @@ export async function getDirectorStats(organizationId: string) {
     organization,
     members,
     vehicleCounts,
+    onSaleCount,
     listingGroups,
     agingWithoutListing,
     openLeads,
@@ -228,6 +230,9 @@ export async function getDirectorStats(organizationId: string) {
       where: { organizationId },
       _count: { _all: true },
     }),
+    prisma.vehicle.count({
+      where: { organizationId, ...onSaleVehicleWhere() },
+    }),
     prisma.listing.groupBy({
       by: ["status"],
       where: { organizationId },
@@ -236,7 +241,7 @@ export async function getDirectorStats(organizationId: string) {
     prisma.vehicle.findMany({
       where: {
         organizationId,
-        status: "AVAILABLE",
+        ...onSaleVehicleWhere(),
         listings: { none: { status: "ACTIVE" } },
         createdAt: { lte: new Date(Date.now() - 21 * 86_400_000) },
       },
@@ -373,7 +378,7 @@ export async function getDirectorStats(organizationId: string) {
     monthlyLimit,
     listingRenewalDays: renewalDays,
     listingLocale: resolveListingLocale(organization?.listingLocale),
-    availableVehicles: countsByStatus.AVAILABLE ?? 0,
+    availableVehicles: onSaleCount,
     soldVehicles: countsByStatus.SOLD ?? 0,
     activeListings: listingCounts.ACTIVE ?? 0,
     staleListings: listingCounts.STALE ?? 0,
@@ -423,7 +428,7 @@ export async function buildOrganizationCatalogCsv(organizationId: string) {
   if (!organization) throw new Error("Organization not found");
 
   const vehicles = await prisma.vehicle.findMany({
-    where: { organizationId, status: { in: ["AVAILABLE", "PENDING"] } },
+    where: { organizationId, ...onSaleVehicleWhere() },
     include: {
       photos: { orderBy: { sortOrder: "asc" }, take: 20 },
     },
@@ -490,7 +495,7 @@ export async function getTodayQueue(organizationId: string, userId: string) {
       select: { id: true },
     }),
     prisma.vehicle.findMany({
-      where: { organizationId, status: "AVAILABLE" },
+      where: { organizationId, ...onSaleVehicleWhere() },
       include: {
         photos: { orderBy: { sortOrder: "asc" } },
         listings: {
@@ -608,7 +613,7 @@ export async function previewMetaCatalog(organizationId: string) {
   });
   if (!organization) throw new Error("Organization not found");
   const vehicles = await prisma.vehicle.findMany({
-    where: { organizationId, status: "AVAILABLE" },
+    where: { organizationId, ...onSaleVehicleWhere() },
     include: { photos: { orderBy: { sortOrder: "asc" }, take: 20 } },
   });
   const dealer = {

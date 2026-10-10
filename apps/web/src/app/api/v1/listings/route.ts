@@ -5,6 +5,7 @@ import {
   generateTemplateDescription,
   hasMinRole,
   isFacebookMarketplaceItemUrl,
+  isOnSaleVehicle,
   resolveIncludeCarfaxSourceUrl,
 } from "@okauto/shared";
 import { withAuth, jsonResponse, errorResponse, parseBody } from "@/lib/api";
@@ -131,7 +132,7 @@ export const POST = withAuth(async (request, { auth }) => {
     }),
   ]);
   if (!vehicle) return jsonResponse({ error: "Vehicle not found" }, 404);
-  if (vehicle.status !== "AVAILABLE") {
+  if (!isOnSaleVehicle(vehicle)) {
     return jsonResponse(
       { error: "Only an available vehicle can be published" },
       409,

@@ -8,6 +8,8 @@ import {
   generateTemplateDescriptionEn,
   mergePricingFees,
   resolveIncludeCarfaxSourceUrl,
+  listingNeedsMarketplaceRemovalWhere,
+  onSaleVehicleWhere,
   resolveListingLocale,
   type ListingLocale,
 } from "@okauto/shared";
@@ -308,9 +310,18 @@ export async function getDashboardStats(
     members,
     syncSources,
     pendingFeedReview,
+    listingsToRemove,
   ] = await Promise.all([
-    prisma.vehicle.count({ where: { organizationId } }),
-    prisma.vehicle.count({ where: { organizationId, status: "AVAILABLE" } }),
+    prisma.vehicle.count({
+      where: { organizationId, ...onSaleVehicleWhere() },
+    }),
+    prisma.vehicle.count({
+      where: {
+        organizationId,
+        ...onSaleVehicleWhere(),
+        status: "AVAILABLE",
+      },
+    }),
     prisma.vehicle.count({ where: { organizationId, status: "SOLD" } }),
     prisma.listing.count({
       where: { organizationId, userId, status: "ACTIVE" },
@@ -321,7 +332,7 @@ export async function getDashboardStats(
     prisma.vehicle.count({
       where: {
         organizationId,
-        status: "AVAILABLE",
+        ...onSaleVehicleWhere(),
         listings: { none: { status: "ACTIVE", userId } },
       },
     }),
@@ -346,6 +357,30 @@ export async function getDashboardStats(
         status: { in: ["AVAILABLE", "PENDING"] },
         feedAbsenceStatus: "PENDING_REVIEW",
       },
+    }),
+    prisma.listing.findMany({
+      where: {
+        organizationId,
+        userId,
+        ...listingNeedsMarketplaceRemovalWhere(),
+      },
+      select: {
+        id: true,
+        externalUrl: true,
+        vehicle: {
+          select: {
+            id: true,
+            year: true,
+            make: true,
+            model: true,
+            stockNumber: true,
+            status: true,
+            feedAbsenceStatus: true,
+          },
+        },
+      },
+      orderBy: { listedAt: "asc" },
+      take: 25,
     }),
   ]);
 
@@ -404,6 +439,7 @@ export async function getDashboardStats(
     readyToList,
     listingsThisWeek,
     pendingFeedReview,
+    listingsToRemove,
     syncSources,
     memberStats,
   };

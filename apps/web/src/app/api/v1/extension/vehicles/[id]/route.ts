@@ -3,6 +3,7 @@ import { prisma } from "@okauto/database";
 import {
   generateMarketplaceTitle,
   listingDescriptionForExtension,
+  onSaleVehicleWhere,
   resolveIncludeCarfaxSourceUrl,
 } from "@okauto/shared";
 import { authenticateApiKey } from "@/lib/auth";
@@ -21,7 +22,7 @@ export async function GET(
 
     const { id } = await params;
     const vehicle = await prisma.vehicle.findFirst({
-      where: { id, organizationId: auth.orgId, status: "AVAILABLE" },
+      where: { id, organizationId: auth.orgId, ...onSaleVehicleWhere() },
       include: {
         photos: { orderBy: { sortOrder: "asc" } },
         listings: {

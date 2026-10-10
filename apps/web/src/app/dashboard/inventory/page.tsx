@@ -82,6 +82,7 @@ function InventoryContent() {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [status, setStatus] = useState("");
+  const [showSold, setShowSold] = useState(false);
   const [inventoryType, setInventoryType] = useState("");
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ total: 0, totalPages: 1 });
@@ -114,7 +115,8 @@ function InventoryContent() {
     try {
       const params = new URLSearchParams();
       if (debouncedSearch) params.set("search", debouncedSearch);
-      if (status) params.set("status", status);
+      if (showSold) params.set("scope", "sold");
+      else if (status) params.set("status", status);
       if (inventoryType) params.set("inventoryType", inventoryType);
       params.set("page", String(page));
       params.set("limit", "50");
@@ -145,7 +147,7 @@ function InventoryContent() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [apiFetch, debouncedSearch, inventoryType, page, status]);
+  }, [apiFetch, debouncedSearch, inventoryType, page, showSold, status]);
 
   useEffect(() => {
     load();
@@ -157,7 +159,10 @@ function InventoryContent() {
     );
     return () => window.clearTimeout(timer);
   }, [search]);
-  useEffect(() => setPage(1), [debouncedSearch, inventoryType, status]);
+  useEffect(
+    () => setPage(1),
+    [debouncedSearch, inventoryType, showSold, status],
+  );
 
   const filtered = useMemo(() => {
     const rows = vehicles.filter((vehicle) => matchesSavedView(vehicle, view));
@@ -393,7 +398,7 @@ function InventoryContent() {
         ))}
       </div>
 
-      <div className="cockpit-panel grid gap-3 p-3 sm:grid-cols-2 xl:grid-cols-[1fr_13rem_13rem]">
+      <div className="cockpit-panel grid gap-3 p-3 sm:grid-cols-2 xl:grid-cols-[1fr_13rem_13rem_auto]">
         <label className="relative flex-1">
           <span className="sr-only">Rechercher dans l’inventaire</span>
           <Search
@@ -419,14 +424,13 @@ function InventoryContent() {
           <span className="sr-only">Filtrer par statut</span>
           <select
             className="input min-h-11"
-            value={status}
+            value={showSold ? "" : status}
+            disabled={showSold}
             onChange={(e) => setStatus(e.target.value)}
           >
-            <option value="">Tous les statuts</option>
+            <option value="">En vente</option>
             <option value="AVAILABLE">Disponible</option>
             <option value="PENDING">En attente</option>
-            <option value="SOLD">Vendu</option>
-            <option value="ARCHIVED">Archivé</option>
           </select>
         </label>
         <label>
@@ -441,6 +445,15 @@ function InventoryContent() {
             <option value="USED">Véhicules d’occasion</option>
             <option value="DEMO">Démonstrateurs</option>
           </select>
+        </label>
+        <label className="flex min-h-11 items-center gap-2 rounded-xl border border-border px-3 text-sm text-muted-foreground">
+          <input
+            type="checkbox"
+            className="h-4 w-4 accent-primary"
+            checked={showSold}
+            onChange={(event) => setShowSold(event.target.checked)}
+          />
+          <span>Vendus</span>
         </label>
       </div>
 

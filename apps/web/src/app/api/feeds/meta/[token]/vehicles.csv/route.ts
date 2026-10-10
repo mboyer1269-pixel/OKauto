@@ -1,6 +1,7 @@
 import { prisma } from "@okauto/database";
 import {
   buildMetaVehicleCatalogCsv,
+  onSaleVehicleWhere,
   toMetaVehicleCatalogRow,
   validateMetaVehicleRow,
 } from "@okauto/shared";
@@ -44,7 +45,7 @@ export async function GET(
   }
 
   const vehicles = await prisma.vehicle.findMany({
-    where: { organizationId: organization.id, status: "AVAILABLE" },
+    where: { organizationId: organization.id, ...onSaleVehicleWhere() },
     include: { photos: { orderBy: { sortOrder: "asc" }, take: 20 } },
   });
 

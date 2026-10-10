@@ -3,6 +3,8 @@ import {
   vehicleQuerySchema,
   createVehicleSchema,
   vinDecodeStampFromCreate,
+  onSaleVehicleWhere,
+  soldHistoryVehicleWhere,
 } from "@okauto/shared";
 import { withAuth, jsonResponse, parseBody } from "@/lib/api";
 import { createAuditLog } from "@/lib/auth";
@@ -13,7 +15,16 @@ export const GET = withAuth(async (request, { auth }) => {
 
   const where: Record<string, unknown> = { organizationId: auth.orgId };
 
-  if (query.status) where.status = query.status;
+  if (query.scope === "sold" || query.status === "SOLD") {
+    Object.assign(where, soldHistoryVehicleWhere());
+  } else if (query.status === "ARCHIVED") {
+    where.status = "ARCHIVED";
+  } else {
+    Object.assign(where, onSaleVehicleWhere());
+    if (query.status === "AVAILABLE" || query.status === "PENDING") {
+      where.status = query.status;
+    }
+  }
   if (query.assignedToId) where.assignedToId = query.assignedToId;
   if (query.withoutActiveListing) {
     where.listings = {

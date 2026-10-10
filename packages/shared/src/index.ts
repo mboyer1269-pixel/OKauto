@@ -135,6 +135,7 @@ export const updateVehicleSchema = createVehicleSchema.partial();
 
 export const vehicleQuerySchema = z.object({
   status: z.enum(["AVAILABLE", "PENDING", "SOLD", "ARCHIVED"]).optional(),
+  scope: z.enum(["on_sale", "sold"]).optional(),
   assignedToId: z.string().optional(),
   search: z.string().optional(),
   inventoryType: z.enum(["NEW", "USED", "DEMO"]).optional(),
@@ -385,3 +386,4 @@ export * from "./sentry-scrub";
 export * from "./sync-degraded";
 export * from "./job-policy";
 export * from "./platform-admin";
+export * from "./inventory-scope";

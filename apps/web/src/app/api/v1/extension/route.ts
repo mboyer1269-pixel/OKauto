@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@okauto/database";
+import { onSaleVehicleWhere } from "@okauto/shared";
 import { authenticateApiKey } from "@/lib/auth";
 import {
   jsonResponse,
@@ -52,7 +53,7 @@ export async function GET(request: NextRequest) {
       : 50;
     const where = {
       organizationId: auth.orgId,
-      status: "AVAILABLE" as const,
+      ...onSaleVehicleWhere(),
       ...(search
         ? {
             OR: [

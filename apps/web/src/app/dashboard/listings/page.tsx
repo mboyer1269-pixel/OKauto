@@ -30,6 +30,7 @@ import {
   generateMarketplacePackage,
   isFacebookMarketplaceItemUrl,
   isListingDueForRenewal,
+  listingNeedsMarketplaceRemoval,
   carfaxSourceUrlCheckboxState,
   listingDescriptionMeetsMinLength,
   listingDescriptionWithCarfax,
@@ -54,6 +55,7 @@ interface Vehicle {
   mileage: number | null;
   price: number | null;
   status: string;
+  feedAbsenceStatus?: string | null;
   stockNumber: string | null;
   vin: string | null;
   sourceUrl: string | null;
@@ -216,6 +218,7 @@ function ListingsContent() {
   const { apiFetch, user } = useAuth();
   const searchParams = useSearchParams();
   const prepareId = searchParams.get("prepare");
+  const queueParam = searchParams.get("queue");
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [readyTotal, setReadyTotal] = useState(0);
   const [allReadyTotal, setAllReadyTotal] = useState(0);
@@ -239,7 +242,9 @@ function ListingsContent() {
   const [activeHealthFilter, setActiveHealthFilter] = useState<
     "all" | "price" | "renew"
   >("all");
-  const [queue, setQueue] = useState<Queue>("today");
+  const [queue, setQueue] = useState<Queue>(
+    queueParam === "remove" ? "remove" : "today",
+  );
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [inventoryType, setInventoryType] = useState<InventoryType>("");
@@ -543,11 +548,14 @@ function ListingsContent() {
     [activeVehicleIds, vehicles],
   );
   const activeListings = listings.filter(
-    (listing) => listing.status === "ACTIVE",
+    (listing) =>
+      listing.status === "ACTIVE" && !listingNeedsMarketplaceRemoval(listing),
   );
   const staleListings = listings.filter(
     (listing) => listing.status === "STALE",
   );
+  const listingsToRemove = listings.filter(listingNeedsMarketplaceRemoval);
+  const removalListings = [...listingsToRemove, ...staleListings];
   const historyListings = listings.filter((listing) =>
     ["REMOVED", "SOLD"].includes(listing.status),
   );
@@ -586,7 +594,7 @@ function ListingsContent() {
     renew:
       listingCounts.RENEW_DUE ??
       activeListings.filter((listing) => listing.health?.renewDue).length,
-    remove: listingCounts.STALE ?? staleListings.length,
+    remove: removalListings.length,
     history:
       (listingCounts.REMOVED ?? 0) + (listingCounts.SOLD ?? 0) ||
       historyListings.length,
@@ -1129,6 +1137,61 @@ function ListingsContent() {
         </div>
       </header>
 
+      {listingsToRemove.length > 0 && (
+        <section
+          className="rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3"
+          aria-labelledby="annonce-a-retirer-heading"
+        >
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 shrink-0 text-destructive" />
+            <div className="min-w-0">
+              <h2 id="annonce-a-retirer-heading" className="font-bold">
+                Annonce à retirer
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {formatNumber(listingsToRemove.length)} annonce
+                {listingsToRemove.length > 1 ? "s" : ""} encore active
+                {listingsToRemove.length > 1 ? "s" : ""} pour un véhicule vendu
+                ou absent du flux.
+              </p>
+              <ul className="mt-2 space-y-1 text-sm">
+                {listingsToRemove.map((listing) => (
+                  <li
+                    key={listing.id}
+                    className="flex flex-wrap items-center gap-3"
+                  >
+                    <span>
+                      {vehicleName(listing.vehicle)}
+                      {listing.vehicle.stockNumber
+                        ? ` · ${listing.vehicle.stockNumber}`
+                        : ""}
+                    </span>
+                    {listing.externalUrl ? (
+                      <a
+                        href={listing.externalUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-semibold text-primary hover:underline"
+                      >
+                        Ouvrir l’annonce
+                      </a>
+                    ) : (
+                      <button
+                        type="button"
+                        className="font-semibold text-primary hover:underline"
+                        onClick={() => setQueue("remove")}
+                      >
+                        Voir le retrait
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </section>
+      )}
+
       <div className="rounded-2xl border border-primary/20 bg-primary/10 px-4 py-3 text-sm text-foreground">
         <div className="flex items-start gap-3">
           <ShieldCheck className="mt-0.5 shrink-0 text-primary" size={19} />
@@ -1432,7 +1495,7 @@ function ListingsContent() {
               : queue === "renew"
                 ? renewListings
                 : queue === "remove"
-                  ? staleListings
+                  ? removalListings
                   : historyListings
           }
           saving={saving}
@@ -2092,7 +2155,9 @@ function ListingQueue({
                   )}
                   {queue === "remove" && (
                     <p className={`mt-2 text-sm font-semibold ${staleTone}`}>
-                      Vendu depuis {hoursStale ?? "—"} h. Retirez l’annonce sur Facebook.
+                      {listingNeedsMarketplaceRemoval(listing)
+                        ? "Annonce à retirer — le véhicule n’est plus en vente."
+                        : `Vendu depuis ${hoursStale ?? "—"} h. Retirez l’annonce sur Facebook.`}
                     </p>
                   )}
                 </div>
