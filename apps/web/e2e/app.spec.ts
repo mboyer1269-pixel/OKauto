@@ -89,9 +89,11 @@ test.describe("Suivia Auto", () => {
       page.getByRole("heading", { name: "Inventaire" }),
     ).toBeVisible();
     await expect(page.getByText("Ajouter un véhicule")).toBeVisible();
-    await expect(page.getByText("DM1015")).toHaveCount(0);
+    await expect(page.getByRole("cell", { name: "DM1015" })).toHaveCount(0);
     await page.getByRole("checkbox", { name: "Vendus" }).check();
-    await expect(page.getByText("DM1015")).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole("cell", { name: "DM1015" })).toBeVisible({
+      timeout: 15000,
+    });
   });
 
   test("inventory Véhicule sort header Enter sorts instead of opening a row", async ({
