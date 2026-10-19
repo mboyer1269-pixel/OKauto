@@ -1,6 +1,10 @@
 import { prisma } from "@okauto/database";
-import { generateMarketplaceTitle, resolveListingLocale } from "@okauto/shared";
-import { withAuth, jsonResponse, errorResponse } from "@/lib/api";
+import {
+  ApiErrorCode,
+  generateMarketplaceTitle,
+  resolveListingLocale,
+} from "@okauto/shared";
+import { withAuth, jsonResponse, apiError } from "@/lib/api";
 import { generateVehicleDescription } from "@/lib/services";
 
 export const POST = withAuth(async (request, { auth, params }) => {
@@ -8,7 +12,7 @@ export const POST = withAuth(async (request, { auth, params }) => {
     where: { id: params!.id, organizationId: auth.orgId },
     include: { photos: { orderBy: { sortOrder: "asc" } }, organization: true },
   });
-  if (!vehicle) return errorResponse("Vehicle not found", 404);
+  if (!vehicle) return apiError(ApiErrorCode.VEHICLE_NOT_FOUND, 404);
 
   const url = new URL(request.url);
   const locale = resolveListingLocale(

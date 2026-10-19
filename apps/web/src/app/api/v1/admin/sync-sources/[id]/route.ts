@@ -1,13 +1,13 @@
 import { prisma } from "@okauto/database";
-import { updateSyncSourceSchema } from "@okauto/shared";
-import { withAuth, jsonResponse, errorResponse, parseBody } from "@/lib/api";
+import { ApiErrorCode, updateSyncSourceSchema } from "@okauto/shared";
+import { withAuth, jsonResponse, apiError, parseBody } from "@/lib/api";
 import { createAuditLog } from "@/lib/auth";
 
 export const GET = withAuth(async (_request, { auth, params }) => {
   const source = await prisma.syncSource.findFirst({
     where: { id: params!.id, organizationId: auth.orgId },
   });
-  if (!source) return errorResponse("Sync source not found", 404);
+  if (!source) return apiError(ApiErrorCode.SYNC_SOURCE_NOT_FOUND, 404);
   return jsonResponse(source);
 });
 
@@ -16,7 +16,7 @@ export const PATCH = withAuth(
     const existing = await prisma.syncSource.findFirst({
       where: { id: params!.id, organizationId: auth.orgId },
     });
-    if (!existing) return errorResponse("Sync source not found", 404);
+    if (!existing) return apiError(ApiErrorCode.SYNC_SOURCE_NOT_FOUND, 404);
 
     const body = await parseBody<unknown>(request);
     const data = updateSyncSourceSchema.parse(body);
@@ -52,7 +52,7 @@ export const DELETE = withAuth(
     const existing = await prisma.syncSource.findFirst({
       where: { id: params!.id, organizationId: auth.orgId },
     });
-    if (!existing) return errorResponse("Sync source not found", 404);
+    if (!existing) return apiError(ApiErrorCode.SYNC_SOURCE_NOT_FOUND, 404);
 
     await prisma.syncSource.delete({ where: { id: params!.id } });
 

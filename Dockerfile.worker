@@ -1,4 +1,5 @@
-FROM public.ecr.aws/docker/library/node:22-alpine AS base
+# GitHub-hosted IPs hit public.ecr.aws anonymous "Data limit exceeded".
+FROM mirror.gcr.io/library/node:22-alpine AS base
 RUN corepack enable && corepack prepare pnpm@9.15.2 --activate
 WORKDIR /app
 RUN apk add --no-cache openssl libc6-compat

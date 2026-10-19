@@ -1,5 +1,6 @@
 import { prisma } from '@okauto/database';
-import { withAuth, jsonResponse, errorResponse } from '@/lib/api';
+import { ApiErrorCode } from '@okauto/shared';
+import { withAuth, jsonResponse, apiError } from '@/lib/api';
 
 export const DELETE = withAuth(async (_request, { auth, params }) => {
   const key = await prisma.apiKey.findFirst({
@@ -9,7 +10,7 @@ export const DELETE = withAuth(async (_request, { auth, params }) => {
       userId: auth.sub,
     },
   });
-  if (!key) return errorResponse('API key not found', 404);
+  if (!key) return apiError(ApiErrorCode.API_KEY_NOT_FOUND, 404);
 
   await prisma.apiKey.update({
     where: { id: params!.id },

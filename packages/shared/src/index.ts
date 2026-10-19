@@ -387,3 +387,4 @@ export * from "./sync-degraded";
 export * from "./job-policy";
 export * from "./platform-admin";
 export * from "./inventory-scope";
+export * from "./api-errors";

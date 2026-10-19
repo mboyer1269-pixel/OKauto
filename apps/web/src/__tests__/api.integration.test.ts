@@ -477,6 +477,66 @@ describe("API route handlers", () => {
     expect(listing?.photoUrlsAtListing).toEqual([]);
   });
 
+  it("returns French API-key errors with a stable code", async () => {
+    const missing = await extensionEventHandler(
+      makeRequest("http://localhost/api/v1/extension/events", {
+        method: "POST",
+        body: JSON.stringify({
+          eventType: "form_filled",
+          vehicleId: extensionVehicleId,
+        }),
+      }) as never,
+    );
+    const missingBody = await missing.json();
+    expect(missing.status).toBe(401);
+    expect(missingBody.code).toBe("API_KEY_REQUIRED");
+    expect(missingBody.error).toMatch(/Clé API manquante/);
+
+    const invalid = await extensionEventHandler(
+      makeRequest("http://localhost/api/v1/extension/events", {
+        method: "POST",
+        headers: { "X-API-Key": "suivia_not-a-real-key" },
+        body: JSON.stringify({
+          eventType: "form_filled",
+          vehicleId: extensionVehicleId,
+        }),
+      }) as never,
+    );
+    const invalidBody = await invalid.json();
+    expect(invalid.status).toBe(401);
+    expect(invalidBody.code).toBe("INVALID_API_KEY");
+    expect(invalidBody.error).toMatch(/Clé API refusée ou révoquée/);
+  });
+
+  it("records a Marketplace form-field failure from the extension", async () => {
+    const response = await extensionEventHandler(
+      makeRequest("http://localhost/api/v1/extension/events", {
+        method: "POST",
+        headers: { "X-API-Key": extensionApiKey },
+        body: JSON.stringify({
+          eventType: "listing_error",
+          vehicleId: extensionVehicleId,
+          metadata: {
+            source: "extension",
+            filled: ["année"],
+            failedFields: [
+              {
+                field: "make",
+                step: "select_make",
+                reason: "missing_field",
+                message:
+                  "Champ « Marque » introuvable dans le formulaire Facebook (étape « sélection de la marque »).",
+              },
+            ],
+          },
+        }),
+      }) as never,
+    );
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(body.success).toBe(true);
+  });
+
   it("keeps publication history private while sharing the same inventory", async () => {
     const ownerListingsResponse = await listingsHandler(
       makeRequest("http://localhost/api/v1/listings?limit=100", {
@@ -658,7 +718,7 @@ describe("API route handlers", () => {
     );
     const duplicateTeamBody = await duplicateTeamResponse.json();
     expect(duplicateTeamResponse.status).toBe(409);
-    expect(duplicateTeamBody.error).toMatch(/Anti-doublon d'équipe/);
+    expect(duplicateTeamBody.error).toMatch(/Anti-doublon d.équipe/);
     expect(duplicateTeamBody.error).toMatch(/Michael Boyer/);
 
     const duplicateExtension = await extensionEventHandler(

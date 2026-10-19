@@ -1,5 +1,6 @@
 import { prisma } from "@okauto/database";
-import { withAuth, jsonResponse, parseBody } from "@/lib/api";
+import { ApiErrorCode, apiErrorMessageFr } from "@okauto/shared";
+import { withAuth, jsonResponse, apiError, parseBody } from "@/lib/api";
 
 function parseCsvLine(line: string): string[] {
   const result: string[] = [];
@@ -23,17 +24,14 @@ function parseCsvLine(line: string): string[] {
 export const POST = withAuth(
   async (request, { auth }) => {
     const body = await parseBody<{ csv: string }>(request);
-    if (!body.csv) return jsonResponse({ error: "CSV content required" }, 400);
+    if (!body.csv) return apiError(ApiErrorCode.CSV_CONTENT_REQUIRED, 400);
 
     const lines = body.csv
       .split("\n")
       .map((l) => l.trim())
       .filter(Boolean);
     if (lines.length < 2)
-      return jsonResponse(
-        { error: "CSV must have header and at least one row" },
-        400,
-      );
+      return apiError(ApiErrorCode.CSV_HEADER_AND_ROW_REQUIRED, 400);
 
     const headers = parseCsvLine(lines[0]).map((h) =>
       h.toLowerCase().replace(/\s+/g, ""),
@@ -51,7 +49,7 @@ export const POST = withAuth(
       },
     });
 
-    const errors: Array<{ row: number; error: string }> = [];
+    const errors: Array<{ row: number; error: string; code?: string }> = [];
     let successCount = 0;
 
     for (let i = 0; i < rows.length; i++) {
@@ -92,10 +90,11 @@ export const POST = withAuth(
           },
         });
         successCount++;
-      } catch (err) {
+      } catch {
         errors.push({
           row: i + 2,
-          error: err instanceof Error ? err.message : "Unknown error",
+          error: apiErrorMessageFr(ApiErrorCode.CSV_ROW_FAILED),
+          code: ApiErrorCode.CSV_ROW_FAILED,
         });
       }
     }

@@ -1,21 +1,19 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@okauto/database";
 import { onSaleInventoryWhere } from "@/lib/on-sale-query";
-import { authenticateApiKey } from "@/lib/auth";
 import {
   jsonResponse,
-  errorResponse,
   handleApiError,
   parseBody,
 } from "@/lib/api";
+import { authenticateExtensionApiKey } from "@/lib/extension-auth";
 
 export async function POST(request: NextRequest) {
   try {
     const body = await parseBody<{ apiKey: string }>(request);
-    if (!body.apiKey) return errorResponse("API key required", 401);
-
-    const auth = await authenticateApiKey(body.apiKey);
-    if (!auth) return errorResponse("Invalid API key", 401);
+    const authResult = await authenticateExtensionApiKey(body.apiKey ?? null);
+    if (!authResult.ok) return authResult.response;
+    const auth = authResult.auth;
 
     return jsonResponse({
       user: { id: auth.user.id, name: auth.user.name, email: auth.user.email },
@@ -29,11 +27,11 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    const apiKey = request.headers.get("x-api-key");
-    if (!apiKey) return errorResponse("API key required", 401);
-
-    const auth = await authenticateApiKey(apiKey);
-    if (!auth) return errorResponse("Invalid API key", 401);
+    const authResult = await authenticateExtensionApiKey(
+      request.headers.get("x-api-key"),
+    );
+    if (!authResult.ok) return authResult.response;
+    const auth = authResult.auth;
 
     const url = new URL(request.url);
     const search = url.searchParams.get("search")?.trim();

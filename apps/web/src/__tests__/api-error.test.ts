@@ -3,10 +3,12 @@ import { ZodError, z } from "zod";
 import {
   handleApiError,
   errorResponse,
+  apiError,
   tooManyRequestsResponse,
   InvalidJsonError,
   parseBody,
 } from "@/lib/api";
+import { ApiErrorCode } from "@okauto/shared";
 
 describe("handleApiError", () => {
   afterEach(() => {
@@ -26,7 +28,8 @@ describe("handleApiError", () => {
     const data = await res.json();
 
     expect(res.status).toBe(400);
-    expect(data.error).toBe("Les données envoyées sont invalides");
+    expect(data.error).toBe("Les données envoyées sont invalides.");
+    expect(data.code).toBe("VALIDATION_ERROR");
     expect(data.details).toBeTruthy();
     expect(data.correlationId).toBeUndefined();
   });
@@ -36,6 +39,7 @@ describe("handleApiError", () => {
     const data = await res.json();
     expect(res.status).toBe(400);
     expect(data.error).toMatch(/JSON/);
+    expect(data.code).toBe("INVALID_JSON");
     expect(data.correlationId).toBeUndefined();
   });
 
@@ -46,7 +50,8 @@ describe("handleApiError", () => {
     const data = await res.json();
 
     expect(res.status).toBe(409);
-    expect(data.error).toBe("Une fiche avec cette valeur existe déjà");
+    expect(data.error).toBe("Une fiche avec cette valeur existe déjà.");
+    expect(data.code).toBe("CONFLICT_UNIQUE");
     expect(data.correlationId).toBeUndefined();
   });
 
@@ -60,8 +65,9 @@ describe("handleApiError", () => {
     const data = await res.json();
 
     expect(res.status).toBe(500);
+    expect(data.code).toBe("INTERNAL_ERROR");
     expect(data.error).toBe(
-      "Une erreur interne s'est produite. Réessayez plus tard.",
+      "Une erreur interne s’est produite. Réessayez plus tard.",
     );
     expect(data.error).not.toContain("ECONNREFUSED");
     expect(data.error).not.toContain("secret-pass");
@@ -103,10 +109,21 @@ describe("error helpers", () => {
     expect(data.error).toBe("Courriel ou mot de passe invalide");
   });
 
+  it("includes a stable code alongside the French message", async () => {
+    const res = apiError(ApiErrorCode.INVALID_API_KEY, 401);
+    const data = await res.json();
+    expect(res.status).toBe(401);
+    expect(data.code).toBe("INVALID_API_KEY");
+    expect(data.error).toMatch(/Clé API refusée ou révoquée/);
+    expect(data.error).toMatch(/Clés API/);
+  });
+
   it("sets Retry-After on 429 responses", async () => {
     const res = tooManyRequestsResponse(42);
     expect(res.status).toBe(429);
     expect(res.headers.get("Retry-After")).toBe("42");
-    expect((await res.json()).error).toMatch(/trop de tentatives/i);
+    const body = await res.json();
+    expect(body.error).toMatch(/trop de tentatives/i);
+    expect(body.code).toBe("RATE_LIMITED");
   });
 });

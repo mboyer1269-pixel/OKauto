@@ -282,4 +282,16 @@ test.describe("Suivia Auto", () => {
     const body = await response.json();
     expect(body.status).toBe("ok");
   });
+
+  test("image optimizer does not proxy arbitrary remote URLs", async ({
+    request,
+  }) => {
+    const response = await request.get(
+      "/_next/image?url=https://example.com/x.jpg&w=64&q=75",
+    );
+    expect(response.status()).toBeGreaterThanOrEqual(400);
+    expect(response.status()).toBeLessThan(500);
+    const contentType = response.headers()["content-type"] ?? "";
+    expect(contentType).not.toMatch(/^image\//i);
+  });
 });

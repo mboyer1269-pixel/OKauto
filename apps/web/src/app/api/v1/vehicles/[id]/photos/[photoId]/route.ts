@@ -1,5 +1,6 @@
 import { prisma } from '@okauto/database';
-import { withAuth, jsonResponse, errorResponse } from '@/lib/api';
+import { ApiErrorCode } from '@okauto/shared';
+import { withAuth, jsonResponse, apiError } from '@/lib/api';
 import { createAuditLog } from '@/lib/auth';
 import { deleteStoredObject } from '@/lib/storage';
 
@@ -8,12 +9,12 @@ export const DELETE = withAuth(
     const vehicle = await prisma.vehicle.findFirst({
       where: { id: params!.id, organizationId: auth.orgId },
     });
-    if (!vehicle) return errorResponse('Vehicle not found', 404);
+    if (!vehicle) return apiError(ApiErrorCode.VEHICLE_NOT_FOUND, 404);
 
     const photo = await prisma.vehiclePhoto.findFirst({
       where: { id: params!.photoId, vehicleId: params!.id },
     });
-    if (!photo) return errorResponse('Photo not found', 404);
+    if (!photo) return apiError(ApiErrorCode.PHOTO_NOT_FOUND, 404);
 
     if (photo.storageKey) {
       await deleteStoredObject(photo.storageKey).catch(console.warn);

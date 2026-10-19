@@ -206,7 +206,7 @@ describe("sales-ops server guards", () => {
     );
     const body = await salesCreate.json();
     expect(salesCreate.status).toBe(409);
-    expect(body.error).toMatch(/Anti-doublon d'équipe/);
+    expect(body.error).toMatch(/Anti-doublon d.équipe/);
     expect(body.error).toMatch(/Directeur Guards/);
   });
 

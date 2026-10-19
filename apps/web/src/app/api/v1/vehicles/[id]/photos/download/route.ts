@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@okauto/database';
-import { withAuth, errorResponse } from '@/lib/api';
+import { ApiErrorCode } from '@okauto/shared';
+import { withAuth, apiError } from '@/lib/api';
 
 const IMAGE_EXTENSIONS: Record<string, string> = {
   'image/jpeg': 'jpg',
@@ -41,13 +42,13 @@ export const GET = withAuth(async (request, { auth, params }) => {
     },
   });
 
-  if (!vehicle) return errorResponse('Vehicle not found', 404);
+  if (!vehicle) return apiError(ApiErrorCode.VEHICLE_NOT_FOUND, 404);
   const photo = vehicle.photos[index];
-  if (!photo) return errorResponse('Photo not found', 404);
+  if (!photo) return apiError(ApiErrorCode.PHOTO_NOT_FOUND, 404);
 
   const photoUrl = new URL(photo.url);
   if (photoUrl.protocol !== 'https:' || isPrivateHostname(photoUrl.hostname)) {
-    return errorResponse('Only secure vehicle photos can be downloaded', 400);
+    return apiError(ApiErrorCode.INSECURE_PHOTO_URL, 400);
   }
 
   const upstream = await fetch(photoUrl, {
@@ -58,11 +59,11 @@ export const GET = withAuth(async (request, { auth, params }) => {
     redirect: 'error',
     cache: 'no-store',
   });
-  if (!upstream.ok) return errorResponse('Vehicle photo is temporarily unavailable', 502);
+  if (!upstream.ok) return apiError(ApiErrorCode.PHOTO_UNAVAILABLE, 502);
 
   const contentType = upstream.headers.get('content-type')?.split(';')[0].toLowerCase() ?? '';
   const extension = IMAGE_EXTENSIONS[contentType];
-  if (!extension) return errorResponse('Unsupported vehicle photo format', 415);
+  if (!extension) return apiError(ApiErrorCode.UNSUPPORTED_PHOTO_FORMAT, 415);
 
   const safeStock = (vehicle.stockNumber ?? vehicle.id).replace(/[^a-z0-9_-]+/gi, '-');
   const filename = `${safeStock}-photo-${index + 1}.${extension}`;

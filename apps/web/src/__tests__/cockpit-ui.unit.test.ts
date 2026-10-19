@@ -49,6 +49,9 @@ describe("Cockpit — logo D et thème", () => {
       '.dark a:not([class*="btn"]):not([class*="text-"]):not(.card)',
     );
     expect(webRoot("next.config.ts")).toContain("devIndicators: false");
+    expect(webRoot("next.config.ts")).toContain("unoptimized: true");
+    expect(webRoot("next.config.ts")).not.toContain("hostname: '**'");
+    expect(webRoot("next.config.ts")).not.toContain('hostname: "**"');
 
     const dashboard = src("app", "dashboard", "page.tsx");
     expect(dashboard).toContain("Parcourir les véhicules");

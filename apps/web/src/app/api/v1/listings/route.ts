@@ -3,6 +3,8 @@ import {
   createListingSchema,
   generateMarketplaceTitle,
   generateTemplateDescription,
+  ApiErrorCode,
+  apiErrorMessageFr,
   hasMinRole,
   isFacebookMarketplaceItemUrl,
   isOnSaleVehicle,
@@ -11,7 +13,13 @@ import {
   resolveIncludeCarfaxSourceUrl,
 } from "@okauto/shared";
 import { staleUnseenVehicleIds } from "@/lib/on-sale-query";
-import { withAuth, jsonResponse, errorResponse, parseBody } from "@/lib/api";
+import {
+  withAuth,
+  jsonResponse,
+  apiError,
+  listingGuardResponse,
+  parseBody,
+} from "@/lib/api";
 import { createAuditLog } from "@/lib/auth";
 import { listingHealthPayload } from "@/lib/sales-ops";
 import {
@@ -32,7 +40,7 @@ export const GET = withAuth(async (request, { auth }) => {
     : 20;
 
   if (scope === "team" && !hasMinRole(auth.role, "MANAGER")) {
-    return errorResponse("Accès insuffisant", 403);
+    return apiError(ApiErrorCode.FORBIDDEN, 403);
   }
 
   const where: Record<string, unknown> = {
@@ -158,10 +166,7 @@ export const POST = withAuth(async (request, { auth }) => {
     data.platform === "facebook_marketplace" &&
     (!data.externalUrl || !isFacebookMarketplaceItemUrl(data.externalUrl))
   ) {
-    return jsonResponse(
-      { error: "A published Facebook Marketplace item URL is required" },
-      422,
-    );
+    return apiError(ApiErrorCode.MARKETPLACE_ITEM_URL_REQUIRED, 422);
   }
 
   const [vehicle, salesperson] = await Promise.all([
@@ -188,12 +193,9 @@ export const POST = withAuth(async (request, { auth }) => {
       select: { name: true },
     }),
   ]);
-  if (!vehicle) return jsonResponse({ error: "Vehicle not found" }, 404);
+  if (!vehicle) return apiError(ApiErrorCode.VEHICLE_NOT_FOUND, 404);
   if (!isOnSaleVehicle(vehicle)) {
-    return jsonResponse(
-      { error: "Only an available vehicle can be published" },
-      409,
-    );
+    return apiError(ApiErrorCode.VEHICLE_NOT_AVAILABLE, 409);
   }
 
   const draft = vehicle.marketplaceDrafts[0];
@@ -249,8 +251,9 @@ export const POST = withAuth(async (request, { auth }) => {
           });
           throw new ListingGuardError(
             409,
-            "An active listing already exists for this vehicle and platform",
+            apiErrorMessageFr(ApiErrorCode.ACTIVE_LISTING_EXISTS),
             { listing: activeListing },
+            ApiErrorCode.ACTIVE_LISTING_EXISTS,
           );
         }
 
@@ -286,7 +289,7 @@ export const POST = withAuth(async (request, { auth }) => {
     );
   } catch (err) {
     if (err instanceof ListingGuardError) {
-      return jsonResponse({ error: err.message, ...err.extra }, err.status);
+      return listingGuardResponse(err);
     }
     throw err;
   }

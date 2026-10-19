@@ -1,6 +1,6 @@
 import { prisma } from "@okauto/database";
-import { hasMinRole, updateMemberSchema } from "@okauto/shared";
-import { withAuth, jsonResponse, errorResponse, parseBody } from "@/lib/api";
+import { ApiErrorCode, hasMinRole, updateMemberSchema } from "@okauto/shared";
+import { withAuth, jsonResponse, apiError, errorResponse, parseBody } from "@/lib/api";
 import { createAuditLog, hashPassword } from "@/lib/auth";
 import {
   MEMBER_PASSWORD_RESET_FORBIDDEN_MESSAGE,
@@ -20,9 +20,9 @@ export const PATCH = withAuth(
         },
       },
     });
-    if (!member) return errorResponse("Member not found", 404);
+    if (!member) return apiError(ApiErrorCode.MEMBER_NOT_FOUND, 404);
     if (member.role === "OWNER" && data.role && data.role !== "OWNER") {
-      return errorResponse("Cannot change owner role", 400);
+      return apiError(ApiErrorCode.CANNOT_CHANGE_OWNER_ROLE, 400);
     }
     if (data.role && !hasMinRole(auth.role, "ADMIN") && data.role !== member.role) {
       return errorResponse("Seul un administrateur peut changer le rôle", 403);
@@ -37,7 +37,7 @@ export const PATCH = withAuth(
         );
       }
       if (member.role === "OWNER" && auth.role !== "OWNER") {
-        return errorResponse("Only the owner can reset the owner account", 403);
+        return apiError(ApiErrorCode.ONLY_OWNER_CAN_RESET_OWNER, 403);
       }
 
       const memberships = await prisma.organizationMember.findMany({
@@ -107,9 +107,9 @@ export const DELETE = withAuth(
     const member = await prisma.organizationMember.findFirst({
       where: { id: params!.id, organizationId: auth.orgId },
     });
-    if (!member) return errorResponse("Member not found", 404);
+    if (!member) return apiError(ApiErrorCode.MEMBER_NOT_FOUND, 404);
     if (member.role === "OWNER")
-      return errorResponse("Cannot remove owner", 400);
+      return apiError(ApiErrorCode.CANNOT_REMOVE_OWNER, 400);
 
     await prisma.organizationMember.delete({ where: { id: params!.id } });
     return jsonResponse({ success: true });

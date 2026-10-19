@@ -64,9 +64,11 @@ jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 12
+    # GitHub-hosted IPs hit public.ecr.aws anonymous "Data limit exceeded"
+    # (toomanyrequests) on library images. Google's Docker Hub mirror does not.
     services:
       postgres:
-        image: public.ecr.aws/docker/library/postgres:16-alpine
+        image: mirror.gcr.io/library/postgres:16-alpine
         env:
           POSTGRES_USER: okauto
           POSTGRES_PASSWORD: okauto
@@ -79,7 +81,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
       redis:
-        image: public.ecr.aws/docker/library/redis:7-alpine
+        image: mirror.gcr.io/library/redis:7-alpine
         ports:
           - 6379:6379
         options: >-
@@ -145,9 +147,10 @@ jobs:
     permissions:
       contents: read
       actions: write
+    # Same registry as `test`: avoid public.ecr.aws anonymous data-limit failures.
     services:
       postgres:
-        image: public.ecr.aws/docker/library/postgres:16-alpine
+        image: mirror.gcr.io/library/postgres:16-alpine
         env:
           POSTGRES_USER: okauto
           POSTGRES_PASSWORD: okauto
@@ -160,7 +163,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
       redis:
-        image: public.ecr.aws/docker/library/redis:7-alpine
+        image: mirror.gcr.io/library/redis:7-alpine
         ports:
           - 6379:6379
         options: >-
@@ -283,6 +286,21 @@ jobs:
           assert data.get("db") is True, data
           PY
 
+          status=$(curl -sS -D /tmp/next-image.headers -o /tmp/next-image.body -w '%{http_code}' \
+            'http://127.0.0.1:3000/_next/image?url=https://example.com/x.jpg&w=64&q=75' || true)
+          echo "image optimizer status=${status}"
+          if ! [ "$status" -ge 400 ] 2>/dev/null || [ "$status" -ge 500 ]; then
+            echo "expected 4xx from /_next/image, got ${status:-empty}" >&2
+            cat /tmp/next-image.headers >&2 || true
+            head -c 400 /tmp/next-image.body >&2 || true
+            exit 1
+          fi
+          if grep -qi '^content-type: *image/' /tmp/next-image.headers; then
+            echo "/_next/image returned an image content-type" >&2
+            cat /tmp/next-image.headers >&2
+            exit 1
+          fi
+
           for i in $(seq 1 20); do
             if docker logs okauto-worker-ci 2>&1 | grep -q "worker started"; then
               break
@@ -306,7 +324,7 @@ jobs:
     if: github.event_name == 'push' || github.base_ref == 'main'
     services:
       postgres:
-        image: public.ecr.aws/docker/library/postgres:16-alpine
+        image: mirror.gcr.io/library/postgres:16-alpine
         env:
           POSTGRES_USER: okauto
           POSTGRES_PASSWORD: okauto

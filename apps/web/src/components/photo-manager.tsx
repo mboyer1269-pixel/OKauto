@@ -47,7 +47,9 @@ export function PhotoManager({ vehicleId, photos, onUpdate }: PhotoManagerProps)
         });
 
         if (!presignRes.ok) {
-          alert('S3 upload not configured. Use URL input instead.');
+          alert(
+            'Le stockage S3 n’est pas configuré. Ajoutez la photo par URL.',
+          );
           break;
         }
 
@@ -65,7 +67,7 @@ export function PhotoManager({ vehicleId, photos, onUpdate }: PhotoManagerProps)
         });
       } catch (err) {
         console.error('Upload failed:', err);
-        alert('Upload failed');
+        alert('Le téléversement a échoué. Réessayez.');
       }
     }
 
@@ -81,7 +83,10 @@ export function PhotoManager({ vehicleId, photos, onUpdate }: PhotoManagerProps)
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      alert((err as { error?: string }).error ?? 'Failed to add photo');
+      alert(
+        (err as { error?: string }).error ??
+          'Impossible d’ajouter la photo. Réessayez.',
+      );
       return;
     }
     setUrlInput('');
@@ -89,7 +94,7 @@ export function PhotoManager({ vehicleId, photos, onUpdate }: PhotoManagerProps)
   };
 
   const handleDelete = async (photoId: string) => {
-    if (!confirm('Delete this photo?')) return;
+    if (!confirm('Supprimer cette photo ?')) return;
     await apiFetch(`/api/v1/vehicles/${vehicleId}/photos/${photoId}`, { method: 'DELETE' });
     onUpdate();
   };
@@ -127,10 +132,10 @@ export function PhotoManager({ vehicleId, photos, onUpdate }: PhotoManagerProps)
         <button onClick={() => fileInputRef.current?.click()} disabled={uploading}
           className="btn-secondary text-xs">
           <Upload size={14} className="mr-1" />
-          {uploading ? 'Uploading...' : 'Upload to S3'}
+          {uploading ? 'Téléversement…' : 'Téléverser vers S3'}
         </button>
         <div className="flex gap-1 flex-1 min-w-[200px]">
-          <input className="input text-xs flex-1" placeholder="Or paste image URL" value={urlInput}
+          <input className="input text-xs flex-1" placeholder="Ou coller l’URL de l’image" value={urlInput}
             onChange={(e) => setUrlInput(e.target.value)} />
           <button onClick={handleAddUrl} className="btn-secondary text-xs">
             <Link size={14} />
@@ -140,7 +145,7 @@ export function PhotoManager({ vehicleId, photos, onUpdate }: PhotoManagerProps)
       {storageConfigured === false && (
         <p className="mt-2 text-xs text-warning">
           <ImagePlus size={12} className="inline mr-1" />
-          S3 not configured — use URL input or set AWS_S3_* env vars.
+          S3 n’est pas configuré — ajoutez la photo par URL, ou demandez à un administrateur de définir AWS_S3_*.
         </p>
       )}
     </div>

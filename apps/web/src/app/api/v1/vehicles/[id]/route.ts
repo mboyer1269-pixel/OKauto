@@ -1,6 +1,6 @@
 import { prisma } from "@okauto/database";
-import { normalizeVin, updateVehicleSchema } from "@okauto/shared";
-import { withAuth, jsonResponse, errorResponse, parseBody } from "@/lib/api";
+import { ApiErrorCode, normalizeVin, updateVehicleSchema } from "@okauto/shared";
+import { withAuth, jsonResponse, apiError, parseBody } from "@/lib/api";
 import { createAuditLog } from "@/lib/auth";
 import { notifySoldVehicle } from "@/lib/services";
 
@@ -23,7 +23,7 @@ export const GET = withAuth(async (_request, { auth, params }) => {
     },
   });
 
-  if (!vehicle) return errorResponse("Vehicle not found", 404);
+  if (!vehicle) return apiError(ApiErrorCode.VEHICLE_NOT_FOUND, 404);
   return jsonResponse(vehicle);
 });
 
@@ -34,7 +34,7 @@ export const PATCH = withAuth(async (request, { auth, params }) => {
   const existing = await prisma.vehicle.findFirst({
     where: { id: params!.id, organizationId: auth.orgId },
   });
-  if (!existing) return errorResponse("Vehicle not found", 404);
+  if (!existing) return apiError(ApiErrorCode.VEHICLE_NOT_FOUND, 404);
 
   const wasSold = existing.status !== "SOLD" && data.status === "SOLD";
   const vinChanged =
@@ -111,7 +111,7 @@ export const DELETE = withAuth(
     const existing = await prisma.vehicle.findFirst({
       where: { id: params!.id, organizationId: auth.orgId },
     });
-    if (!existing) return errorResponse("Vehicle not found", 404);
+    if (!existing) return apiError(ApiErrorCode.VEHICLE_NOT_FOUND, 404);
 
     await prisma.vehicle.delete({ where: { id: params!.id } });
 

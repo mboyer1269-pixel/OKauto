@@ -71,7 +71,9 @@ window.addEventListener("message", (event) => {
     (response) => {
       announce("OKAUTO_EXTENSION_RESULT", {
         success: Boolean(response?.success),
-        error: response?.error,
+        error: chrome.runtime.lastError
+          ? "Marketplace n’a pas pu être ouvert. Rechargez Suivia, puis réessayez."
+          : response?.error,
       });
     },
   );

@@ -57,11 +57,12 @@ const nextConfig: NextConfig = {
     }
     return config;
   },
+  // The dashboard uses raw <img> for arbitrary dealer photo URLs (see
+  // eslint @next/next/no-img-element off). next/image is unused, so the
+  // optimizer is disabled: an open remotePatterns allowlist would otherwise
+  // turn /_next/image into an unauthenticated open proxy (GHSA-2xp9-vwfh-vxw4).
   images: {
-    remotePatterns: [
-      { protocol: 'https', hostname: 'placehold.co' },
-      { protocol: 'https', hostname: '**' },
-    ],
+    unoptimized: true,
   },
 };
 

@@ -1,13 +1,13 @@
 import { prisma } from "@okauto/database";
-import { updateLeadSchema } from "@okauto/shared";
+import { ApiErrorCode, hasMinRole, updateLeadSchema } from "@okauto/shared";
 import {
+  apiError,
   errorResponse,
   jsonResponse,
   parseBody,
   withAuth,
 } from "@/lib/api";
 import { createAuditLog } from "@/lib/auth";
-import { hasMinRole } from "@okauto/shared";
 
 export const PATCH = withAuth(async (request, { auth, params }) => {
   const existing = await prisma.marketplaceLead.findFirst({
@@ -21,7 +21,7 @@ export const PATCH = withAuth(async (request, { auth, params }) => {
     existing.createdById !== auth.sub &&
     existing.assignedToId !== auth.sub
   ) {
-    return errorResponse("Accès insuffisant", 403);
+    return apiError(ApiErrorCode.FORBIDDEN, 403);
   }
 
   const body = await parseBody<unknown>(request);
