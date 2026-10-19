@@ -53,11 +53,11 @@ Seuls les **administrateurs de la plateforme** voient le menu **Demandes d’acc
 
 ### Déployer une mise à jour
 
-1. Un développeur fusionne sur `main`. GitHub Actions construit les images (CI verte).
-2. Le workflow **Deploy** attend votre **approbation** (environment GitHub `production`).
-3. Idéalement, l’approbation déclenche ensuite le déploiement automatique sur le VPS.
+1. Un développeur fusionne sur `main`. La CI tourne.
+2. Dès que la CI est verte, le job **`publish`** pousse les images vers GHCR — **sans approbation**.
+3. Le job **`deploy`** (SSH vers le VPS) attend ensuite votre **approbation** (environment GitHub `production`). L’approbation ne republie pas les images : elle n’ouvre que le SSH.
 
-**État actuel :** le SSH depuis les runners GitHub est **bloqué par l’hébergeur**. Approuver le workflow publie les images, mais n’atteint pas le VPS. Repli manuel (sans secrets dans ce fichier) :
+**État actuel :** le SSH depuis les runners GitHub est **bloqué par l’hébergeur**. Après `publish`, les images sont déjà sur GHCR ; le job `deploy` échoue (rouge), même approuvé. Repli manuel (sans secrets dans ce fichier) :
 
 ```bash
 ssh deploy@<vps> "deploy <sha>"
@@ -432,7 +432,7 @@ Si `deploy/scripts`, `compose.prod.yml`, `deploy/README.md` ou `deploy/RUNBOOK.m
 
 ## 9. Extension Chrome
 
-Nom du manifeste : **Suivia — Assistant Marketplace auto**. La version figure dans `apps/extension/public/manifest.json` (elle évolue ; une PR ouverte durcit aussi Next.js et les messages d’erreur en français — ce README ne fige pas le numéro).
+Nom du manifeste : **Suivia — Assistant Marketplace auto**. La version figure dans `apps/extension/public/manifest.json` ; ce README ne la fige pas.
 
 Permissions : `storage`, `activeTab`. Hôtes : Facebook Marketplace, `http://localhost:3000`, `https://suivia.ca` et `https://*.suivia.ca`.
 
@@ -478,7 +478,7 @@ Sans ce rechargement, Chrome continue d’exécuter l’ancienne copie en mémoi
 | L’assistant ne se déclenche pas depuis le Centre | Extension pas chargée / pas rechargée | Recharger dans `chrome://extensions`, puis actualiser Suivia |
 | « Marketplace n’a pas pu être ouvert. » | Chrome a bloqué l’onglet | Ouvrir Facebook à la main, puis **Publier** à nouveau |
 
-Les messages d’erreur côté API tendent vers le français du Québec (une PR ouverte uniformise encore ce catalogue). L’identifiant machine reste le champ `code` (`INVALID_API_KEY`, etc.).
+Les messages d’erreur côté API sont en français du Québec. L’identifiant machine reste le champ `code` (`INVALID_API_KEY`, etc.).
 
 ---
 
@@ -486,7 +486,7 @@ Les messages d’erreur côté API tendent vers le français du Québec (une PR 
 
 ### Sauvegardes
 
-Cron hôte (`deploy/cron.d/okauto-backup` → `/etc/cron.d/okauto-backup`) : **03:15 UTC** → `backup.sh`.
+Cron hôte (`deploy/cron.d/okauto-backup` → `/etc/cron.d/okauto-backup`) : **03:15 selon l’horloge de l’hôte** → `backup.sh`.
 
 1. **Local (toujours)** : `pg_dump -Fc` dans `/opt/okauto/backups/`, rétention `BACKUP_RETENTION_DAYS` (14).
 2. **Hors site (si `backup.env` est rempli)** : paquet dump + `.env` + `backup.env`, chiffré **age**, envoyé sur **R2**. Aucun prune depuis le VPS : Bucket Lock 30 j + lifecycle 30–35 j. La clé privée age n’est **pas** sur le VPS.
@@ -543,8 +543,8 @@ Lien déjà consommé, expiré (7 jours), ou mauvais compte connecté. Un compte
 **La synchro n’avance pas.**  
 Worker allumé ? Source **active** ? Intervalle écoulé ? Bouton « Synchroniser maintenant ». Deux synchros successives doivent faire avancer `lastSyncAt`.
 
-**Le deploy GitHub est « vert » mais le site n’a pas changé.**  
-Images publiées, SSH runner bloqué : lancer `ssh deploy@<vps> "deploy <sha>"` depuis une machine autorisée. Vérifier `version` sur `/api/health`.
+**Le job `publish` est vert, le job `deploy` est rouge / en échec, et le site n’a pas changé.**  
+Images déjà sur GHCR, SSH depuis les runners bloqué : lancer `ssh deploy@<vps> "deploy <sha>"` depuis une machine autorisée. Vérifier `version` sur `/api/health`.
 
 **`network okauto declared as external, but could not be found`.**  
 Quelqu’un a fait `docker compose down`. Recréer : `docker network create okauto`. Ne plus utiliser `down`.
