@@ -5,6 +5,7 @@ import {
   generateMarketplaceTitle,
   generateTemplateDescription,
   isFacebookMarketplaceItemUrl,
+  isOnSaleVehicle,
   resolveIncludeCarfaxSourceUrl,
 } from "@okauto/shared";
 import { authenticateApiKey } from "@/lib/auth";
@@ -39,9 +40,22 @@ export async function POST(request: NextRequest) {
           where: { userId: auth.user.id, platform: "facebook_marketplace" },
           take: 1,
         },
+        syncSource: {
+          select: {
+            isActive: true,
+            lastSyncStatus: true,
+            lastSyncAt: true,
+          },
+        },
       },
     });
     if (!vehicle) return errorResponse("Vehicle not found", 404);
+    if (data.eventType === "listing_created" && !isOnSaleVehicle(vehicle)) {
+      return errorResponse(
+        "Ce véhicule n’est plus en vente et ne peut pas être publié.",
+        409,
+      );
+    }
 
     if (data.eventType === "listing_created") {
       const externalUrl = String(data.metadata?.externalUrl ?? "");

@@ -1,15 +1,23 @@
 import { prisma } from "@okauto/database";
-import { confirmFeedAbsenceSchema } from "@okauto/shared";
+import {
+  confirmFeedAbsenceSchema,
+  staleUnseenReviewReason,
+} from "@okauto/shared";
 import { withAuth, jsonResponse, parseBody } from "@/lib/api";
 import { confirmFeedAbsenceVehicles } from "@/lib/services";
 import { createAuditLog } from "@/lib/auth";
+import { staleUnseenVehicleIds } from "@/lib/on-sale-query";
 
 export const GET = withAuth(async (_request, { auth }) => {
+  const staleUnseenIds = await staleUnseenVehicleIds(auth.orgId);
   const vehicles = await prisma.vehicle.findMany({
     where: {
       organizationId: auth.orgId,
       status: { in: ["AVAILABLE", "PENDING"] },
-      feedAbsenceStatus: "PENDING_REVIEW",
+      OR: [
+        { feedAbsenceStatus: "PENDING_REVIEW" },
+        ...(staleUnseenIds.length > 0 ? [{ id: { in: staleUnseenIds } }] : []),
+      ],
     },
     include: {
       photos: { where: { isPrimary: true }, take: 1 },
@@ -22,8 +30,21 @@ export const GET = withAuth(async (_request, { auth }) => {
     orderBy: [{ feedAbsenceNotedAt: "asc" }, { createdAt: "asc" }],
   });
 
+  const staleIdSet = new Set(staleUnseenIds);
   return jsonResponse({
-    vehicles,
+    vehicles: vehicles.map((vehicle) => ({
+      ...vehicle,
+      reviewReason:
+        vehicle.feedAbsenceStatus === "PENDING_REVIEW"
+          ? "absent du flux"
+          : vehicle.lastSeenAt && staleIdSet.has(vehicle.id)
+            ? staleUnseenReviewReason(vehicle.lastSeenAt)
+            : null,
+      confirmable: vehicle.feedAbsenceStatus === "PENDING_REVIEW",
+      keepable:
+        vehicle.feedAbsenceStatus === "PENDING_REVIEW" ||
+        staleIdSet.has(vehicle.id),
+    })),
     total: vehicles.length,
   });
 });

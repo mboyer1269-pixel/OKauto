@@ -3,7 +3,9 @@ import {
   vehicleQuerySchema,
   createVehicleSchema,
   vinDecodeStampFromCreate,
+  soldHistoryVehicleWhere,
 } from "@okauto/shared";
+import { onSaleInventoryWhere } from "@/lib/on-sale-query";
 import { withAuth, jsonResponse, parseBody } from "@/lib/api";
 import { createAuditLog } from "@/lib/auth";
 
@@ -13,7 +15,18 @@ export const GET = withAuth(async (request, { auth }) => {
 
   const where: Record<string, unknown> = { organizationId: auth.orgId };
 
-  if (query.status) where.status = query.status;
+  if (query.scope === "sold" || query.status === "SOLD") {
+    Object.assign(where, soldHistoryVehicleWhere());
+  } else if (query.status === "ARCHIVED") {
+    where.status = "ARCHIVED";
+  } else {
+    // Le filtre partagé n’émet pas de clé `id` (NOT pour les périmés).
+    // `status` ci-dessous restreint volontairement AVAILABLE/PENDING.
+    Object.assign(where, await onSaleInventoryWhere(auth.orgId));
+    if (query.status === "AVAILABLE" || query.status === "PENDING") {
+      where.status = query.status;
+    }
+  }
   if (query.assignedToId) where.assignedToId = query.assignedToId;
   if (query.withoutActiveListing) {
     where.listings = {

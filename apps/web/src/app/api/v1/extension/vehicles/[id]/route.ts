@@ -5,6 +5,7 @@ import {
   listingDescriptionForExtension,
   resolveIncludeCarfaxSourceUrl,
 } from "@okauto/shared";
+import { onSaleInventoryWhere } from "@/lib/on-sale-query";
 import { authenticateApiKey } from "@/lib/auth";
 import { errorResponse, handleApiError, jsonResponse } from "@/lib/api";
 
@@ -21,7 +22,10 @@ export async function GET(
 
     const { id } = await params;
     const vehicle = await prisma.vehicle.findFirst({
-      where: { id, organizationId: auth.orgId, status: "AVAILABLE" },
+      where: {
+        organizationId: auth.orgId,
+        AND: [{ id }, await onSaleInventoryWhere(auth.orgId)],
+      },
       include: {
         photos: { orderBy: { sortOrder: "asc" } },
         listings: {

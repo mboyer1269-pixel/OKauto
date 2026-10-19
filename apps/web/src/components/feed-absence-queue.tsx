@@ -14,6 +14,10 @@ interface AbsenceVehicle {
   vin: string | null;
   price: string | number | null;
   feedAbsenceNotedAt: string | null;
+  lastSeenAt?: string | null;
+  reviewReason?: string | null;
+  confirmable?: boolean;
+  keepable?: boolean;
   photos: Array<{ url: string }>;
   listings: Array<{ status: string; externalUrl: string | null }>;
 }
@@ -51,17 +55,23 @@ export function FeedAbsenceQueue({
   }, [load]);
 
   const confirm = async (action: "sold" | "keep") => {
-    if (selected.length === 0) return;
+    const vehicleIds =
+      action === "sold"
+        ? selected.filter((id) =>
+            vehicles.some((vehicle) => vehicle.id === id && vehicle.confirmable),
+          )
+        : selected;
+    if (vehicleIds.length === 0) return;
     const label =
       action === "sold"
-        ? `Marquer ${selected.length} véhicule(s) comme vendu(s) ? Ils iront dans « À retirer » s’ils ont une annonce.`
-        : `Garder ${selected.length} véhicule(s) en inventaire même s’ils sont absents du site ? Ils ne seront plus proposés comme vendus automatiquement.`;
+        ? `Marquer ${vehicleIds.length} véhicule(s) comme vendu(s) ? Ils iront dans « À retirer » s’ils ont une annonce.`
+        : `Garder ${vehicleIds.length} véhicule(s) en inventaire même s’ils sont absents du site ? Ils ne seront plus proposés comme vendus automatiquement.`;
     if (!window.confirm(label)) return;
     setSaving(true);
     setError("");
     const response = await apiFetch("/api/v1/vehicles/feed-absence", {
       method: "POST",
-      body: JSON.stringify({ vehicleIds: selected, action }),
+      body: JSON.stringify({ vehicleIds, action }),
     });
     setSaving(false);
     if (!response.ok) {
@@ -74,7 +84,15 @@ export function FeedAbsenceQueue({
 
   if (vehicles.length === 0) return null;
 
-  const allSelected = selected.length === vehicles.length;
+  const keepableVehicles = vehicles.filter(
+    (vehicle) => vehicle.keepable === true || vehicle.confirmable === true,
+  );
+  const selectedSoldCount = selected.filter((id) =>
+    vehicles.some((vehicle) => vehicle.id === id && vehicle.confirmable),
+  ).length;
+  const allSelected =
+    keepableVehicles.length > 0 &&
+    selected.length === keepableVehicles.length;
 
   return (
     <section className="card mb-6 border-warning/30 bg-warning/10/60">
@@ -88,9 +106,9 @@ export function FeedAbsenceQueue({
             {formatNumber(vehicles.length)} véhicule
             {vehicles.length > 1 ? "s" : ""} du lot n’
             {vehicles.length > 1 ? "étaient" : "était"} plus dans le flux
-            BuckinghamGM. Le garde-fou n’a <strong>marqué aucun vendu</strong>.
-            Confirmez en lot : vendu (retrait Marketplace ensuite) ou garder en
-            inventaire.
+            BuckinghamGM, ou non vus par une synchro récente. Ils ne comptent
+            pas dans l’inventaire. Confirmez les absents du flux : vendu
+            (retrait Marketplace ensuite) ou garder en inventaire.
           </p>
         </div>
       </div>
@@ -103,7 +121,11 @@ export function FeedAbsenceQueue({
             type="button"
             className="btn-secondary"
             onClick={() =>
-              setSelected(allSelected ? [] : vehicles.map((vehicle) => vehicle.id))
+              setSelected(
+                allSelected
+                  ? []
+                  : keepableVehicles.map((vehicle) => vehicle.id),
+              )
             }
           >
             {allSelected ? "Tout désélectionner" : "Tout sélectionner"}
@@ -111,10 +133,10 @@ export function FeedAbsenceQueue({
           <button
             type="button"
             className="btn-primary"
-            disabled={saving || selected.length === 0}
+            disabled={saving || selectedSoldCount === 0}
             onClick={() => void confirm("sold")}
           >
-            Confirmer vendu ({selected.length})
+            Confirmer vendu ({selectedSoldCount})
           </button>
           <button
             type="button"
@@ -133,7 +155,8 @@ export function FeedAbsenceQueue({
             key={vehicle.id}
             className="flex items-center gap-3 rounded-xl border border-warning/30 bg-card p-3"
           >
-            {canManage && (
+            {canManage &&
+              (vehicle.keepable === true || vehicle.confirmable === true) && (
               <input
                 type="checkbox"
                 checked={selected.includes(vehicle.id)}
@@ -154,6 +177,7 @@ export function FeedAbsenceQueue({
                 {formatCurrency(
                   vehicle.price == null ? null : Number(vehicle.price),
                 )}
+                {vehicle.reviewReason ? ` · ${vehicle.reviewReason}` : ""}
                 {vehicle.listings.some((listing) => listing.status === "ACTIVE")
                   ? " · Annonce Marketplace active"
                   : ""}

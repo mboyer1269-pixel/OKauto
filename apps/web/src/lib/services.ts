@@ -8,9 +8,14 @@ import {
   generateTemplateDescriptionEn,
   mergePricingFees,
   resolveIncludeCarfaxSourceUrl,
+  hasMinRole,
+  listingNeedsMarketplaceRemovalWhere,
+  onSaleListingVehicleWhere,
   resolveListingLocale,
   type ListingLocale,
+  type RoleType,
 } from "@okauto/shared";
+import { staleUnseenVehicleIds } from "@/lib/on-sale-query";
 
 export async function generateVehicleDescription(
   vehicleId: string,
@@ -255,12 +260,19 @@ export async function confirmFeedAbsenceVehicles(
   vehicleIds: string[],
   action: "sold" | "keep",
 ) {
+  const staleUnseenIds =
+    action === "keep" ? await staleUnseenVehicleIds(organizationId) : [];
   const vehicles = await prisma.vehicle.findMany({
     where: {
       organizationId,
       id: { in: vehicleIds },
       status: { in: ["AVAILABLE", "PENDING"] },
-      feedAbsenceStatus: "PENDING_REVIEW",
+      OR: [
+        { feedAbsenceStatus: "PENDING_REVIEW" },
+        ...(staleUnseenIds.length > 0
+          ? [{ id: { in: staleUnseenIds } }]
+          : []),
+      ],
     },
     select: { id: true },
   });
@@ -297,7 +309,11 @@ export async function confirmFeedAbsenceVehicles(
 export async function getDashboardStats(
   organizationId: string,
   userId: string,
+  role: RoleType,
 ) {
+  const orgWideRemoval = hasMinRole(role, "MANAGER");
+  const staleUnseenIds = await staleUnseenVehicleIds(organizationId);
+  const onSaleWhere = onSaleListingVehicleWhere(staleUnseenIds);
   const [
     totalVehicles,
     availableVehicles,
@@ -308,9 +324,18 @@ export async function getDashboardStats(
     members,
     syncSources,
     pendingFeedReview,
+    listingsToRemove,
   ] = await Promise.all([
-    prisma.vehicle.count({ where: { organizationId } }),
-    prisma.vehicle.count({ where: { organizationId, status: "AVAILABLE" } }),
+    prisma.vehicle.count({
+      where: { organizationId, ...onSaleWhere },
+    }),
+    prisma.vehicle.count({
+      where: {
+        organizationId,
+        ...onSaleWhere,
+        status: "AVAILABLE",
+      },
+    }),
     prisma.vehicle.count({ where: { organizationId, status: "SOLD" } }),
     prisma.listing.count({
       where: { organizationId, userId, status: "ACTIVE" },
@@ -321,7 +346,7 @@ export async function getDashboardStats(
     prisma.vehicle.count({
       where: {
         organizationId,
-        status: "AVAILABLE",
+        ...onSaleWhere,
         listings: { none: { status: "ACTIVE", userId } },
       },
     }),
@@ -344,8 +369,36 @@ export async function getDashboardStats(
       where: {
         organizationId,
         status: { in: ["AVAILABLE", "PENDING"] },
-        feedAbsenceStatus: "PENDING_REVIEW",
+        OR: [
+          { feedAbsenceStatus: "PENDING_REVIEW" },
+          ...(staleUnseenIds.length > 0 ? [{ id: { in: staleUnseenIds } }] : []),
+        ],
       },
+    }),
+    prisma.listing.findMany({
+      where: {
+        organizationId,
+        ...(orgWideRemoval ? {} : { userId }),
+        ...listingNeedsMarketplaceRemovalWhere(staleUnseenIds),
+      },
+      select: {
+        id: true,
+        externalUrl: true,
+        user: { select: { name: true } },
+        vehicle: {
+          select: {
+            id: true,
+            year: true,
+            make: true,
+            model: true,
+            stockNumber: true,
+            status: true,
+            feedAbsenceStatus: true,
+          },
+        },
+      },
+      orderBy: { listedAt: "asc" },
+      take: 25,
     }),
   ]);
 
@@ -404,6 +457,7 @@ export async function getDashboardStats(
     readyToList,
     listingsThisWeek,
     pendingFeedReview,
+    listingsToRemove,
     syncSources,
     memberStats,
   };
