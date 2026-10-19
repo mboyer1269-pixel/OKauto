@@ -1,5 +1,7 @@
 import { Prisma, prisma } from "@okauto/database";
 import {
+  ApiErrorCode,
+  apiErrorMessageFr,
   remainingListingSlots,
   resolveMonthlyListingLimit,
   startOfCalendarMonth,
@@ -8,16 +10,23 @@ import {
 export class ListingGuardError extends Error {
   status: number;
   extra: Record<string, unknown>;
+  code?: string;
 
   constructor(
     status: number,
     message: string,
     extra: Record<string, unknown> = {},
+    code?: string,
   ) {
     super(message);
     this.name = "ListingGuardError";
     this.status = status;
-    this.extra = extra;
+    const rest = { ...extra };
+    const extraCode =
+      typeof rest.code === "string" ? String(rest.code) : undefined;
+    delete rest.code;
+    this.code = code ?? extraCode;
+    this.extra = rest;
   }
 }
 
@@ -60,7 +69,12 @@ async function lockListingCreateRows(
     FOR UPDATE
   `;
   if (memberRows.length === 0) {
-    throw new ListingGuardError(403, "Accès insuffisant");
+    throw new ListingGuardError(
+      403,
+      apiErrorMessageFr(ApiErrorCode.FORBIDDEN),
+      {},
+      ApiErrorCode.FORBIDDEN,
+    );
   }
 }
 
@@ -87,6 +101,7 @@ async function prepareListingCreate(
         409,
         `Une annonce active existe déjà pour ce véhicule (publiée par ${publisher}). Anti-doublon d'équipe.`,
         { listing: teamActive },
+        ApiErrorCode.ACTIVE_LISTING_EXISTS,
       );
     }
     return { ownActiveId: teamActive.id };
@@ -141,12 +156,14 @@ async function conflictFromUniqueIndex(
       409,
       `Une annonce active existe déjà pour ce véhicule (publiée par ${publisher}). Anti-doublon d'équipe.`,
       { listing: existing },
+      ApiErrorCode.ACTIVE_LISTING_EXISTS,
     );
   }
   return new ListingGuardError(
     409,
-    "An active listing already exists for this vehicle and platform",
+    apiErrorMessageFr(ApiErrorCode.ACTIVE_LISTING_EXISTS),
     existing ? { listing: existing } : {},
+    ApiErrorCode.ACTIVE_LISTING_EXISTS,
   );
 }
 

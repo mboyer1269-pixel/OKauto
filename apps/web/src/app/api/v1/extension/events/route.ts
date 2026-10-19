@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@okauto/database";
 import {
+  ApiErrorCode,
   extensionEventSchema,
   generateMarketplaceTitle,
   generateTemplateDescription,
@@ -8,13 +9,15 @@ import {
   isOnSaleVehicle,
   resolveIncludeCarfaxSourceUrl,
 } from "@okauto/shared";
-import { authenticateApiKey } from "@/lib/auth";
 import {
   jsonResponse,
+  apiError,
   errorResponse,
   handleApiError,
+  listingGuardResponse,
   parseBody,
 } from "@/lib/api";
+import { authenticateExtensionApiKey } from "@/lib/extension-auth";
 import {
   ListingGuardError,
   withListingCreateLock,
@@ -22,11 +25,11 @@ import {
 
 export async function POST(request: NextRequest) {
   try {
-    const apiKey = request.headers.get("x-api-key");
-    if (!apiKey) return errorResponse("API key required", 401);
-
-    const auth = await authenticateApiKey(apiKey);
-    if (!auth) return errorResponse("Invalid API key", 401);
+    const authResult = await authenticateExtensionApiKey(
+      request.headers.get("x-api-key"),
+    );
+    if (!authResult.ok) return authResult.response;
+    const auth = authResult.auth;
 
     const body = await parseBody<unknown>(request);
     const data = extensionEventSchema.parse(body);
@@ -49,21 +52,20 @@ export async function POST(request: NextRequest) {
         },
       },
     });
-    if (!vehicle) return errorResponse("Vehicle not found", 404);
+    if (!vehicle) return apiError(ApiErrorCode.VEHICLE_NOT_FOUND, 404);
     if (data.eventType === "listing_created" && !isOnSaleVehicle(vehicle)) {
       return errorResponse(
         "Ce véhicule n’est plus en vente et ne peut pas être publié.",
         409,
+        undefined,
+        { code: ApiErrorCode.VEHICLE_NOT_AVAILABLE },
       );
     }
 
     if (data.eventType === "listing_created") {
       const externalUrl = String(data.metadata?.externalUrl ?? "");
       if (!isFacebookMarketplaceItemUrl(externalUrl)) {
-        return errorResponse(
-          "A published Facebook Marketplace item URL is required",
-          422,
-        );
+        return apiError(ApiErrorCode.MARKETPLACE_ITEM_URL_REQUIRED, 422);
       }
 
       const draft = vehicle.marketplaceDrafts[0];
@@ -143,7 +145,7 @@ export async function POST(request: NextRequest) {
         return jsonResponse({ listingId: listing.id, success: true });
       } catch (err) {
         if (err instanceof ListingGuardError) {
-          return jsonResponse({ error: err.message, ...err.extra }, err.status);
+          return listingGuardResponse(err);
         }
         throw err;
       }
@@ -158,7 +160,7 @@ export async function POST(request: NextRequest) {
           userId: auth.user.id,
         },
       });
-      if (!listing) return errorResponse("Listing not found", 404);
+      if (!listing) return apiError(ApiErrorCode.LISTING_NOT_FOUND, 404);
 
       await prisma.listing.update({
         where: { id: listing.id },
@@ -174,6 +176,19 @@ export async function POST(request: NextRequest) {
       return jsonResponse({ success: true });
     }
 
+    if (
+      data.eventType === "listing_error" ||
+      data.eventType === "form_filled"
+    ) {
+      console.info("[extension-event]", {
+        eventType: data.eventType,
+        organizationId: auth.orgId,
+        vehicleId: data.vehicleId,
+        listingId: data.listingId ?? null,
+        metadata: data.metadata ?? {},
+      });
+    }
+
     if (data.listingId) {
       const listing = await prisma.listing.findFirst({
         where: {
@@ -183,7 +198,7 @@ export async function POST(request: NextRequest) {
           userId: auth.user.id,
         },
       });
-      if (!listing) return errorResponse("Listing not found", 404);
+      if (!listing) return apiError(ApiErrorCode.LISTING_NOT_FOUND, 404);
       await prisma.listingEvent.create({
         data: {
           listingId: listing.id,

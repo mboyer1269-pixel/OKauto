@@ -1,6 +1,6 @@
 import { prisma } from "@okauto/database";
-import { hasMinRole, updateListingSchema } from "@okauto/shared";
-import { withAuth, jsonResponse, errorResponse, parseBody } from "@/lib/api";
+import { ApiErrorCode, hasMinRole, updateListingSchema } from "@okauto/shared";
+import { withAuth, jsonResponse, apiError, parseBody } from "@/lib/api";
 import { createAuditLog } from "@/lib/auth";
 
 export const PATCH = withAuth(async (request, { auth, params }) => {
@@ -14,7 +14,7 @@ export const PATCH = withAuth(async (request, { auth, params }) => {
       ...(hasMinRole(auth.role, "MANAGER") ? {} : { userId: auth.sub }),
     },
   });
-  if (!existing) return errorResponse("Listing not found", 404);
+  if (!existing) return apiError(ApiErrorCode.LISTING_NOT_FOUND, 404);
 
   const listing = await prisma.listing.update({
     where: { id: params!.id },

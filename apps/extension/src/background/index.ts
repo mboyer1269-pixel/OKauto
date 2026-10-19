@@ -1,4 +1,4 @@
-export {};
+import { userFacingApiError } from "@okauto/shared";
 
 const PENDING_PUBLICATION_KEY = "pendingPublication";
 const DEFAULT_API_URL = "https://suivia.ca";
@@ -53,9 +53,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             metadata: { externalUrl: url, source: "extension" },
           }),
         });
-        const data = await response.json();
+        const data = await response.json().catch(() => ({}));
         if (!response.ok) {
-          sendResponse({ success: false, error: data.error });
+          sendResponse({
+            success: false,
+            error: userFacingApiError(response.status, data),
+            code: data.code,
+          });
           return;
         }
 
@@ -121,7 +125,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           const data = await response.json().catch(() => ({}));
           sendResponse({
             success: false,
-            error: data.error ?? "Photo inaccessible.",
+            error: userFacingApiError(
+              response.status,
+              data,
+              "Photo inaccessible. Actualisez la fiche, puis réessayez.",
+            ),
+            code: (data as { code?: string }).code,
           });
           return;
         }
@@ -143,6 +152,43 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         sendResponse({
           success: false,
           error: "La photo n’a pas pu être préparée.",
+        });
+      }
+    });
+    return true;
+  }
+  if (message.type === "REPORT_EXTENSION_EVENT") {
+    chrome.storage.local.get(["apiKey", "apiUrl"], async (result) => {
+      try {
+        const apiUrl = String(result.apiUrl ?? DEFAULT_API_URL);
+        const response = await fetch(`${apiUrl}/api/v1/extension/events`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-API-Key": String(result.apiKey ?? ""),
+          },
+          body: JSON.stringify({
+            eventType: message.eventType,
+            vehicleId: message.vehicleId,
+            listingId: message.listingId,
+            metadata: message.metadata ?? {},
+          }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          sendResponse({
+            success: false,
+            error: userFacingApiError(response.status, data),
+            code: data.code,
+          });
+          return;
+        }
+        sendResponse({ success: true, ...data });
+      } catch {
+        sendResponse({
+          success: false,
+          error:
+            "Suivia Auto est inaccessible. L’erreur de formulaire n’a pas pu être enregistrée.",
         });
       }
     });

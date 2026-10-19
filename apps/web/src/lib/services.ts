@@ -41,7 +41,7 @@ export async function generateVehicleDescription(
       : null,
   ]);
 
-  if (!vehicle) throw new Error("Vehicle not found");
+  if (!vehicle) throw new Error("Véhicule introuvable");
 
   const contactName =
     salesperson?.name?.trim() ||

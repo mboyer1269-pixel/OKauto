@@ -1,5 +1,5 @@
-import { withAuth, jsonResponse, errorResponse, parseBody } from '@/lib/api';
-import { presignPhotoSchema } from '@okauto/shared';
+import { withAuth, jsonResponse, apiError, parseBody } from '@/lib/api';
+import { ApiErrorCode, presignPhotoSchema } from '@okauto/shared';
 import { prisma } from '@okauto/database';
 import { createPresignedUpload, isStorageConfigured } from '@/lib/storage';
 
@@ -10,7 +10,7 @@ export const GET = withAuth(async () => {
 export const POST = withAuth(
   async (request, { auth }) => {
     if (!isStorageConfigured()) {
-      return errorResponse('S3 storage is not configured. Set AWS_S3_BUCKET and AWS_S3_PUBLIC_URL.', 503);
+      return apiError(ApiErrorCode.STORAGE_NOT_CONFIGURED, 503);
     }
 
     const body = await parseBody<unknown>(request);
@@ -19,7 +19,7 @@ export const POST = withAuth(
     const vehicle = await prisma.vehicle.findFirst({
       where: { id: data.vehicleId, organizationId: auth.orgId },
     });
-    if (!vehicle) return errorResponse('Vehicle not found', 404);
+    if (!vehicle) return apiError(ApiErrorCode.VEHICLE_NOT_FOUND, 404);
 
     const result = await createPresignedUpload({
       organizationId: auth.orgId,

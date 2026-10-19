@@ -1,6 +1,6 @@
 import { prisma } from "@okauto/database";
-import { isPlatformAdminUserId } from "@okauto/shared";
-import { withAuth, jsonResponse, errorResponse } from "@/lib/api";
+import { ApiErrorCode, isPlatformAdminUserId } from "@okauto/shared";
+import { withAuth, jsonResponse, apiError } from "@/lib/api";
 
 export const GET = withAuth(async (_request, { auth }) => {
   const membership = await prisma.organizationMember.findUnique({
@@ -17,7 +17,7 @@ export const GET = withAuth(async (_request, { auth }) => {
   });
 
   if (!membership?.user.isActive) {
-    return errorResponse("Unauthorized", 401);
+    return apiError(ApiErrorCode.ACCOUNT_DISABLED, 401);
   }
 
   return jsonResponse({

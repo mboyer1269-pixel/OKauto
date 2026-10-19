@@ -1,7 +1,14 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { randomUUID } from "node:crypto";
-import { hasMinRole, isPlatformAdminUserId, type RoleType } from "@okauto/shared";
+import {
+  ApiErrorCode,
+  apiErrorMessageFr,
+  hasMinRole,
+  isPlatformAdminUserId,
+  type ApiErrorCodeType,
+  type RoleType,
+} from "@okauto/shared";
 import {
   getAuthFromRequest,
   isAccessTokenRevoked,
@@ -10,8 +17,11 @@ import {
 } from "./auth";
 import { ListingGuardError } from "./listing-guards";
 
-const GENERIC_INTERNAL_ERROR =
-  "Une erreur interne s'est produite. Réessayez plus tard.";
+type ErrorExtra = {
+  retryAfterSeconds?: number;
+  correlationId?: string;
+  code?: ApiErrorCodeType | string;
+};
 
 export function jsonResponse<T>(data: T, status = 200) {
   return NextResponse.json(data, { status });
@@ -21,11 +31,12 @@ export function errorResponse(
   message: string,
   status = 400,
   details?: unknown,
-  extra?: { retryAfterSeconds?: number; correlationId?: string },
+  extra?: ErrorExtra,
 ) {
   const body: Record<string, unknown> = { error: message };
   if (details !== undefined) body.details = details;
   if (extra?.correlationId) body.correlationId = extra.correlationId;
+  if (extra?.code) body.code = extra.code;
 
   const response = NextResponse.json(body, { status });
   if (extra?.retryAfterSeconds !== undefined) {
@@ -40,15 +51,32 @@ export function errorResponse(
   return response;
 }
 
-export function tooManyRequestsResponse(retryAfterSeconds: number) {
-  return errorResponse(
-    "Trop de tentatives. Réessayez plus tard.",
-    429,
-    undefined,
-    {
-      retryAfterSeconds,
-    },
+export function apiError(
+  code: ApiErrorCodeType,
+  status: number,
+  details?: unknown,
+  extra?: Omit<ErrorExtra, "code">,
+) {
+  return errorResponse(apiErrorMessageFr(code), status, details, {
+    ...extra,
+    code,
+  });
+}
+
+export function listingGuardResponse(err: ListingGuardError) {
+  const extra = { ...err.extra };
+  const code = err.code ?? (typeof extra.code === "string" ? extra.code : undefined);
+  delete extra.code;
+  return NextResponse.json(
+    { error: err.message, ...(code ? { code } : {}), ...extra },
+    { status: err.status },
   );
+}
+
+export function tooManyRequestsResponse(retryAfterSeconds: number) {
+  return apiError(ApiErrorCode.RATE_LIMITED, 429, undefined, {
+    retryAfterSeconds,
+  });
 }
 
 function isUniqueConstraintError(err: Error): boolean {
@@ -60,28 +88,21 @@ function isUniqueConstraintError(err: Error): boolean {
 
 export function handleApiError(err: unknown) {
   if (err instanceof ListingGuardError) {
-    return NextResponse.json(
-      { error: err.message, ...err.extra },
-      { status: err.status },
-    );
+    return listingGuardResponse(err);
   }
   if (err instanceof InvalidJsonError) {
-    return errorResponse(err.message, 400);
+    return apiError(ApiErrorCode.INVALID_JSON, 400);
   }
   if (err instanceof ZodError) {
-    return errorResponse(
-      "Les données envoyées sont invalides",
-      400,
-      err.errors,
-    );
+    return apiError(ApiErrorCode.VALIDATION_ERROR, 400, err.errors);
   }
   if (err instanceof Error && isUniqueConstraintError(err)) {
-    return errorResponse("Une fiche avec cette valeur existe déjà", 409);
+    return apiError(ApiErrorCode.CONFLICT_UNIQUE, 409);
   }
 
   const correlationId = randomUUID();
   console.error(`[api] ${correlationId}`, err);
-  return errorResponse(GENERIC_INTERNAL_ERROR, 500, undefined, {
+  return apiError(ApiErrorCode.INTERNAL_ERROR, 500, undefined, {
     correlationId,
   });
 }
@@ -102,21 +123,21 @@ export function withAuth(
     try {
       const auth = await getAuthFromRequest(request as never);
       if (!auth) {
-        return errorResponse("Authentification requise", 401);
+        return apiError(ApiErrorCode.AUTH_REQUIRED, 401);
       }
       if (isInvitationScopedToken(auth)) {
-        return errorResponse("Authentification requise", 401);
+        return apiError(ApiErrorCode.AUTH_REQUIRED, 401);
       }
       if (await isAccessTokenRevoked(auth)) {
-        return errorResponse("Authentification requise", 401);
+        return apiError(ApiErrorCode.AUTH_REQUIRED, 401);
       }
 
       if (options?.minRole && !hasMinRole(auth.role, options.minRole)) {
-        return errorResponse("Accès insuffisant", 403);
+        return apiError(ApiErrorCode.FORBIDDEN, 403);
       }
 
       if (options?.platformAdmin && !isPlatformAdminUserId(auth.sub)) {
-        return errorResponse("Accès insuffisant", 403);
+        return apiError(ApiErrorCode.FORBIDDEN, 403);
       }
 
       const params = await segmentData.params;
@@ -128,7 +149,7 @@ export function withAuth(
 }
 
 export class InvalidJsonError extends Error {
-  constructor(message = "Le corps de la requête n’est pas un JSON valide") {
+  constructor(message = apiErrorMessageFr(ApiErrorCode.INVALID_JSON)) {
     super(message);
     this.name = "InvalidJsonError";
   }

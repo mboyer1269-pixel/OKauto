@@ -644,7 +644,8 @@ describe("revue inventaire — renouveler, retirer, périmés", { timeout: 30_00
     );
     const onSalePhotoBody = await onSalePhotos.json();
     expect(onSalePhotos.status).not.toBe(404);
-    expect(onSalePhotoBody.error).not.toBe("Vehicle not found");
+    expect(onSalePhotoBody.code).not.toBe("VEHICLE_NOT_FOUND");
+    expect(onSalePhotoBody.error).not.toMatch(/Véhicule introuvable/);
 
     const noPhoto = await extensionPhotosHandler(
       makeRequest(
@@ -655,7 +656,8 @@ describe("revue inventaire — renouveler, retirer, périmés", { timeout: 30_00
     );
     const noPhotoBody = await noPhoto.json();
     expect(noPhoto.status).toBe(404);
-    expect(noPhotoBody.error).toBe("Photo not found");
+    expect(noPhotoBody.code).toBe("PHOTO_NOT_FOUND");
+    expect(noPhotoBody.error).toMatch(/Photo introuvable/);
 
     for (const id of [staleVehicleId, soldVehicleId, missingId]) {
       const photos = await extensionPhotosHandler(
@@ -666,7 +668,8 @@ describe("revue inventaire — renouveler, retirer, périmés", { timeout: 30_00
       );
       const body = await photos.json();
       expect(photos.status).toBe(404);
-      expect(body.error).toBe("Vehicle not found");
+      expect(body.code).toBe("VEHICLE_NOT_FOUND");
+      expect(body.error).toMatch(/Véhicule introuvable/);
     }
   });
 

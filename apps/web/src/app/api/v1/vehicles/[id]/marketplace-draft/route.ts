@@ -1,6 +1,6 @@
 import { prisma } from "@okauto/database";
-import { updateMarketplaceDraftSchema } from "@okauto/shared";
-import { errorResponse, jsonResponse, parseBody, withAuth } from "@/lib/api";
+import { ApiErrorCode, updateMarketplaceDraftSchema } from "@okauto/shared";
+import { apiError, jsonResponse, parseBody, withAuth } from "@/lib/api";
 import { createAuditLog } from "@/lib/auth";
 
 export const PUT = withAuth(async (request, { auth, params }) => {
@@ -10,7 +10,7 @@ export const PUT = withAuth(async (request, { auth, params }) => {
     where: { id: params!.id, organizationId: auth.orgId },
     include: { photos: { orderBy: { sortOrder: "asc" } } },
   });
-  if (!vehicle) return errorResponse("Vehicle not found", 404);
+  if (!vehicle) return apiError(ApiErrorCode.VEHICLE_NOT_FOUND, 404);
 
   const availablePhotoUrls = new Set(vehicle.photos.map((photo) => photo.url));
   const requestedOrder = data.photoOrder?.filter((url) =>

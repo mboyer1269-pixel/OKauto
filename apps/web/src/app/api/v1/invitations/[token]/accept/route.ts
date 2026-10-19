@@ -1,9 +1,14 @@
 import bcrypt from "bcryptjs";
 import { prisma } from "@okauto/database";
-import { acceptInviteSchema, isPlatformAdminUserId } from "@okauto/shared";
+import {
+  ApiErrorCode,
+  acceptInviteSchema,
+  isPlatformAdminUserId,
+} from "@okauto/shared";
 import {
   jsonResponse,
   errorResponse,
+  apiError,
   handleApiError,
   parseBody,
 } from "@/lib/api";
@@ -55,7 +60,7 @@ export async function POST(
 
     const auth = await getAuthFromRequest(request as never);
     if (auth && (await isAccessTokenRevoked(auth))) {
-      return errorResponse("Authentification requise", 401);
+      return apiError(ApiErrorCode.AUTH_REQUIRED, 401);
     }
 
     const body = await parseBody<unknown>(request).catch(() => ({}));

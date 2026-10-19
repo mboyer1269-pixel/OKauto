@@ -1,4 +1,4 @@
-export {};
+import { userFacingApiError } from "@okauto/shared";
 
 interface Vehicle {
   id: string;
@@ -178,12 +178,18 @@ async function loadInventory(settings: Settings, search = "") {
     if (search) params.set("search", search);
     const res = await apiFetch(`/api/v1/extension?${params}`, settings);
     if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error ?? "Failed to load inventory");
+      const err = await res.json().catch(() => ({}));
+      throw new Error(
+        userFacingApiError(
+          res.status,
+          err,
+          "Impossible de charger l’inventaire. Vérifiez la clé API et l’URL dans Réglages.",
+        ),
+      );
     }
     const data = await res.json();
     document.getElementById("org-name")!.textContent =
-      data.organization?.name ?? "Listing Assistant";
+      data.organization?.name ?? "Assistant Suivia";
     inventory = (data.vehicles ?? []).map((vehicle: Vehicle) => ({
       ...vehicle,
       contactName: vehicle.contactName || data.user?.name,
@@ -211,7 +217,13 @@ async function assistListing(vehicle: Vehicle, button?: HTMLButtonElement) {
     );
     const data = await response.json().catch(() => ({}));
     if (!response.ok || !data.vehicle) {
-      throw new Error(data.error ?? "La fiche complète est inaccessible.");
+      throw new Error(
+        userFacingApiError(
+          response.status,
+          data,
+          "La fiche complète est inaccessible. Actualisez l’inventaire, puis réessayez.",
+        ),
+      );
     }
     vehicle = data.vehicle as Vehicle;
   } catch (error) {
@@ -284,7 +296,14 @@ document
         .dispatchEvent(new Event("click"));
       loadInventory({ apiUrl, apiKey });
     } else {
-      showError("Clé API ou URL invalide.");
+      const err = await res.json().catch(() => ({}));
+      showError(
+        userFacingApiError(
+          res.status,
+          err,
+          "Clé API refusée ou révoquée. Créez-en une nouvelle dans Suivia, page Clés API, puis collez-la dans Réglages.",
+        ),
+      );
     }
   });
 

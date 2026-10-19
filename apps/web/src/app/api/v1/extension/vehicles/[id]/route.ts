@@ -1,24 +1,25 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@okauto/database";
 import {
+  ApiErrorCode,
   generateMarketplaceTitle,
   listingDescriptionForExtension,
   resolveIncludeCarfaxSourceUrl,
 } from "@okauto/shared";
 import { onSaleInventoryWhere } from "@/lib/on-sale-query";
-import { authenticateApiKey } from "@/lib/auth";
-import { errorResponse, handleApiError, jsonResponse } from "@/lib/api";
+import { apiError, handleApiError, jsonResponse } from "@/lib/api";
+import { authenticateExtensionApiKey } from "@/lib/extension-auth";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const apiKey = request.headers.get("x-api-key");
-    if (!apiKey) return errorResponse("API key required", 401);
-
-    const auth = await authenticateApiKey(apiKey);
-    if (!auth) return errorResponse("Invalid API key", 401);
+    const authResult = await authenticateExtensionApiKey(
+      request.headers.get("x-api-key"),
+    );
+    if (!authResult.ok) return authResult.response;
+    const auth = authResult.auth;
 
     const { id } = await params;
     const vehicle = await prisma.vehicle.findFirst({
@@ -42,7 +43,7 @@ export async function GET(
         },
       },
     });
-    if (!vehicle) return errorResponse("Vehicle not found", 404);
+    if (!vehicle) return apiError(ApiErrorCode.VEHICLE_NOT_FOUND, 404);
 
     const marketplaceData = {
       year: vehicle.year,

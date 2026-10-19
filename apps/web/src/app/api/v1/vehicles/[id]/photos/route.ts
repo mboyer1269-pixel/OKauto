@@ -1,6 +1,6 @@
 import { prisma } from '@okauto/database';
-import { addPhotoSchema } from '@okauto/shared';
-import { withAuth, jsonResponse, errorResponse, parseBody } from '@/lib/api';
+import { ApiErrorCode, addPhotoSchema } from '@okauto/shared';
+import { withAuth, jsonResponse, apiError, parseBody } from '@/lib/api';
 import { createAuditLog } from '@/lib/auth';
 
 export const POST = withAuth(
@@ -8,7 +8,7 @@ export const POST = withAuth(
     const vehicle = await prisma.vehicle.findFirst({
       where: { id: params!.id, organizationId: auth.orgId },
     });
-    if (!vehicle) return errorResponse('Vehicle not found', 404);
+    if (!vehicle) return apiError(ApiErrorCode.VEHICLE_NOT_FOUND, 404);
 
     const body = await parseBody<unknown>(request);
     const data = addPhotoSchema.parse(body);

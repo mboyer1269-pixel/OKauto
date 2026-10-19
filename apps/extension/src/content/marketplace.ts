@@ -1,4 +1,5 @@
 import {
+  chromeRuntimeErrorFr,
   generateMarketplaceTitle,
   generateTemplateDescription,
 } from "@okauto/shared";
@@ -10,6 +11,16 @@ import {
   PENDING_PUBLICATION_KEY,
   type PendingPublication,
 } from "../publication-tracking";
+import {
+  buildFillTelemetry,
+  exceptionIssue,
+  formatFatalBanner,
+  formatPreparationStatus,
+  missingFieldIssue,
+  missingOptionIssue,
+  toLegacyErrorLabels,
+  type FillReport,
+} from "../marketplace-fill-report";
 
 export interface VehiclePayload {
   id: string;
@@ -185,7 +196,7 @@ function sendRuntimeMessage<T>(message: Record<string, unknown>): Promise<T> {
   return new Promise((resolve, reject) => {
     chrome.runtime.sendMessage(message, (response) => {
       if (chrome.runtime.lastError) {
-        reject(new Error(chrome.runtime.lastError.message));
+        reject(new Error(chromeRuntimeErrorFr(chrome.runtime.lastError.message)));
         return;
       }
       resolve(response as T);
@@ -221,7 +232,7 @@ async function attachVehiclePhotos(
 ) {
   const input = await waitForElement(selectors);
   if (!(input instanceof HTMLInputElement))
-    return { attached: 0, requested: 0 };
+    return { attached: 0, requested: 0, inputFound: false };
 
   const requested = Math.min(vehicle.photos?.length ?? 0, 20);
   const responses: PhotoResponse[] = Array.from({ length: requested });
@@ -247,14 +258,14 @@ async function attachVehiclePhotos(
       ),
     )
     .filter((file): file is File => file != null);
-  if (files.length === 0) return { attached: 0, requested };
+  if (files.length === 0) return { attached: 0, requested, inputFound: true };
 
   const transfer = new DataTransfer();
   files.forEach((file) => transfer.items.add(file));
   input.files = transfer.files;
   input.dispatchEvent(new Event("input", { bubbles: true }));
   input.dispatchEvent(new Event("change", { bubbles: true }));
-  return { attached: files.length, requested };
+  return { attached: files.length, requested, inputFound: true };
 }
 
 function normalizeOptionText(value: string) {
@@ -265,9 +276,9 @@ async function selectComboboxOption(
   selectors: string[],
   fieldLabels: string[],
   optionLabels: string[],
-) {
+): Promise<"ok" | "missing_field" | "missing_option"> {
   const combobox = await waitForElement(selectors, fieldLabels);
-  if (!combobox) return false;
+  if (!combobox) return "missing_field";
 
   combobox.click();
   let options: HTMLElement[] = [];
@@ -304,12 +315,12 @@ async function selectComboboxOption(
       }),
     );
     combobox.blur();
-    return false;
+    return "missing_option";
   }
 
   option.click();
   await new Promise((resolve) => setTimeout(resolve, 300));
-  return true;
+  return "ok";
 }
 
 function bodyStyleLabels(value?: string) {
@@ -364,12 +375,29 @@ function transmissionLabels(value?: string) {
   return [];
 }
 
-async function fillForm(
-  vehicle: VehiclePayload,
-): Promise<{ filled: string[]; errors: string[] }> {
-  const filled: string[] = [];
-  const errors: string[] = [];
+function recordCombobox(
+  report: FillReport,
+  field: string,
+  filledLabel: string,
+  result: "ok" | "missing_field" | "missing_option",
+  optionLabel: string,
+) {
+  if (result === "ok") {
+    report.filled.push(filledLabel);
+    return;
+  }
+  report.issues.push(
+    result === "missing_field"
+      ? missingFieldIssue(field)
+      : missingOptionIssue(field, optionLabel),
+  );
+}
+
+async function fillForm(vehicle: VehiclePayload): Promise<FillReport> {
+  const report: FillReport = { filled: [], issues: [] };
   const selectors = SELECTORS.v1;
+  let currentField = "vehicleType";
+  let currentStep = "select_vehicleType";
 
   const title =
     vehicle.title?.trim() ||
@@ -381,177 +409,229 @@ async function fillForm(
       mileage: vehicle.mileage,
     });
 
-  if (
-    await selectComboboxOption(
-      selectors.vehicleType,
-      ["Type de véhicule", "Vehicle type"],
-      ["Voiture/Camion", "Car/Truck"],
-    )
-  ) {
-    filled.push("type de véhicule");
-  } else {
-    errors.push("type de véhicule à sélectionner");
-  }
-
-  if (
-    await selectComboboxOption(
-      selectors.year,
-      ["Année", "Year"],
-      [String(vehicle.year)],
-    )
-  ) {
-    filled.push("année");
-  } else {
-    errors.push("année à sélectionner");
-  }
-
-  if (
-    await selectComboboxOption(
-      selectors.make,
-      ["Marque", "Make"],
-      [vehicle.make],
-    )
-  ) {
-    filled.push("marque");
-  } else {
-    errors.push("marque à sélectionner");
-  }
-
-  const modelEl = await waitForElement(selectors.model, ["Modèle", "Model"]);
-  if (modelEl) {
-    setInputValue(
-      modelEl,
-      [vehicle.model, vehicle.trim].filter(Boolean).join(" "),
+  try {
+    currentField = "vehicleType";
+    currentStep = "select_vehicleType";
+    recordCombobox(
+      report,
+      "vehicleType",
+      "type de véhicule",
+      await selectComboboxOption(
+        selectors.vehicleType,
+        ["Type de véhicule", "Vehicle type"],
+        ["Voiture/Camion", "Car/Truck"],
+      ),
+      "Voiture/Camion",
     );
-    filled.push("modèle");
-  } else {
-    errors.push("modèle à remplir");
-  }
 
-  if (vehicle.mileage != null) {
-    const mileageEl = await waitForElement(selectors.mileage, [
-      "Kilométrage",
-      "Mileage",
-    ]);
-    if (mileageEl) {
-      setInputValue(mileageEl, String(Math.round(vehicle.mileage)));
-      filled.push("kilométrage");
+    currentField = "year";
+    currentStep = "select_year";
+    recordCombobox(
+      report,
+      "year",
+      "année",
+      await selectComboboxOption(
+        selectors.year,
+        ["Année", "Year"],
+        [String(vehicle.year)],
+      ),
+      String(vehicle.year),
+    );
+
+    currentField = "make";
+    currentStep = "select_make";
+    recordCombobox(
+      report,
+      "make",
+      "marque",
+      await selectComboboxOption(
+        selectors.make,
+        ["Marque", "Make"],
+        [vehicle.make],
+      ),
+      vehicle.make,
+    );
+
+    currentField = "model";
+    currentStep = "fill_model";
+    const modelEl = await waitForElement(selectors.model, ["Modèle", "Model"]);
+    if (modelEl) {
+      setInputValue(
+        modelEl,
+        [vehicle.model, vehicle.trim].filter(Boolean).join(" "),
+      );
+      report.filled.push("modèle");
     } else {
-      errors.push("kilométrage à remplir");
+      report.issues.push(missingFieldIssue("model", "fill_model"));
     }
-  }
 
-  const titleEl = await waitForElement(
-    selectors.title,
-    ["Titre", "Title"],
-    500,
-  );
-  if (titleEl) {
-    setInputValue(titleEl, title);
-    filled.push("titre");
-  }
-
-  if (vehicle.price) {
-    const priceEl = await waitForElement(selectors.price, ["Prix", "Price"]);
-    if (priceEl) {
-      setInputValue(priceEl, String(Math.round(vehicle.price)));
-      filled.push("prix");
-    } else {
-      errors.push("prix à remplir");
-    }
-  }
-
-  // Prefer the package reviewed in Suivia Auto, which includes the dealership's
-  // contact details. Keep a local fallback for extension-only usage.
-  const description =
-    vehicle.description?.trim() ||
-    generateTemplateDescription({
-      ...vehicle,
-      dealershipName: vehicle.dealershipName || "Votre concession",
-      contactName: vehicle.contactName || "Votre conseiller",
-      phone: vehicle.phone,
-    });
-  if (description) {
-    const descEl = await waitForElement(selectors.description, ["Description"]);
-    if (descEl) {
-      setInputValue(descEl, description);
-      filled.push("description");
-    } else {
-      errors.push("description à remplir");
-    }
-  }
-
-  const bodyLabels = bodyStyleLabels(vehicle.bodyStyle);
-  if (
-    bodyLabels.length > 0 &&
-    (await selectComboboxOption(
-      selectors.bodyStyle,
-      ["Style de carrosserie", "Body style"],
-      bodyLabels,
-    ))
-  ) {
-    filled.push("style de carrosserie");
-  }
-
-  const mappedExteriorColorLabels = exteriorColorLabels(vehicle.exteriorColor);
-  if (
-    mappedExteriorColorLabels.length > 0 &&
-    (await selectComboboxOption(
-      selectors.exteriorColor,
-      ["Couleur extérieure", "Exterior color"],
-      mappedExteriorColorLabels,
-    ))
-  ) {
-    filled.push("couleur extérieure");
-  }
-
-  const mappedFuelLabels = fuelLabels(vehicle.fuelType);
-  if (
-    mappedFuelLabels.length > 0 &&
-    (await selectComboboxOption(
-      selectors.fuelType,
-      ["Type de carburant", "Fuel type"],
-      mappedFuelLabels,
-    ))
-  ) {
-    filled.push("carburant");
-  }
-
-  const mappedTransmissionLabels = transmissionLabels(vehicle.transmission);
-  if (
-    mappedTransmissionLabels.length > 0 &&
-    (await selectComboboxOption(
-      selectors.transmission,
-      ["Boîte de vitesse", "Transmission"],
-      mappedTransmissionLabels,
-    ))
-  ) {
-    filled.push("transmission");
-  }
-
-  if (vehicle.photos?.length) {
-    try {
-      const photoResult = await attachVehiclePhotos(vehicle, selectors.photo);
-      if (photoResult.attached > 0) {
-        filled.push(
-          `${photoResult.attached} photo${photoResult.attached > 1 ? "s" : ""}`,
-        );
-        if (photoResult.attached < photoResult.requested) {
-          errors.push(
-            `${photoResult.requested - photoResult.attached} photo(s) à ajouter manuellement`,
-          );
-        }
+    if (vehicle.mileage != null) {
+      currentField = "mileage";
+      currentStep = "fill_mileage";
+      const mileageEl = await waitForElement(selectors.mileage, [
+        "Kilométrage",
+        "Mileage",
+      ]);
+      if (mileageEl) {
+        setInputValue(mileageEl, String(Math.round(vehicle.mileage)));
+        report.filled.push("kilométrage");
       } else {
-        errors.push("photos à ajouter manuellement");
+        report.issues.push(missingFieldIssue("mileage", "fill_mileage"));
       }
-    } catch {
-      errors.push("photos à ajouter manuellement");
     }
-  } else {
-    errors.push("photo manquante");
+
+    currentField = "title";
+    currentStep = "fill_title";
+    const titleEl = await waitForElement(
+      selectors.title,
+      ["Titre", "Title"],
+      500,
+    );
+    if (titleEl) {
+      setInputValue(titleEl, title);
+      report.filled.push("titre");
+    }
+
+    if (vehicle.price) {
+      currentField = "price";
+      currentStep = "fill_price";
+      const priceEl = await waitForElement(selectors.price, ["Prix", "Price"]);
+      if (priceEl) {
+        setInputValue(priceEl, String(Math.round(vehicle.price)));
+        report.filled.push("prix");
+      } else {
+        report.issues.push(missingFieldIssue("price", "fill_price"));
+      }
+    }
+
+    // Prefer the package reviewed in Suivia Auto, which includes the dealership's
+    // contact details. Keep a local fallback for extension-only usage.
+    const description =
+      vehicle.description?.trim() ||
+      generateTemplateDescription({
+        ...vehicle,
+        dealershipName: vehicle.dealershipName || "Votre concession",
+        contactName: vehicle.contactName || "Votre conseiller",
+        phone: vehicle.phone,
+      });
+    if (description) {
+      currentField = "description";
+      currentStep = "fill_description";
+      const descEl = await waitForElement(selectors.description, [
+        "Description",
+      ]);
+      if (descEl) {
+        setInputValue(descEl, description);
+        report.filled.push("description");
+      } else {
+        report.issues.push(missingFieldIssue("description", "fill_description"));
+      }
+    }
+
+    const bodyLabels = bodyStyleLabels(vehicle.bodyStyle);
+    if (bodyLabels.length > 0) {
+      currentField = "bodyStyle";
+      currentStep = "select_bodyStyle";
+      const result = await selectComboboxOption(
+        selectors.bodyStyle,
+        ["Style de carrosserie", "Body style"],
+        bodyLabels,
+      );
+      if (result === "ok") report.filled.push("style de carrosserie");
+    }
+
+    const mappedExteriorColorLabels = exteriorColorLabels(vehicle.exteriorColor);
+    if (mappedExteriorColorLabels.length > 0) {
+      currentField = "exteriorColor";
+      currentStep = "select_exteriorColor";
+      const result = await selectComboboxOption(
+        selectors.exteriorColor,
+        ["Couleur extérieure", "Exterior color"],
+        mappedExteriorColorLabels,
+      );
+      if (result === "ok") report.filled.push("couleur extérieure");
+    }
+
+    const mappedFuelLabels = fuelLabels(vehicle.fuelType);
+    if (mappedFuelLabels.length > 0) {
+      currentField = "fuelType";
+      currentStep = "select_fuelType";
+      const result = await selectComboboxOption(
+        selectors.fuelType,
+        ["Type de carburant", "Fuel type"],
+        mappedFuelLabels,
+      );
+      if (result === "ok") report.filled.push("carburant");
+    }
+
+    const mappedTransmissionLabels = transmissionLabels(vehicle.transmission);
+    if (mappedTransmissionLabels.length > 0) {
+      currentField = "transmission";
+      currentStep = "select_transmission";
+      const result = await selectComboboxOption(
+        selectors.transmission,
+        ["Boîte de vitesse", "Transmission"],
+        mappedTransmissionLabels,
+      );
+      if (result === "ok") report.filled.push("transmission");
+    }
+
+    currentField = "photos";
+    currentStep = "attach_photos";
+    if (vehicle.photos?.length) {
+      try {
+        const photoResult = await attachVehiclePhotos(vehicle, selectors.photo);
+        if (!photoResult.inputFound) {
+          report.issues.push(missingFieldIssue("photos", "find_photo_input"));
+        } else if (photoResult.attached > 0) {
+          report.filled.push(
+            `${photoResult.attached} photo${photoResult.attached > 1 ? "s" : ""}`,
+          );
+          if (photoResult.attached < photoResult.requested) {
+            report.issues.push({
+              field: "photos",
+              step: "attach_photos",
+              reason: "partial",
+              message: `${photoResult.requested - photoResult.attached} photo(s) à ajouter manuellement (étape attach_photos).`,
+            });
+          }
+        } else {
+          report.issues.push({
+            field: "photos",
+            step: "attach_photos",
+            reason: "partial",
+            message:
+              "Champ Photos trouvé, mais aucune photo n’a pu être jointe (étape attach_photos).",
+          });
+        }
+      } catch (error) {
+        report.issues.push(
+          exceptionIssue(
+            "photos",
+            "attach_photos",
+            error instanceof Error ? error.message : "erreur inconnue",
+          ),
+        );
+      }
+    } else {
+      report.issues.push({
+        field: "photos",
+        step: "attach_photos",
+        reason: "partial",
+        message: "Aucune photo sur la fiche véhicule (étape attach_photos).",
+      });
+    }
+  } catch (error) {
+    report.issues.push(
+      exceptionIssue(
+        currentField,
+        currentStep,
+        error instanceof Error ? error.message : "erreur inconnue",
+      ),
+    );
   }
 
-  return { filled, errors };
+  return report;
 }
 
 interface BannerOptions {
@@ -634,19 +714,23 @@ function mountAssistBanner(
   return { banner, status, actionButton };
 }
 
-function showPreparationBanner(
-  vehicle: VehiclePayload,
-  result: { filled: string[]; errors: string[] },
-) {
-  const fillStatus =
-    result.errors.length > 0
-      ? `Remplissage partiel (${result.filled.join(", ")}). À compléter : ${result.errors.join(", ")}.`
-      : `Champs préparés : ${result.filled.join(", ")}.`;
-
+function showPreparationBanner(vehicle: VehiclePayload, report: FillReport) {
+  const tone = report.issues.length > 0 ? "red" : "blue";
   mountAssistBanner(
     vehicle,
-    `${fillStatus} Vérifiez, puis publiez dans Facebook; Suivia Auto enregistrera automatiquement l’annonce finale.`,
+    `${formatPreparationStatus(report)} Vérifiez, puis publiez dans Facebook; Suivia Auto enregistrera automatiquement l’annonce finale.`,
+    { tone },
   );
+}
+
+function reportFillTelemetry(vehicleId: string, report: FillReport) {
+  const payload = buildFillTelemetry(vehicleId, report, window.location.href);
+  void sendRuntimeMessage({
+    type: "REPORT_EXTENSION_EVENT",
+    ...payload,
+  }).catch(() => {
+    // Telemetry must never block publishing.
+  });
 }
 
 let confirmationUrl: string | null = null;
@@ -725,6 +809,7 @@ async function prepareMarketplaceForm(
   );
   const fillResult = await fillForm(vehicle);
   showPreparationBanner(vehicle, fillResult);
+  reportFillTelemetry(vehicle.id, fillResult);
   watchForPublishedListing(vehicle, startedAt);
   return fillResult;
 }
@@ -746,13 +831,30 @@ function beginPendingFlow(pending: PendingPublication<VehiclePayload>) {
 
   if (isMarketplaceCreateUrl(window.location.href)) {
     window.setTimeout(() => {
-      prepareMarketplaceForm(pending.vehicle, pending.startedAt).catch(() => {
-        mountAssistBanner(
-          pending.vehicle,
-          "Le formulaire n’a pas pu être préparé. Rechargez la page ou recommencez depuis Suivia Auto.",
-          { tone: "red" },
-        );
-      });
+      prepareMarketplaceForm(pending.vehicle, pending.startedAt).catch(
+        (error) => {
+          const fallback =
+            error instanceof Error
+              ? error.message
+              : "Le formulaire n’a pas pu être préparé. Rechargez la page ou recommencez depuis Suivia Auto.";
+          const report: FillReport = {
+            filled: [],
+            issues: [
+              exceptionIssue(
+                "vehicleType",
+                "prepare_form",
+                fallback,
+              ),
+            ],
+          };
+          mountAssistBanner(
+            pending.vehicle,
+            formatFatalBanner(report, fallback),
+            { tone: "red" },
+          );
+          reportFillTelemetry(pending.vehicle.id, report);
+        },
+      );
     }, 1200);
   }
 }
@@ -763,14 +865,30 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     const pending = createPendingPublication(vehicle);
     chrome.storage.local.set({ [PENDING_PUBLICATION_KEY]: pending });
     prepareMarketplaceForm(vehicle, pending.startedAt)
-      .then((result) => sendResponse({ success: true, ...result }))
+      .then((result) =>
+        sendResponse({
+          success: true,
+          filled: result.filled,
+          errors: toLegacyErrorLabels(result),
+          issues: result.issues,
+        }),
+      )
       .catch((error) => {
+        const message =
+          error instanceof Error ? error.message : "Remplissage impossible";
+        const report: FillReport = {
+          filled: [],
+          issues: [exceptionIssue("vehicleType", "prepare_form", message)],
+        };
+        mountAssistBanner(vehicle, formatFatalBanner(report, message), {
+          tone: "red",
+        });
+        reportFillTelemetry(vehicle.id, report);
         sendResponse({
           success: false,
           filled: [],
-          errors: [
-            error instanceof Error ? error.message : "Remplissage impossible",
-          ],
+          errors: toLegacyErrorLabels(report),
+          issues: report.issues,
         });
       });
     return true;
