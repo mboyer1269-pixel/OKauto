@@ -28,7 +28,7 @@ describe("handleApiError", () => {
     const data = await res.json();
 
     expect(res.status).toBe(400);
-    expect(data.error).toBe("Les données envoyées sont invalides");
+    expect(data.error).toBe("Les données envoyées sont invalides.");
     expect(data.code).toBe("VALIDATION_ERROR");
     expect(data.details).toBeTruthy();
     expect(data.correlationId).toBeUndefined();
@@ -50,7 +50,7 @@ describe("handleApiError", () => {
     const data = await res.json();
 
     expect(res.status).toBe(409);
-    expect(data.error).toBe("Une fiche avec cette valeur existe déjà");
+    expect(data.error).toBe("Une fiche avec cette valeur existe déjà.");
     expect(data.code).toBe("CONFLICT_UNIQUE");
     expect(data.correlationId).toBeUndefined();
   });
@@ -67,7 +67,7 @@ describe("handleApiError", () => {
     expect(res.status).toBe(500);
     expect(data.code).toBe("INTERNAL_ERROR");
     expect(data.error).toBe(
-      "Une erreur interne s'est produite. Réessayez plus tard.",
+      "Une erreur interne s’est produite. Réessayez plus tard.",
     );
     expect(data.error).not.toContain("ECONNREFUSED");
     expect(data.error).not.toContain("secret-pass");

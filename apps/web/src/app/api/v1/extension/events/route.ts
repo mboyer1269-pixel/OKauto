@@ -22,6 +22,7 @@ import {
   ListingGuardError,
   withListingCreateLock,
 } from "@/lib/listing-guards";
+import { summarizeExtensionEventLog } from "@/lib/extension-event-log";
 
 export async function POST(request: NextRequest) {
   try {
@@ -180,13 +181,16 @@ export async function POST(request: NextRequest) {
       data.eventType === "listing_error" ||
       data.eventType === "form_filled"
     ) {
-      console.info("[extension-event]", {
-        eventType: data.eventType,
-        organizationId: auth.orgId,
-        vehicleId: data.vehicleId,
-        listingId: data.listingId ?? null,
-        metadata: data.metadata ?? {},
-      });
+      console.info(
+        "[extension-event]",
+        summarizeExtensionEventLog({
+          eventType: data.eventType,
+          organizationId: auth.orgId,
+          vehicleId: data.vehicleId,
+          listingId: data.listingId ?? null,
+          metadata: data.metadata,
+        }),
+      );
     }
 
     if (data.listingId) {

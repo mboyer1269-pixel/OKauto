@@ -32,8 +32,49 @@ const FIELD_LABELS_FR: Record<string, string> = {
   photos: "Photos",
 };
 
+const STEP_LABELS_FR: Record<string, string> = {
+  select_vehicleType: "sélection du type de véhicule",
+  select_year: "sélection de l’année",
+  select_make: "sélection de la marque",
+  fill_model: "saisie du modèle",
+  fill_mileage: "saisie du kilométrage",
+  fill_title: "saisie du titre",
+  fill_price: "saisie du prix",
+  fill_description: "saisie de la description",
+  select_bodyStyle: "sélection du style de carrosserie",
+  select_exteriorColor: "sélection de la couleur extérieure",
+  select_fuelType: "sélection du type de carburant",
+  select_transmission: "sélection de la transmission",
+  attach_photos: "ajout des photos",
+  find_photo_input: "ajout des photos",
+};
+
 export function fieldLabelFr(field: string): string {
   return FIELD_LABELS_FR[field] ?? field;
+}
+
+function lowerFirst(value: string): string {
+  if (!value) return value;
+  return value.charAt(0).toLowerCase() + value.slice(1);
+}
+
+export function stepLabelFr(step: string, field?: string): string {
+  if (STEP_LABELS_FR[step]) return STEP_LABELS_FR[step];
+  const fieldLabel = field ? lowerFirst(fieldLabelFr(field)) : "";
+  if (step.startsWith("select_") && fieldLabel) {
+    return `sélection de ${fieldLabel}`;
+  }
+  if (step.startsWith("fill_") && fieldLabel) {
+    return `saisie de ${fieldLabel}`;
+  }
+  if (step.startsWith("find_") && fieldLabel) {
+    return `recherche de ${fieldLabel}`;
+  }
+  if (step.startsWith("attach_") && fieldLabel) {
+    return `ajout de ${fieldLabel}`;
+  }
+  if (fieldLabel) return fieldLabel;
+  return "cette étape du formulaire";
 }
 
 export function missingFieldIssue(
@@ -41,11 +82,12 @@ export function missingFieldIssue(
   step = `find_${field}`,
 ): FillIssue {
   const label = fieldLabelFr(field);
+  const stepLabel = stepLabelFr(step, field);
   return {
     field,
     step,
     reason: "missing_field",
-    message: `Champ « ${label} » introuvable dans le formulaire Facebook (étape ${step}).`,
+    message: `Champ « ${label} » introuvable dans le formulaire Facebook (étape « ${stepLabel} »).`,
   };
 }
 
@@ -55,11 +97,12 @@ export function missingOptionIssue(
   step = `select_${field}`,
 ): FillIssue {
   const label = fieldLabelFr(field);
+  const stepLabel = stepLabelFr(step, field);
   return {
     field,
     step,
     reason: "missing_option",
-    message: `L’option « ${option} » n’a pas pu être sélectionnée pour ${label} (étape ${step}).`,
+    message: `L’option « ${option} » n’a pas pu être sélectionnée pour ${label} (étape « ${stepLabel} »).`,
   };
 }
 
@@ -69,11 +112,12 @@ export function exceptionIssue(
   detail: string,
 ): FillIssue {
   const label = fieldLabelFr(field);
+  const stepLabel = stepLabelFr(step, field);
   return {
     field,
     step,
     reason: "exception",
-    message: `L’étape « ${label} » a échoué (${step}) : ${detail}`,
+    message: `L’étape « ${label} » a échoué (${stepLabel}) : ${detail}`,
   };
 }
 
@@ -93,7 +137,8 @@ export function formatFatalBanner(
 ): string {
   if (!report?.issues.length) return fallback;
   const first = report.issues[0];
-  return `Remplissage interrompu à l’étape « ${fieldLabelFr(first.field)} » (${first.step}). ${first.message}`;
+  const stepLabel = stepLabelFr(first.step, first.field);
+  return `Remplissage interrompu à l’étape « ${stepLabel} ». ${first.message}`;
 }
 
 export function toLegacyErrorLabels(report: FillReport): string[] {

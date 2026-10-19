@@ -17,10 +17,11 @@ describe("marketplace fill report", () => {
     };
     const status = formatPreparationStatus(report);
     expect(status).toMatch(/Champ « Marque » introuvable/);
-    expect(status).toMatch(/étape select_make/);
-    expect(formatFatalBanner(report, "Remplissage impossible")).toMatch(
-      /étape « Marque »/,
-    );
+    expect(status).toMatch(/sélection de la marque/);
+    expect(status).not.toMatch(/select_make/);
+    const banner = formatFatalBanner(report, "Remplissage impossible");
+    expect(banner).toMatch(/sélection de la marque/);
+    expect(banner).not.toMatch(/select_make/);
   });
 
   it("distinguishes a missing option from a missing field", () => {
@@ -28,6 +29,8 @@ describe("marketplace fill report", () => {
     expect(issue.reason).toBe("missing_option");
     expect(issue.message).toMatch(/2024/);
     expect(issue.message).toMatch(/Année/);
+    expect(issue.message).toMatch(/sélection de l’année/);
+    expect(issue.message).not.toMatch(/select_year/);
   });
 
   it("builds a listing_error payload for /api/v1/extension/events", () => {

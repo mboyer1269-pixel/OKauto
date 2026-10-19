@@ -96,15 +96,24 @@ export const API_ERROR_MESSAGES_FR: Record<ApiErrorCodeType, string> = {
     "Impossible d’importer cette ligne. Vérifiez le NIV, le stock et l’année, puis réessayez.",
   ORGANIZATION_NOT_FOUND:
     "Concession introuvable. Reconnectez-vous, puis réessayez.",
-  VALIDATION_ERROR: "Les données envoyées sont invalides",
-  INVALID_JSON: "Le corps de la requête n’est pas un JSON valide",
-  CONFLICT_UNIQUE: "Une fiche avec cette valeur existe déjà",
+  VALIDATION_ERROR: "Les données envoyées sont invalides.",
+  INVALID_JSON: "Le corps de la requête n’est pas un JSON valide.",
+  CONFLICT_UNIQUE: "Une fiche avec cette valeur existe déjà.",
   RATE_LIMITED: "Trop de tentatives. Réessayez plus tard.",
   INTERNAL_ERROR:
-    "Une erreur interne s'est produite. Réessayez plus tard.",
+    "Une erreur interne s’est produite. Réessayez plus tard.",
   INVENTORY_LOAD_FAILED:
     "Impossible de charger l’inventaire. Vérifiez la clé API et l’URL dans Réglages.",
 };
+
+const GENERIC_ENGLISH_NOISE = new Set([
+  "Unknown error",
+  "Internal server error",
+  "Internal Server Error",
+  "Error",
+  "Not found",
+  "Not Found",
+]);
 
 const LEGACY_ENGLISH_TO_CODE: Record<string, ApiErrorCodeType> = {
   "API key required": ApiErrorCode.API_KEY_REQUIRED,
@@ -126,7 +135,7 @@ const LEGACY_ENGLISH_TO_CODE: Record<string, ApiErrorCodeType> = {
   "Sync source not found": ApiErrorCode.SYNC_SOURCE_NOT_FOUND,
   "Failed to queue sync job. Is Redis running?":
     ApiErrorCode.SYNC_QUEUE_UNAVAILABLE,
-  Unauthorized: ApiErrorCode.ACCOUNT_DISABLED,
+  Unauthorized: ApiErrorCode.AUTH_REQUIRED,
   "Member not found": ApiErrorCode.MEMBER_NOT_FOUND,
   "Cannot change owner role": ApiErrorCode.CANNOT_CHANGE_OWNER_ROLE,
   "Only the owner can reset the owner account":
@@ -138,7 +147,6 @@ const LEGACY_ENGLISH_TO_CODE: Record<string, ApiErrorCodeType> = {
   "CSV content required": ApiErrorCode.CSV_CONTENT_REQUIRED,
   "CSV must have header and at least one row":
     ApiErrorCode.CSV_HEADER_AND_ROW_REQUIRED,
-  "Unknown error": ApiErrorCode.CSV_ROW_FAILED,
   "Organization not found": ApiErrorCode.ORGANIZATION_NOT_FOUND,
   "Failed to load inventory": ApiErrorCode.INVENTORY_LOAD_FAILED,
   "Authentification requise": ApiErrorCode.AUTH_REQUIRED,
@@ -168,21 +176,32 @@ export function resolveApiErrorCode(
   return undefined;
 }
 
+function serverProvidedFrenchMessage(
+  error: string | undefined,
+): string | undefined {
+  if (!error) return undefined;
+  if (LEGACY_ENGLISH_TO_CODE[error]) return undefined;
+  if (GENERIC_ENGLISH_NOISE.has(error)) return undefined;
+  return error;
+}
+
 /**
- * Pick a Quebec French message for humans. Prefer a known `code`, then a
- * French `error` already returned by the API, then a mapped legacy English
- * string. Never surface raw English fallbacks from older servers.
+ * Pick a Quebec French message for humans. Prefer the server's specific
+ * French `error` (e.g. who published a duplicate listing) over the generic
+ * catalog line for the same `code`. Map known English leftovers from older
+ * servers. Never surface raw English fallbacks.
  */
 export function userFacingApiError(
   status: number,
   body: { error?: unknown; code?: unknown } | null | undefined,
   fallback?: string,
 ): string {
+  const errorText =
+    typeof body?.error === "string" ? body.error.trim() : undefined;
+  const specific = serverProvidedFrenchMessage(errorText);
+  if (specific) return specific;
   const code = resolveApiErrorCode(status, body);
   if (code) return apiErrorMessageFr(code);
-  if (typeof body?.error === "string" && body.error.trim()) {
-    return body.error;
-  }
   return fallback ?? apiErrorMessageFr(ApiErrorCode.INTERNAL_ERROR);
 }
 

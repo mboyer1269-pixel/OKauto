@@ -525,7 +525,7 @@ describe("API route handlers", () => {
                 step: "select_make",
                 reason: "missing_field",
                 message:
-                  "Champ « Marque » introuvable dans le formulaire Facebook (étape select_make).",
+                  "Champ « Marque » introuvable dans le formulaire Facebook (étape « sélection de la marque »).",
               },
             ],
           },
@@ -718,7 +718,7 @@ describe("API route handlers", () => {
     );
     const duplicateTeamBody = await duplicateTeamResponse.json();
     expect(duplicateTeamResponse.status).toBe(409);
-    expect(duplicateTeamBody.error).toMatch(/Anti-doublon d'équipe/);
+    expect(duplicateTeamBody.error).toMatch(/Anti-doublon d.équipe/);
     expect(duplicateTeamBody.error).toMatch(/Michael Boyer/);
 
     const duplicateExtension = await extensionEventHandler(

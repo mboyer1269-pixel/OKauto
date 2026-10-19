@@ -99,7 +99,7 @@ async function prepareListingCreate(
       const publisher = teamActive.user.name || "un collègue";
       throw new ListingGuardError(
         409,
-        `Une annonce active existe déjà pour ce véhicule (publiée par ${publisher}). Anti-doublon d'équipe.`,
+        `Une annonce active existe déjà pour ce véhicule (publiée par ${publisher}). Anti-doublon d’équipe.`,
         { listing: teamActive },
         ApiErrorCode.ACTIVE_LISTING_EXISTS,
       );
@@ -154,7 +154,7 @@ async function conflictFromUniqueIndex(
     const publisher = existing.user.name || "un collègue";
     return new ListingGuardError(
       409,
-      `Une annonce active existe déjà pour ce véhicule (publiée par ${publisher}). Anti-doublon d'équipe.`,
+      `Une annonce active existe déjà pour ce véhicule (publiée par ${publisher}). Anti-doublon d’équipe.`,
       { listing: existing },
       ApiErrorCode.ACTIVE_LISTING_EXISTS,
     );

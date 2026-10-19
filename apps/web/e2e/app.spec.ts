@@ -287,8 +287,11 @@ test.describe("Suivia Auto", () => {
     request,
   }) => {
     const response = await request.get(
-      "/_next/image?url=https://example.com/open-proxy.png&w=64&q=75",
+      "/_next/image?url=https://example.com/x.jpg&w=64&q=75",
     );
-    expect(response.status()).not.toBe(200);
+    expect(response.status()).toBeGreaterThanOrEqual(400);
+    expect(response.status()).toBeLessThan(500);
+    const contentType = response.headers()["content-type"] ?? "";
+    expect(contentType).not.toMatch(/^image\//i);
   });
 });
