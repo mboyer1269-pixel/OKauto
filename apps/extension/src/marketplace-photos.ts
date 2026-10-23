@@ -35,7 +35,9 @@ export function scorePhotoInput(input: HTMLInputElement): number {
 export function pickPhotoFileInput(
   candidates: Array<Element | null | undefined>,
 ): HTMLInputElement | null {
-  const inputs = candidates.filter(isPhotoFileInput);
+  const inputs = candidates.filter((candidate): candidate is HTMLInputElement =>
+    isPhotoFileInput(candidate ?? null),
+  );
   if (inputs.length === 0) return null;
   return [...inputs].sort((left, right) => scorePhotoInput(right) - scorePhotoInput(left))[0];
 }

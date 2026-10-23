@@ -55,7 +55,7 @@ describe("Cockpit — logo D et thème", () => {
 
     const dashboard = src("app", "dashboard", "page.tsx");
     expect(dashboard).toContain("Parcourir les véhicules");
-    expect(dashboard).toContain("Ouvrir le carnet");
+    expect(dashboard).toContain("Voir l’inventaire");
     expect(dashboard).toContain("Voir la synchronisation");
     expect(dashboard).toContain("Exporter le catalogue Meta");
     expect(dashboard).toContain("text-primary hover:underline");

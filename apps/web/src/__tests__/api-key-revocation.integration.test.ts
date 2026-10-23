@@ -236,6 +236,7 @@ describe("API key revocation", () => {
         method: "POST",
         headers: { Authorization: `Bearer ${ownerToken}` },
       }),
+      { params: Promise.resolve({}) },
     );
     expect(cleanup.status).toBe(200);
     expect(await prisma.apiKey.findUnique({ where: { id: record.id } })).toBeNull();

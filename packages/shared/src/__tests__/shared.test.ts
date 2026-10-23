@@ -860,11 +860,17 @@ describe("listing match from Marketplace copy", () => {
       id: "veh-accord",
       vin: "1HGBH41JXMN109186",
       stockNumber: "U17404",
+      year: 2022,
+      make: "Honda",
+      model: "Accord",
     },
     {
       id: "veh-terrain",
       vin: "3GKALVEV0NL123456",
       stockNumber: "U20011",
+      year: 2021,
+      make: "GMC",
+      model: "Terrain",
     },
   ];
 
