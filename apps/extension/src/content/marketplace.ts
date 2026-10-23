@@ -1027,7 +1027,7 @@ async function relierMarketplaceListings() {
 
   status.textContent = `${listings.length} annonce${listings.length > 1 ? "s" : ""} trouvée${listings.length > 1 ? "s" : ""}. Correspondance avec l’inventaire Suivia…`;
 
-  const response = await sendRuntimeMessage<{
+  type RelierResponse = {
     success?: boolean;
     error?: string;
     counts?: {
@@ -1045,7 +1045,8 @@ async function relierMarketplaceListings() {
       model?: string | null;
       title?: string | null;
     }>;
-  }>({
+  };
+  const response: RelierResponse = await sendRuntimeMessage<RelierResponse>({
     type: "LINK_LISTINGS",
     listings,
   }).catch(() => ({
