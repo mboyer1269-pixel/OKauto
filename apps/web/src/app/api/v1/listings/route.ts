@@ -6,6 +6,7 @@ import {
   ApiErrorCode,
   apiErrorMessageFr,
   hasMinRole,
+  canonicalMarketplaceListingFields,
   isFacebookMarketplaceItemUrl,
   isOnSaleVehicle,
   listingNeedsMarketplaceRemovalWhere,
@@ -257,14 +258,20 @@ export const POST = withAuth(async (request, { auth }) => {
           );
         }
 
+        const marketplaceIdentity = data.externalUrl
+          ? canonicalMarketplaceListingFields(data.externalUrl)
+          : null;
+
         return tx.listing.create({
           data: {
             organizationId: auth.orgId,
             vehicleId: data.vehicleId,
             userId: auth.sub,
             platform: data.platform,
-            externalUrl: data.externalUrl,
-            externalId: data.externalId,
+            externalUrl:
+              marketplaceIdentity?.externalUrl ?? data.externalUrl,
+            externalId:
+              marketplaceIdentity?.externalId ?? data.externalId ?? null,
             priceAtListing: data.priceAtListing ?? vehicle.price,
             marketplacePrice: data.priceAtListing ?? vehicle.price,
             lastPriceConfirmedAt: new Date(),

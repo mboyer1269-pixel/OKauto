@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
   PENDING_PUBLICATION_TTL_MS,
+  classifyRelierMessageResult,
   createPendingPublication,
   isFacebookMarketplaceHost,
   isMarketplaceCreateUrl,
   isMarketplaceItemUrl,
   isMarketplaceSellingUrl,
   isPendingPublicationFresh,
+  shouldBulkRelierOnTabUrl,
 } from '../publication-tracking';
 
 describe('publication tracking', () => {
@@ -19,6 +21,27 @@ describe('publication tracking', () => {
     expect(isMarketplaceSellingUrl('https://www.facebook.com/marketplace/you/selling')).toBe(true);
     expect(isMarketplaceSellingUrl('https://www.facebook.com/marketplace/you')).toBe(true);
     expect(isFacebookMarketplaceHost('https://www.facebook.com/marketplace/you/selling')).toBe(true);
+    expect(shouldBulkRelierOnTabUrl('https://www.facebook.com/marketplace/you/selling')).toBe(true);
+    expect(shouldBulkRelierOnTabUrl('https://www.facebook.com/marketplace/you')).toBe(true);
+    expect(shouldBulkRelierOnTabUrl('https://www.facebook.com/marketplace')).toBe(false);
+    expect(shouldBulkRelierOnTabUrl('https://www.facebook.com/marketplace/item/123')).toBe(false);
+    expect(shouldBulkRelierOnTabUrl('https://www.facebook.com/marketplace/search/?query=honda')).toBe(false);
+  });
+
+  it('keeps the popup open until Relier delivery or fallback is decided', () => {
+    expect(
+      classifyRelierMessageResult({
+        runtimeError: 'Could not establish connection. Receiving end does not exist.',
+      }),
+    ).toBe('missing_content_script');
+    expect(
+      classifyRelierMessageResult({
+        response: { success: false, error: 'Aucune annonce trouvée.' },
+      }),
+    ).toBe('app_error');
+    expect(classifyRelierMessageResult({ response: { success: true } })).toBe(
+      'delivered',
+    );
   });
 
   it('expires an abandoned pending publication', () => {

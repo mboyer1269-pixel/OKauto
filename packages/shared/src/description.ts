@@ -652,7 +652,9 @@ export function withStockInTitle(
   if (base.toLocaleLowerCase("fr-CA").includes(stock.toLocaleLowerCase("fr-CA"))) {
     return base.slice(0, 100);
   }
-  return `${base} · ${stock}`.slice(0, 100);
+  const suffix = ` · ${stock}`;
+  if (suffix.length >= 100) return suffix.slice(0, 100);
+  return `${base.slice(0, 100 - suffix.length)}${suffix}`;
 }
 
 export const MIN_LISTING_DESCRIPTION_LENGTH = 80;

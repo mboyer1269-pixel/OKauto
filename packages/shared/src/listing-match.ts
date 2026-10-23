@@ -19,8 +19,38 @@ export type ListingMatchResult<T extends MatchableVehicle> = {
   reason: ListingMatchReason;
 };
 
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+export const LINK_LISTINGS_MAX_BATCH = 50;
+
+export type LinkListingCounts = {
+  linked: number;
+  alreadyLinked: number;
+  unmatched: number;
+  error: number;
+};
+
+export function chunkItems<T>(items: readonly T[], size: number): T[][] {
+  const step = Math.max(1, Math.trunc(size) || 1);
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += step) {
+    chunks.push(items.slice(index, index + step));
+  }
+  return chunks;
+}
+
+export function emptyLinkListingCounts(): LinkListingCounts {
+  return { linked: 0, alreadyLinked: 0, unmatched: 0, error: 0 };
+}
+
+export function mergeLinkListingCounts(
+  total: LinkListingCounts,
+  next?: Partial<LinkListingCounts> | null,
+): LinkListingCounts {
+  return {
+    linked: total.linked + (next?.linked ?? 0),
+    alreadyLinked: total.alreadyLinked + (next?.alreadyLinked ?? 0),
+    unmatched: total.unmatched + (next?.unmatched ?? 0),
+    error: total.error + (next?.error ?? 0),
+  };
 }
 
 export function listingMatchHaystack(hint: ListingMatchHint): string {
@@ -37,6 +67,7 @@ export function extractStockHintsFromText(text: string): string[] {
   const patterns = [
     /\bstock\s*[:#·•-]?\s*([A-Z0-9][A-Z0-9-]{1,19})\b/gi,
     /\bno(?:um[eé]ro)?\s*de\s*stock\s*[:#·•-]?\s*([A-Z0-9][A-Z0-9-]{1,19})\b/gi,
+    /(?:^|[\s|])[·•]\s*([A-Z0-9][A-Z0-9-]{1,19})\b/gi,
   ];
   for (const pattern of patterns) {
     for (const match of text.matchAll(pattern)) {
@@ -111,10 +142,7 @@ export function matchListingToVehicle<T extends MatchableVehicle>(
   const stockHits = vehicles.filter((candidate) => {
     const stock = candidate.stockNumber?.trim();
     if (!stock || stock.length < 3) return false;
-    const normalized = stock.toUpperCase();
-    if (hintedStocks.has(normalized)) return true;
-    const pattern = new RegExp(`\\b${escapeRegExp(stock)}\\b`, "i");
-    return pattern.test(haystack);
+    return hintedStocks.has(stock.toUpperCase());
   });
   if (stockHits.length === 1) return { vehicle: stockHits[0], reason: "stock" };
   return null;

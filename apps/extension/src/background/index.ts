@@ -1,4 +1,10 @@
-import { userFacingApiError } from "@okauto/shared";
+import {
+  chunkItems,
+  emptyLinkListingCounts,
+  LINK_LISTINGS_MAX_BATCH,
+  mergeLinkListingCounts,
+  userFacingApiError,
+} from "@okauto/shared";
 
 const PENDING_PUBLICATION_KEY = "pendingPublication";
 const DEFAULT_API_URL = "https://suivia.ca";
@@ -173,31 +179,38 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           });
           return;
         }
-        const response = await fetch(
-          `${apiUrl}/api/v1/extension/link-listings`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "X-API-Key": String(result.apiKey ?? ""),
+        const batches = chunkItems(listings, LINK_LISTINGS_MAX_BATCH);
+        let counts = emptyLinkListingCounts();
+        const results: unknown[] = [];
+        for (const batch of batches) {
+          const response = await fetch(
+            `${apiUrl}/api/v1/extension/link-listings`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "X-API-Key": String(result.apiKey ?? ""),
+              },
+              body: JSON.stringify({ listings: batch }),
             },
-            body: JSON.stringify({ listings }),
-          },
-        );
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          sendResponse({
-            success: false,
-            error: userFacingApiError(
-              response.status,
-              data,
-              "Les annonces n’ont pas pu être reliées. Réessayez.",
-            ),
-            code: data.code,
-          });
-          return;
+          );
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            sendResponse({
+              success: false,
+              error: userFacingApiError(
+                response.status,
+                data,
+                "Les annonces n’ont pas pu être reliées. Réessayez.",
+              ),
+              code: data.code,
+            });
+            return;
+          }
+          counts = mergeLinkListingCounts(counts, data.counts);
+          if (Array.isArray(data.results)) results.push(...data.results);
         }
-        sendResponse({ success: true, ...data });
+        sendResponse({ success: true, counts, results });
       } catch {
         sendResponse({
           success: false,

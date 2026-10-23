@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { LINK_LISTINGS_MAX_BATCH } from "./listing-match";
 
 export const Role = {
   OWNER: "OWNER",
@@ -54,6 +55,31 @@ export function isFacebookMarketplaceItemUrl(value: string): boolean {
   } catch {
     return false;
   }
+}
+
+export function canonicalMarketplaceListingFields(
+  externalUrl: string,
+): { externalId: string; externalUrl: string } | null {
+  const externalId = extractFacebookMarketplaceItemId(externalUrl);
+  if (!externalId) return null;
+  return {
+    externalId,
+    externalUrl: facebookMarketplaceItemUrl(externalId),
+  };
+}
+
+export function listingExternalIdentityFromUrl(
+  externalUrl: string | null,
+): { externalId: string | null; externalUrl: string | null } {
+  if (externalUrl == null) {
+    return { externalId: null, externalUrl: null };
+  }
+  return (
+    canonicalMarketplaceListingFields(externalUrl) ?? {
+      externalId: null,
+      externalUrl,
+    }
+  );
 }
 
 export const VehicleStatus = {
@@ -234,7 +260,7 @@ export const linkListingsSchema = z.object({
       }),
     )
     .min(1)
-    .max(50),
+    .max(LINK_LISTINGS_MAX_BATCH),
 });
 
 // Invite schema

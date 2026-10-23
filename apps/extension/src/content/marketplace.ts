@@ -1,15 +1,20 @@
 import {
   chromeRuntimeErrorFr,
+  chunkItems,
   extractFacebookMarketplaceItemId,
   generateMarketplaceTitle,
   generateTemplateDescription,
+  LINK_LISTINGS_MAX_BATCH,
   listingsFromAnchors,
+  mergeLinkListingCounts,
+  emptyLinkListingCounts,
   withStockInTitle,
 } from "@okauto/shared";
 import {
   createPendingPublication,
   isMarketplaceCreateUrl,
   isMarketplaceItemUrl,
+  isMarketplaceSellingUrl,
   isPendingPublicationFresh,
   PENDING_PUBLICATION_KEY,
   PENDING_RELIER_KEY,
@@ -1012,6 +1017,14 @@ async function relierMarketplaceListings() {
     make: "Suivia",
     model: "Auto",
   };
+  if (!isMarketplaceSellingUrl(window.location.href)) {
+    return {
+      success: false,
+      listings: [],
+      error:
+        "Ouvrez « Vos annonces » (Marketplace → Vous), puis relancez Relier mes annonces.",
+    };
+  }
   const { banner, status } = mountAssistBanner(
     placeholder,
     "Lecture de vos annonces Marketplace…",
@@ -1046,13 +1059,31 @@ async function relierMarketplaceListings() {
       title?: string | null;
     }>;
   };
-  const response: RelierResponse = await sendRuntimeMessage<RelierResponse>({
-    type: "LINK_LISTINGS",
-    listings,
-  }).catch(() => ({
-    success: false,
-    error: "Suivia Auto est inaccessible. Réessayez Relier mes annonces.",
-  }));
+  const batches = chunkItems(listings, LINK_LISTINGS_MAX_BATCH);
+  let counts = emptyLinkListingCounts();
+  const results: NonNullable<RelierResponse["results"]> = [];
+  let response: RelierResponse = { success: true, counts, results };
+  for (const [index, batch] of batches.entries()) {
+    if (batches.length > 1) {
+      status.textContent = `Correspondance avec l’inventaire Suivia… lot ${index + 1}/${batches.length}`;
+    }
+    const batchResponse: RelierResponse = await sendRuntimeMessage<RelierResponse>(
+      {
+        type: "LINK_LISTINGS",
+        listings: batch,
+      },
+    ).catch(() => ({
+      success: false,
+      error: "Suivia Auto est inaccessible. Réessayez Relier mes annonces.",
+    }));
+    if (!batchResponse.success) {
+      response = batchResponse;
+      break;
+    }
+    counts = mergeLinkListingCounts(counts, batchResponse.counts);
+    results.push(...(batchResponse.results ?? []));
+    response = { success: true, counts, results };
+  }
 
   if (!response.success) {
     banner.style.background = "#b91c1c";
@@ -1125,9 +1156,11 @@ chrome.storage.local.get(
   (result) => {
     if (result[PENDING_RELIER_KEY]) {
       chrome.storage.local.remove([PENDING_RELIER_KEY]);
-      window.setTimeout(() => {
-        void relierMarketplaceListings();
-      }, 1200);
+      if (isMarketplaceSellingUrl(window.location.href)) {
+        window.setTimeout(() => {
+          void relierMarketplaceListings();
+        }, 1200);
+      }
     }
     let pending = result[PENDING_PUBLICATION_KEY] as
       PendingPublication<VehiclePayload> | undefined;

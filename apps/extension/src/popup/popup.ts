@@ -6,11 +6,13 @@ import {
   vehicleHeading,
 } from "../popup-inventory";
 import {
+  classifyRelierMessageResult,
   isMarketplaceCreateUrl,
   isMarketplaceItemUrl,
   MARKETPLACE_SELLING_URL,
   PENDING_PUBLICATION_KEY,
   PENDING_RELIER_KEY,
+  shouldBulkRelierOnTabUrl,
 } from "../publication-tracking";
 
 interface Vehicle {
@@ -305,28 +307,45 @@ async function assistListing(vehicle: Vehicle, button?: HTMLButtonElement) {
   }
 }
 
+async function sendRelierMessage(tabId: number): Promise<{
+  runtimeError?: string;
+  response?: { success?: boolean; error?: string };
+}> {
+  return new Promise((resolve) => {
+    chrome.tabs.sendMessage(tabId, { type: "RELIER_LISTINGS" }, (response) => {
+      resolve({
+        runtimeError: chrome.runtime.lastError?.message,
+        response,
+      });
+    });
+  });
+}
+
 async function relierMesAnnonces() {
   hideError();
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (tab?.id && tab.url && /facebook\.com/i.test(tab.url) && tab.url.includes("/marketplace")) {
-    chrome.tabs.sendMessage(tab.id, { type: "RELIER_LISTINGS" }, (response) => {
-      if (chrome.runtime.lastError) {
-        void startRelierOnSellingPage();
-        return;
-      }
-      if (response && response.success === false && response.error) {
-        showError(response.error);
-      }
-    });
-    window.close();
-    return;
+  if (tab?.id && shouldBulkRelierOnTabUrl(tab.url)) {
+    const result = await sendRelierMessage(tab.id);
+    const outcome = classifyRelierMessageResult(result);
+    if (outcome === "app_error") {
+      showError(
+        result.response?.error ?? "Les annonces n’ont pas pu être reliées.",
+      );
+      return;
+    }
+    if (outcome === "delivered") {
+      window.close();
+      return;
+    }
   }
   await startRelierOnSellingPage();
 }
 
 async function startRelierOnSellingPage() {
   await chrome.storage.local.set({ [PENDING_RELIER_KEY]: true });
-  chrome.tabs.create({ url: MARKETPLACE_SELLING_URL });
+  await new Promise<void>((resolve) => {
+    chrome.tabs.create({ url: MARKETPLACE_SELLING_URL }, () => resolve());
+  });
   window.close();
 }
 

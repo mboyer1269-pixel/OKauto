@@ -19,15 +19,23 @@ import {
   shouldIncludeCarfaxMention,
 } from "../description";
 import {
+  canonicalMarketplaceListingFields,
+  chunkItems,
   createAccessRequestSchema,
   createListingSchema,
   createVehicleSchema,
+  extractStockHintsFromText,
   inviteMemberSchema,
   extractFacebookMarketplaceItemId,
   facebookMarketplaceItemUrl,
   isFacebookMarketplaceItemUrl,
+  LINK_LISTINGS_MAX_BATCH,
+  linkListingsSchema,
+  listingExternalIdentityFromUrl,
   listingsFromAnchors,
   matchListingToVehicle,
+  mergeLinkListingCounts,
+  emptyLinkListingCounts,
   loginSchema,
   registerSchema,
   updateMarketplaceDraftSchema,
@@ -150,6 +158,14 @@ describe("description", () => {
     expect(withStockInTitle("2022 Honda Accord · U17404", "U17404")).toBe(
       "2022 Honda Accord · U17404",
     );
+  });
+
+  it("reserves title space so the stock suffix is never truncated", () => {
+    const longTitle = "A".repeat(100);
+    const titled = withStockInTitle(longTitle, "U17404");
+    expect(titled.endsWith(" · U17404")).toBe(true);
+    expect(titled).toHaveLength(100);
+    expect(titled.startsWith("A".repeat(100 - " · U17404".length))).toBe(true);
   });
 
   it("does not invent missing vehicle details", () => {
@@ -809,6 +825,32 @@ describe("listing schema", () => {
     expect(facebookMarketplaceItemUrl("987654321")).toBe(
       "https://www.facebook.com/marketplace/item/987654321",
     );
+    expect(
+      canonicalMarketplaceListingFields(
+        "https://www.facebook.com/marketplace/item/424242/?ref=share",
+      ),
+    ).toEqual({
+      externalId: "424242",
+      externalUrl: "https://www.facebook.com/marketplace/item/424242",
+    });
+    expect(
+      listingExternalIdentityFromUrl(
+        "https://www.facebook.com/marketplace/item/424242/?ref=share",
+      ),
+    ).toEqual({
+      externalId: "424242",
+      externalUrl: "https://www.facebook.com/marketplace/item/424242",
+    });
+    expect(listingExternalIdentityFromUrl(null)).toEqual({
+      externalId: null,
+      externalUrl: null,
+    });
+    expect(
+      listingExternalIdentityFromUrl("https://example.com/not-marketplace"),
+    ).toEqual({
+      externalId: null,
+      externalUrl: "https://example.com/not-marketplace",
+    });
   });
 });
 
@@ -846,6 +888,52 @@ describe("listing match from Marketplace copy", () => {
       vehicle: vehicles[1],
       reason: "stock",
     });
+  });
+
+  it("matches the known title suffix without treating a model year as stock", () => {
+    const yearStock = [{ id: "veh-year", stockNumber: "2022" }];
+    expect(
+      matchListingToVehicle(yearStock, { title: "Honda Accord 2022" }),
+    ).toBeNull();
+    expect(
+      matchListingToVehicle(yearStock, { title: "Honda Accord · 2022" }),
+    ).toEqual({ vehicle: yearStock[0], reason: "stock" });
+    expect(
+      matchListingToVehicle(yearStock, { text: "Disponible, stock 2022." }),
+    ).toEqual({ vehicle: yearStock[0], reason: "stock" });
+    expect(extractStockHintsFromText("Honda Accord 2022")).toEqual([]);
+    expect(extractStockHintsFromText("2022 Honda Accord · U17404")).toEqual([
+      "U17404",
+    ]);
+  });
+
+  it("splits Relier payloads into batches of 50", () => {
+    const listings = Array.from({ length: 51 }, (_, index) => index);
+    const batches = chunkItems(listings, LINK_LISTINGS_MAX_BATCH);
+    expect(LINK_LISTINGS_MAX_BATCH).toBe(50);
+    expect(batches).toHaveLength(2);
+    expect(batches[0]).toHaveLength(50);
+    expect(batches[1]).toEqual([50]);
+    expect(
+      mergeLinkListingCounts(emptyLinkListingCounts(), {
+        linked: 40,
+        alreadyLinked: 5,
+        unmatched: 4,
+        error: 1,
+      }),
+    ).toEqual({
+      linked: 40,
+      alreadyLinked: 5,
+      unmatched: 4,
+      error: 1,
+    });
+    expect(() =>
+      linkListingsSchema.parse({
+        listings: Array.from({ length: 51 }, (_, index) => ({
+          externalUrl: `https://www.facebook.com/marketplace/item/${index + 1}`,
+        })),
+      }),
+    ).toThrow();
   });
 
   it("prefers an explicit vehicleId and ignores other hints", () => {

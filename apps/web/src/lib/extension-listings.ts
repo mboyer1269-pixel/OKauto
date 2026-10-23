@@ -1,11 +1,10 @@
 import { prisma } from "@okauto/database";
 import {
   ApiErrorCode,
-  extractFacebookMarketplaceItemId,
+  canonicalMarketplaceListingFields,
   facebookMarketplaceItemUrl,
   generateMarketplaceTitle,
   generateTemplateDescription,
-  isFacebookMarketplaceItemUrl,
   isOnSaleVehicle,
   resolveIncludeCarfaxSourceUrl,
   withStockInTitle,
@@ -29,28 +28,15 @@ export type RecordedMarketplaceListing = {
   externalUrl: string;
 };
 
-function canonicalMarketplaceUrl(externalUrl: string): {
-  externalId: string;
-  externalUrl: string;
-} | null {
-  if (!isFacebookMarketplaceItemUrl(externalUrl)) return null;
-  const externalId = extractFacebookMarketplaceItemId(externalUrl);
-  if (!externalId) return null;
-  return {
-    externalId,
-    externalUrl: facebookMarketplaceItemUrl(externalId),
-  };
-}
-
 export function marketplaceUrlFromMetadata(
   metadata?: Record<string, unknown> | null,
 ): { externalId: string; externalUrl: string } | null {
   const rawUrl = String(metadata?.externalUrl ?? "");
-  const fromUrl = canonicalMarketplaceUrl(rawUrl);
+  const fromUrl = canonicalMarketplaceListingFields(rawUrl);
   if (fromUrl) return fromUrl;
   const rawId = String(metadata?.externalId ?? "").trim();
   if (!rawId) return null;
-  return canonicalMarketplaceUrl(facebookMarketplaceItemUrl(rawId));
+  return canonicalMarketplaceListingFields(facebookMarketplaceItemUrl(rawId));
 }
 
 export async function recordPublishedMarketplaceListing(input: {
@@ -59,7 +45,7 @@ export async function recordPublishedMarketplaceListing(input: {
   externalUrl: string;
   metadata?: Record<string, unknown> | null;
 }): Promise<RecordedMarketplaceListing> {
-  const canonical = canonicalMarketplaceUrl(input.externalUrl);
+  const canonical = canonicalMarketplaceListingFields(input.externalUrl);
   if (!canonical) {
     throw new ListingGuardError(
       422,
@@ -172,6 +158,16 @@ export async function recordPublishedMarketplaceListing(input: {
     },
     async (tx, { ownActiveId }) => {
       if (ownActiveId) {
+        const existing = await tx.listing.findUnique({
+          where: { id: ownActiveId },
+          select: { externalUrl: true, externalId: true },
+        });
+        const unchanged =
+          existing?.externalUrl === canonical.externalUrl &&
+          existing?.externalId === canonical.externalId;
+        if (unchanged) {
+          return { id: ownActiveId, alreadyExists: true as const };
+        }
         await tx.listing.update({
           where: { id: ownActiveId },
           data: {
@@ -182,12 +178,18 @@ export async function recordPublishedMarketplaceListing(input: {
         await tx.listingEvent.create({
           data: {
             listingId: ownActiveId,
-            eventType: "listing_created",
-            metadata: (input.metadata ?? {
+            eventType: "listing_updated",
+            metadata: {
+              ...(input.metadata ?? {}),
               externalUrl: canonical.externalUrl,
               externalId: canonical.externalId,
-              source: "extension",
-            }) as never,
+              previousExternalUrl: existing?.externalUrl ?? null,
+              previousExternalId: existing?.externalId ?? null,
+              source:
+                typeof input.metadata?.source === "string"
+                  ? input.metadata.source
+                  : "extension",
+            } as never,
           },
         });
         return { id: ownActiveId, alreadyExists: true as const };

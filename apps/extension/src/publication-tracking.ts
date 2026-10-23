@@ -66,3 +66,23 @@ export function isFacebookMarketplaceHost(value: string): boolean {
     return false;
   }
 }
+
+export function shouldBulkRelierOnTabUrl(url?: string | null): boolean {
+  return Boolean(url && isMarketplaceSellingUrl(url));
+}
+
+export type RelierMessageOutcome =
+  | "delivered"
+  | "missing_content_script"
+  | "app_error";
+
+export function classifyRelierMessageResult(input: {
+  runtimeError?: string | null;
+  response?: { success?: boolean; error?: string } | null;
+}): RelierMessageOutcome {
+  if (input.runtimeError) return "missing_content_script";
+  if (input.response?.success === false && input.response.error) {
+    return "app_error";
+  }
+  return "delivered";
+}
