@@ -3,11 +3,7 @@ import { prisma } from "@okauto/database";
 import {
   ApiErrorCode,
   extensionEventSchema,
-  generateMarketplaceTitle,
-  generateTemplateDescription,
-  isFacebookMarketplaceItemUrl,
   isOnSaleVehicle,
-  resolveIncludeCarfaxSourceUrl,
 } from "@okauto/shared";
 import {
   jsonResponse,
@@ -18,11 +14,12 @@ import {
   parseBody,
 } from "@/lib/api";
 import { authenticateExtensionApiKey } from "@/lib/extension-auth";
-import {
-  ListingGuardError,
-  withListingCreateLock,
-} from "@/lib/listing-guards";
+import { ListingGuardError } from "@/lib/listing-guards";
 import { summarizeExtensionEventLog } from "@/lib/extension-event-log";
+import {
+  marketplaceUrlFromMetadata,
+  recordPublishedMarketplaceListing,
+} from "@/lib/extension-listings";
 
 export async function POST(request: NextRequest) {
   try {
@@ -64,86 +61,33 @@ export async function POST(request: NextRequest) {
     }
 
     if (data.eventType === "listing_created") {
-      const externalUrl = String(data.metadata?.externalUrl ?? "");
-      if (!isFacebookMarketplaceItemUrl(externalUrl)) {
+      const canonical = marketplaceUrlFromMetadata(data.metadata);
+      if (!canonical) {
         return apiError(ApiErrorCode.MARKETPLACE_ITEM_URL_REQUIRED, 422);
       }
 
-      const draft = vehicle.marketplaceDrafts[0];
-      const vehicleData = {
-        year: vehicle.year,
-        make: vehicle.make,
-        model: vehicle.model,
-        trim: vehicle.trim,
-        mileage: vehicle.mileage,
-        price: vehicle.price ? Number(vehicle.price) : null,
-        exteriorColor: vehicle.exteriorColor,
-        interiorColor: vehicle.interiorColor,
-        transmission: vehicle.transmission,
-        fuelType: vehicle.fuelType,
-        drivetrain: vehicle.drivetrain,
-        engine: vehicle.engine,
-        bodyStyle: vehicle.bodyStyle,
-        condition: vehicle.condition,
-        features: vehicle.features,
-        dealershipName: auth.organization.name,
-        contactName: auth.user.name,
-        phone: auth.organization.phone ?? undefined,
-        vin: vehicle.vin,
-        stockNumber: vehicle.stockNumber,
-        sourceUrl: vehicle.sourceUrl,
-        includeCarfaxSourceUrl: resolveIncludeCarfaxSourceUrl(
-          vehicle.organization.includeCarfaxSourceUrl,
-          vehicle.includeCarfaxSourceUrl,
-        ),
-        location: vehicle.location,
-      };
-
       try {
-        const listing = await withListingCreateLock(
-          {
-            organizationId: auth.orgId,
-            userId: auth.user.id,
-            vehicleId: data.vehicleId,
-            platform: "facebook_marketplace",
+        const listing = await recordPublishedMarketplaceListing({
+          auth,
+          vehicleId: data.vehicleId,
+          externalUrl: canonical.externalUrl,
+          metadata: {
+            ...(data.metadata ?? {}),
+            externalUrl: canonical.externalUrl,
+            externalId: canonical.externalId,
+            source:
+              typeof data.metadata?.source === "string"
+                ? data.metadata.source
+                : "extension",
           },
-          async (tx, { ownActiveId }) => {
-            if (ownActiveId) {
-              return { id: ownActiveId, alreadyExists: true as const };
-            }
-            const created = await tx.listing.create({
-              data: {
-                organizationId: auth.orgId,
-                vehicleId: data.vehicleId,
-                userId: auth.user.id,
-                externalUrl,
-                priceAtListing: vehicle.price,
-                titleAtListing:
-                  draft?.title || generateMarketplaceTitle(vehicleData),
-                descriptionAtListing:
-                  draft?.description || generateTemplateDescription(vehicleData),
-                photoUrlsAtListing: draft?.photoOrder.length
-                  ? draft.photoOrder
-                  : vehicle.photos.map((photo) => photo.url),
-                events: {
-                  create: {
-                    eventType: data.eventType,
-                    metadata: data.metadata as never,
-                  },
-                },
-              },
-            });
-            return { id: created.id, alreadyExists: false as const };
-          },
-        );
-        if (listing.alreadyExists) {
-          return jsonResponse({
-            listingId: listing.id,
-            success: true,
-            alreadyExists: true,
-          });
-        }
-        return jsonResponse({ listingId: listing.id, success: true });
+        });
+        return jsonResponse({
+          listingId: listing.id,
+          success: true,
+          alreadyExists: listing.alreadyExists,
+          externalId: listing.externalId,
+          externalUrl: listing.externalUrl,
+        });
       } catch (err) {
         if (err instanceof ListingGuardError) {
           return listingGuardResponse(err);

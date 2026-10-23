@@ -316,7 +316,7 @@ function TeamContent() {
                 Inventaire partagé
               </p>
               <h2 className="mt-1 font-bold text-foreground">
-                Une équipe, un seul inventaire Buckingham
+                Une équipe, un seul inventaire
               </h2>
               <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
                 Chaque personne invitée ici rejoint{" "}

@@ -40,6 +40,9 @@ export const PATCH = withAuth(
         adminFee: fields.adminFee ?? undefined,
         acExciseFee: fields.acExciseFee ?? undefined,
         includeCarfaxSourceUrl: fields.includeCarfaxSourceUrl,
+        logoUrl: fields.logoUrl,
+        brands: fields.brands,
+        dealerCodes: fields.dealerCodes,
         listingHighlights:
           listingHighlights === undefined
             ? undefined

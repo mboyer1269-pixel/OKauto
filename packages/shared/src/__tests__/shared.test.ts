@@ -10,6 +10,8 @@ import {
   generateMarketplacePackage,
   generateMarketplaceTitle,
   generateTemplateDescription,
+  ensureListingReferences,
+  withStockInTitle,
   listingDescriptionForExtension,
   listingDescriptionMeetsMinLength,
   listingDescriptionWithCarfax,
@@ -17,11 +19,23 @@ import {
   shouldIncludeCarfaxMention,
 } from "../description";
 import {
+  canonicalMarketplaceListingFields,
+  chunkItems,
   createAccessRequestSchema,
   createListingSchema,
   createVehicleSchema,
+  extractStockHintsFromText,
   inviteMemberSchema,
+  extractFacebookMarketplaceItemId,
+  facebookMarketplaceItemUrl,
   isFacebookMarketplaceItemUrl,
+  LINK_LISTINGS_MAX_BATCH,
+  linkListingsSchema,
+  listingExternalIdentityFromUrl,
+  listingsFromAnchors,
+  matchListingToVehicle,
+  mergeLinkListingCounts,
+  emptyLinkListingCounts,
   loginSchema,
   registerSchema,
   updateMarketplaceDraftSchema,
@@ -98,7 +112,8 @@ describe("description", () => {
       "m’appeler directement à la concession au 555-1234 et demander Michael Boyer",
     );
     expect(desc).not.toContain("Écrivez-nous");
-    expect(desc).toContain("Référence : stock U1234");
+    expect(desc).toContain("Stock U1234");
+    expect(desc).not.toContain("Référence : stock");
     expect(desc).not.toContain("Quantité disponible");
     expect(desc).toContain("Prix tout inclus :");
     expect(desc).toContain(
@@ -106,6 +121,51 @@ describe("description", () => {
     );
     expect(desc).not.toMatch(/^Aucun frais obligatoire additionnel$/m);
     expect(desc).toContain(CARFAX_MENTION_FR);
+  });
+
+  it("puts stock number and VIN on their own lines", () => {
+    const desc = generateTemplateDescription({
+      year: 2022,
+      make: "Honda",
+      model: "Accord",
+      stockNumber: "U17404",
+      vin: "1HGBH41JXMN109186",
+    });
+    expect(desc).toMatch(/^Stock U17404$/m);
+    expect(desc).toMatch(/^NIV 1HGBH41JXMN109186$/m);
+  });
+
+  it("appends missing stock and VIN to an existing draft", () => {
+    const filled = ensureListingReferences("Belle Honda à vendre chez nous.", {
+      stockNumber: "U17404",
+      vin: "1HGBH41JXMN109186",
+    });
+    expect(filled).toContain("Belle Honda à vendre chez nous.");
+    expect(filled).toContain("Stock U17404");
+    expect(filled).toContain("NIV 1HGBH41JXMN109186");
+    expect(
+      ensureListingReferences(filled, {
+        stockNumber: "U17404",
+        vin: "1HGBH41JXMN109186",
+      }),
+    ).toBe(filled);
+  });
+
+  it("adds the stock number to a Marketplace title without duplicating it", () => {
+    expect(withStockInTitle("2022 Honda Accord", "U17404")).toBe(
+      "2022 Honda Accord · U17404",
+    );
+    expect(withStockInTitle("2022 Honda Accord · U17404", "U17404")).toBe(
+      "2022 Honda Accord · U17404",
+    );
+  });
+
+  it("reserves title space so the stock suffix is never truncated", () => {
+    const longTitle = "A".repeat(100);
+    const titled = withStockInTitle(longTitle, "U17404");
+    expect(titled.endsWith(" · U17404")).toBe(true);
+    expect(titled).toHaveLength(100);
+    expect(titled.startsWith("A".repeat(100 - " · U17404".length))).toBe(true);
   });
 
   it("does not invent missing vehicle details", () => {
@@ -744,6 +804,203 @@ describe("listing schema", () => {
         "https://evilfacebook.com/marketplace/item/123456",
       ),
     ).toBe(false);
+  });
+
+  it("extracts the Marketplace item ID and canonical URL", () => {
+    expect(
+      extractFacebookMarketplaceItemId(
+        "https://www.facebook.com/marketplace/item/987654321/?ref=share",
+      ),
+    ).toBe("987654321");
+    expect(
+      extractFacebookMarketplaceItemId(
+        "https://m.facebook.com/marketplace/item/987654321/",
+      ),
+    ).toBe("987654321");
+    expect(
+      extractFacebookMarketplaceItemId(
+        "https://www.facebook.com/marketplace/create/vehicle",
+      ),
+    ).toBeNull();
+    expect(facebookMarketplaceItemUrl("987654321")).toBe(
+      "https://www.facebook.com/marketplace/item/987654321/",
+    );
+    expect(
+      canonicalMarketplaceListingFields(
+        "https://www.facebook.com/marketplace/item/424242/?ref=share",
+      ),
+    ).toEqual({
+      externalId: "424242",
+      externalUrl: "https://www.facebook.com/marketplace/item/424242/",
+    });
+    expect(
+      listingExternalIdentityFromUrl(
+        "https://www.facebook.com/marketplace/item/424242/?ref=share",
+      ),
+    ).toEqual({
+      externalId: "424242",
+      externalUrl: "https://www.facebook.com/marketplace/item/424242/",
+    });
+    expect(listingExternalIdentityFromUrl(null)).toEqual({
+      externalId: null,
+      externalUrl: null,
+    });
+    expect(
+      listingExternalIdentityFromUrl("https://example.com/not-marketplace"),
+    ).toEqual({
+      externalId: null,
+      externalUrl: "https://example.com/not-marketplace",
+    });
+  });
+});
+
+describe("listing match from Marketplace copy", () => {
+  const vehicles = [
+    {
+      id: "veh-accord",
+      vin: "1HGBH41JXMN109186",
+      stockNumber: "U17404",
+      year: 2022,
+      make: "Honda",
+      model: "Accord",
+    },
+    {
+      id: "veh-terrain",
+      vin: "3GKALVEV0NL123456",
+      stockNumber: "U20011",
+      year: 2021,
+      make: "GMC",
+      model: "Terrain",
+    },
+  ];
+
+  it("matches a unique VIN found in the listing text", () => {
+    const match = matchListingToVehicle(vehicles, {
+      title: "Honda Accord 2022",
+      text: "Stock U17404\nNIV 1HGBH41JXMN109186",
+    });
+    expect(match).toEqual({
+      vehicle: vehicles[0],
+      reason: "vin",
+    });
+  });
+
+  it("matches a unique stock number when no VIN is present", () => {
+    const match = matchListingToVehicle(vehicles, {
+      title: "GMC Terrain",
+      text: "Disponible en concession, stock U20011.",
+    });
+    expect(match).toEqual({
+      vehicle: vehicles[1],
+      reason: "stock",
+    });
+  });
+
+  it("matches the known title suffix without treating a model year as stock", () => {
+    const yearStock = [{ id: "veh-year", stockNumber: "2022" }];
+    expect(
+      matchListingToVehicle(yearStock, { title: "Honda Accord 2022" }),
+    ).toBeNull();
+    expect(
+      matchListingToVehicle(yearStock, { title: "Honda Accord · 2022" }),
+    ).toEqual({ vehicle: yearStock[0], reason: "stock" });
+    expect(
+      matchListingToVehicle(yearStock, { text: "Disponible, stock 2022." }),
+    ).toEqual({ vehicle: yearStock[0], reason: "stock" });
+    expect(extractStockHintsFromText("Honda Accord 2022")).toEqual([]);
+    expect(extractStockHintsFromText("2022 Honda Accord · U17404")).toEqual([
+      "U17404",
+    ]);
+  });
+
+  it("splits Relier payloads into batches of 50", () => {
+    const listings = Array.from({ length: 51 }, (_, index) => index);
+    const batches = chunkItems(listings, LINK_LISTINGS_MAX_BATCH);
+    expect(LINK_LISTINGS_MAX_BATCH).toBe(50);
+    expect(batches).toHaveLength(2);
+    expect(batches[0]).toHaveLength(50);
+    expect(batches[1]).toEqual([50]);
+    expect(
+      mergeLinkListingCounts(emptyLinkListingCounts(), {
+        linked: 40,
+        alreadyLinked: 5,
+        unmatched: 4,
+        needsConfirmation: 2,
+        error: 1,
+      }),
+    ).toEqual({
+      linked: 40,
+      alreadyLinked: 5,
+      unmatched: 4,
+      needsConfirmation: 2,
+      error: 1,
+    });
+    expect(() =>
+      linkListingsSchema.parse({
+        listings: Array.from({ length: 51 }, (_, index) => ({
+          externalUrl: `https://www.facebook.com/marketplace/item/${index + 1}`,
+        })),
+      }),
+    ).toThrow();
+  });
+
+  it("returns an approximate title match only with confirmation", () => {
+    const match = matchListingToVehicle(vehicles, {
+      title: "2022 Honda Accord Sport",
+    });
+    expect(match).toEqual({
+      vehicle: vehicles[0],
+      reason: "approx",
+      needsConfirmation: true,
+    });
+    expect(
+      matchListingToVehicle(vehicles, {
+        title: "2022 Honda Accord Sport",
+        vehicleId: "veh-accord",
+        confirmApprox: true,
+      }),
+    ).toEqual({
+      vehicle: vehicles[0],
+      reason: "approx",
+      needsConfirmation: false,
+    });
+  });
+
+  it("prefers an explicit vehicleId and ignores other hints", () => {
+    const match = matchListingToVehicle(vehicles, {
+      vehicleId: "veh-terrain",
+      text: "NIV 1HGBH41JXMN109186",
+    });
+    expect(match?.vehicle.id).toBe("veh-terrain");
+    expect(match?.reason).toBe("vehicleId");
+  });
+
+  it("deduplicates Marketplace item anchors", () => {
+    expect(
+      listingsFromAnchors([
+        {
+          href: "https://www.facebook.com/marketplace/item/111/?ref=one",
+          title: "Honda",
+          text: "Stock U17404",
+        },
+        {
+          href: "/marketplace/item/111",
+          title: "Honda encore",
+          text: "autre",
+        },
+        {
+          href: "https://evilfacebook.com/marketplace/item/999",
+          title: "piège",
+        },
+      ]),
+    ).toEqual([
+      {
+        externalId: "111",
+        externalUrl: "https://www.facebook.com/marketplace/item/111/",
+        title: "Honda",
+        text: "Stock U17404",
+      },
+    ]);
   });
 });
 

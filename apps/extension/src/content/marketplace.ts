@@ -1,14 +1,31 @@
 import {
   chromeRuntimeErrorFr,
+  chunkItems,
+  extractFacebookMarketplaceItemId,
   generateMarketplaceTitle,
   generateTemplateDescription,
+  LINK_LISTINGS_MAX_BATCH,
+  listingsFromAnchors,
+  mergeLinkListingCounts,
+  emptyLinkListingCounts,
+  withStockInTitle,
 } from "@okauto/shared";
 import {
+  assignFilesToInput,
+  photoResponseToFile,
+  waitForPhotoFileInput,
+  waitForPhotoThumbnails,
+  waitForPredicate,
+} from "../marketplace-photos";
+import {
   createPendingPublication,
+  detectMarketplaceSession,
   isMarketplaceCreateUrl,
   isMarketplaceItemUrl,
+  isMarketplaceSellingUrl,
   isPendingPublicationFresh,
   PENDING_PUBLICATION_KEY,
+  PENDING_RELIER_KEY,
   type PendingPublication,
 } from "../publication-tracking";
 import {
@@ -121,8 +138,18 @@ const SELECTORS = {
     ],
     photo: [
       'input[type="file"][accept*="image"]',
-      'input[type="file"][multiple]',
-      'input[type="file"]',
+    ],
+    vin: [
+      'input[aria-label*="VIN" i]',
+      'input[aria-label*="NIV" i]',
+      'input[aria-label*="identification du véhicule" i]',
+      'input[aria-label*="Vehicle identification" i]',
+      'input[placeholder*="VIN" i]',
+      'input[placeholder*="NIV" i]',
+    ],
+    stockNumber: [
+      'input[aria-label*="stock" i]',
+      'input[placeholder*="stock" i]',
     ],
   },
 };
@@ -166,13 +193,10 @@ async function waitForElement(
   labels: string[] = [],
   timeoutMs = 3500,
 ) {
-  const startedAt = Date.now();
-  while (Date.now() - startedAt < timeoutMs) {
-    const element = findElement(selectors, labels);
-    if (element) return element;
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-  return null;
+  const existing = findElement(selectors, labels);
+  if (existing) return existing;
+  await waitForPredicate(() => findElement(selectors, labels) != null, timeoutMs);
+  return findElement(selectors, labels);
 }
 
 function setInputValue(el: HTMLElement, value: string) {
@@ -212,27 +236,16 @@ interface PhotoResponse {
   filename?: string;
 }
 
-function photoResponseToFile(response: PhotoResponse, fallbackName: string) {
-  if (!response.success || !response.base64) return null;
-
-  const binary = atob(response.base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index);
+async function attachVehiclePhotos(vehicle: VehiclePayload) {
+  const input = await waitForPhotoFileInput(8000);
+  if (!(input instanceof HTMLInputElement)) {
+    return {
+      attached: 0,
+      requested: 0,
+      inputFound: false,
+      step: "find_photo_input",
+    };
   }
-
-  return new File([bytes], response.filename ?? fallbackName, {
-    type: response.contentType ?? "image/jpeg",
-  });
-}
-
-async function attachVehiclePhotos(
-  vehicle: VehiclePayload,
-  selectors: string[],
-) {
-  const input = await waitForElement(selectors);
-  if (!(input instanceof HTMLInputElement))
-    return { attached: 0, requested: 0, inputFound: false };
 
   const requested = Math.min(vehicle.photos?.length ?? 0, 20);
   const responses: PhotoResponse[] = Array.from({ length: requested });
@@ -246,7 +259,7 @@ async function attachVehiclePhotos(
           type: "GET_VEHICLE_PHOTO",
           vehicleId: vehicle.id,
           index,
-        }).catch(() => ({ success: false }));
+        }).catch(() => ({ success: false, error: "fetch_photos" }));
       }
     }),
   );
@@ -258,14 +271,33 @@ async function attachVehiclePhotos(
       ),
     )
     .filter((file): file is File => file != null);
-  if (files.length === 0) return { attached: 0, requested, inputFound: true };
+  if (files.length === 0) {
+    return {
+      attached: 0,
+      requested,
+      inputFound: true,
+      step: "fetch_photos",
+    };
+  }
 
-  const transfer = new DataTransfer();
-  files.forEach((file) => transfer.items.add(file));
-  input.files = transfer.files;
-  input.dispatchEvent(new Event("input", { bubbles: true }));
-  input.dispatchEvent(new Event("change", { bubbles: true }));
-  return { attached: files.length, requested, inputFound: true };
+  const assigned = assignFilesToInput(input, files);
+  if (assigned === 0) {
+    return {
+      attached: 0,
+      requested,
+      inputFound: true,
+      step: "assign_files",
+    };
+  }
+
+  const thumbnails = await waitForPhotoThumbnails(assigned, 8000);
+  return {
+    attached: assigned,
+    requested,
+    inputFound: true,
+    thumbnails,
+    step: thumbnails > 0 ? "verify_thumbnails" : "verify_thumbnails",
+  };
 }
 
 function normalizeOptionText(value: string) {
@@ -399,15 +431,17 @@ async function fillForm(vehicle: VehiclePayload): Promise<FillReport> {
   let currentField = "vehicleType";
   let currentStep = "select_vehicleType";
 
-  const title =
+  const title = withStockInTitle(
     vehicle.title?.trim() ||
-    generateMarketplaceTitle({
-      year: vehicle.year,
-      make: vehicle.make,
-      model: vehicle.model,
-      trim: vehicle.trim,
-      mileage: vehicle.mileage,
-    });
+      generateMarketplaceTitle({
+        year: vehicle.year,
+        make: vehicle.make,
+        model: vehicle.model,
+        trim: vehicle.trim,
+        mileage: vehicle.mileage,
+      }),
+    vehicle.stockNumber,
+  );
 
   try {
     currentField = "vehicleType";
@@ -477,6 +511,34 @@ async function fillForm(vehicle: VehiclePayload): Promise<FillReport> {
         report.filled.push("kilométrage");
       } else {
         report.issues.push(missingFieldIssue("mileage", "fill_mileage"));
+      }
+    }
+
+    if (vehicle.vin?.trim()) {
+      currentField = "vin";
+      currentStep = "fill_vin";
+      const vinEl = await waitForElement(
+        selectors.vin,
+        ["NIV", "VIN", "Numéro d'identification", "Vehicle identification"],
+        800,
+      );
+      if (vinEl) {
+        setInputValue(vinEl, vehicle.vin.trim());
+        report.filled.push("NIV");
+      }
+    }
+
+    if (vehicle.stockNumber?.trim()) {
+      currentField = "stockNumber";
+      currentStep = "fill_stockNumber";
+      const stockEl = await waitForElement(
+        selectors.stockNumber,
+        ["Numéro de stock", "Stock"],
+        500,
+      );
+      if (stockEl) {
+        setInputValue(stockEl, vehicle.stockNumber.trim());
+        report.filled.push("stock");
       }
     }
 
@@ -580,9 +642,9 @@ async function fillForm(vehicle: VehiclePayload): Promise<FillReport> {
     currentStep = "attach_photos";
     if (vehicle.photos?.length) {
       try {
-        const photoResult = await attachVehiclePhotos(vehicle, selectors.photo);
+        const photoResult = await attachVehiclePhotos(vehicle);
         if (!photoResult.inputFound) {
-          report.issues.push(missingFieldIssue("photos", "find_photo_input"));
+          report.issues.push(missingFieldIssue("photos", photoResult.step));
         } else if (photoResult.attached > 0) {
           report.filled.push(
             `${photoResult.attached} photo${photoResult.attached > 1 ? "s" : ""}`,
@@ -590,18 +652,25 @@ async function fillForm(vehicle: VehiclePayload): Promise<FillReport> {
           if (photoResult.attached < photoResult.requested) {
             report.issues.push({
               field: "photos",
-              step: "attach_photos",
+              step: photoResult.step,
               reason: "partial",
-              message: `${photoResult.requested - photoResult.attached} photo(s) à ajouter manuellement (étape attach_photos).`,
+              message: `${photoResult.requested - photoResult.attached} photo(s) à ajouter manuellement (étape ${photoResult.step}).`,
+            });
+          } else if ((photoResult.thumbnails ?? 0) === 0) {
+            report.issues.push({
+              field: "photos",
+              step: "verify_thumbnails",
+              reason: "partial",
+              message:
+                "Fichiers joints, mais aucune vignette Marketplace n’est apparue (étape verify_thumbnails).",
             });
           }
         } else {
           report.issues.push({
             field: "photos",
-            step: "attach_photos",
+            step: photoResult.step,
             reason: "partial",
-            message:
-              "Champ Photos trouvé, mais aucune photo n’a pu être jointe (étape attach_photos).",
+            message: `Champ Photos trouvé, mais aucune photo n’a pu être jointe (étape ${photoResult.step}).`,
           });
         }
       } catch (error) {
@@ -667,12 +736,14 @@ function mountAssistBanner(
   const copy = document.createElement("div");
   const title = document.createElement("strong");
   title.textContent = "Assistant Suivia Auto";
-  copy.append(
-    title,
-    document.createTextNode(
-      ` — ${vehicle.year} ${vehicle.make} ${vehicle.model}`,
-    ),
-  );
+  const identity = [
+    `${vehicle.year} ${vehicle.make} ${vehicle.model}`,
+    vehicle.stockNumber ? `Stock ${vehicle.stockNumber}` : null,
+    vehicle.vin ? `NIV ${vehicle.vin}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  copy.append(title, document.createTextNode(` — ${identity}`));
 
   const status = document.createElement("div");
   status.id = "okauto-banner-status";
@@ -757,6 +828,7 @@ function confirmPublishedListing(vehicle: VehiclePayload) {
       type: "LISTING_CONFIRMED",
       vehicleId: vehicle.id,
       externalUrl,
+      externalId: extractFacebookMarketplaceItemId(externalUrl),
     },
     (response) => {
       if (!response?.success) {
@@ -769,9 +841,12 @@ function confirmPublishedListing(vehicle: VehiclePayload) {
       }
 
       banner.style.background = "#047857";
+      const itemId =
+        response.externalId || extractFacebookMarketplaceItemId(externalUrl);
+      const linked = itemId ? ` Annonce Facebook n° ${itemId}.` : "";
       status.textContent = response.alreadyExists
-        ? "Cette publication était déjà enregistrée dans Suivia Auto."
-        : "Publication enregistrée dans Suivia Auto. Le véhicule apparaît maintenant dans « Publiées ».";
+        ? `Cette publication était déjà enregistrée dans Suivia Auto.${linked}`
+        : `Publication enregistrée dans Suivia Auto. Le véhicule apparaît maintenant dans « Publiées ».${linked}`;
     },
   );
 }
@@ -830,7 +905,37 @@ function beginPendingFlow(pending: PendingPublication<VehiclePayload>) {
   }
 
   if (isMarketplaceCreateUrl(window.location.href)) {
-    window.setTimeout(() => {
+    void waitForPredicate(
+      () =>
+        Boolean(
+          document.querySelector(
+            '[role="combobox"][aria-label*="Type de véhicule" i], [role="combobox"][aria-label*="Vehicle type" i], input[type="file"][accept*="image"]',
+          ),
+        ),
+      12000,
+    ).then((ready) => {
+      if (!ready) {
+        const report: FillReport = {
+          filled: [],
+          issues: [
+            exceptionIssue(
+              "vehicleType",
+              "wait_create_form",
+              "Le formulaire Marketplace n’est pas apparu. Connectez-vous à Facebook, puis réessayez.",
+            ),
+          ],
+        };
+        mountAssistBanner(
+          pending.vehicle,
+          formatFatalBanner(
+            report,
+            "Le formulaire Marketplace n’est pas apparu. Connectez-vous à Facebook, puis réessayez.",
+          ),
+          { tone: "red" },
+        );
+        reportFillTelemetry(pending.vehicle.id, report);
+        return;
+      }
       prepareMarketplaceForm(pending.vehicle, pending.startedAt).catch(
         (error) => {
           const fallback =
@@ -855,11 +960,239 @@ function beginPendingFlow(pending: PendingPublication<VehiclePayload>) {
           reportFillTelemetry(pending.vehicle.id, report);
         },
       );
-    }, 1200);
+    });
   }
 }
 
+function collectMarketplaceListingsFromDocument() {
+  const anchors = Array.from(
+    document.querySelectorAll<HTMLAnchorElement>('a[href*="/marketplace/item/"]'),
+  ).map((anchor) => {
+    const container =
+      anchor.closest('[role="article"], [role="listitem"], [role="row"]') ??
+      anchor.parentElement;
+    return {
+      href: anchor.href,
+      title: (anchor.getAttribute("aria-label") || anchor.textContent || "").trim(),
+      text: (container?.textContent || "").replace(/\s+/g, " ").trim(),
+    };
+  });
+
+  if (isMarketplaceItemUrl(window.location.href)) {
+    anchors.unshift({
+      href: window.location.href,
+      title: document.title,
+      text: (document.body.innerText || "").replace(/\s+/g, " ").trim().slice(0, 4000),
+    });
+  }
+
+  return listingsFromAnchors(anchors);
+}
+
+async function collectMarketplaceListingsUntilStable(timeoutMs = 4500) {
+  const startedAt = Date.now();
+  let lastCount = 0;
+  let stableTicks = 0;
+  let listings = collectMarketplaceListingsFromDocument();
+
+  while (Date.now() - startedAt < timeoutMs) {
+    listings = collectMarketplaceListingsFromDocument();
+    if (listings.length === lastCount) {
+      stableTicks += 1;
+      if (stableTicks >= 4 && listings.length > 0) return listings;
+    } else {
+      stableTicks = 0;
+      lastCount = listings.length;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+
+  return listings;
+}
+
+function formatRelierSummary(data: {
+  counts?: {
+    linked?: number;
+    alreadyLinked?: number;
+    unmatched?: number;
+    needsConfirmation?: number;
+    error?: number;
+  };
+  results?: Array<{
+    status?: string;
+    stockNumber?: string | null;
+    vin?: string | null;
+    year?: number | null;
+    make?: string | null;
+    model?: string | null;
+    title?: string | null;
+  }>;
+}): string {
+  const counts = data.counts ?? {};
+  const linked = counts.linked ?? 0;
+  const already = counts.alreadyLinked ?? 0;
+  const unmatched = counts.unmatched ?? 0;
+  const needsConfirmation = counts.needsConfirmation ?? 0;
+  const errors = counts.error ?? 0;
+  const parts = [
+    linked === 1 ? "1 annonce reliée" : `${linked} annonces reliées`,
+    already > 0
+      ? already === 1
+        ? "1 déjà liée"
+        : `${already} déjà liées`
+      : null,
+    unmatched > 0
+      ? unmatched === 1
+        ? "1 sans correspondance"
+        : `${unmatched} sans correspondance`
+      : null,
+    needsConfirmation > 0
+      ? needsConfirmation === 1
+        ? "1 correspondance approximative à confirmer"
+        : `${needsConfirmation} correspondances approximatives à confirmer`
+      : null,
+    errors > 0 ? `${errors} en erreur` : null,
+  ].filter(Boolean);
+  const unmatchedTitles = (data.results ?? [])
+    .filter((result) => result.status === "unmatched")
+    .map((result) => result.title)
+    .filter(Boolean)
+    .slice(0, 2);
+  const hint =
+    unmatched > 0
+      ? ` Ouvrez l’annonce${unmatchedTitles.length ? ` (${unmatchedTitles.join(", ")})` : ""} puis choisissez le véhicule dans Suivia.`
+      : "";
+  return `${parts.join(" · ")}.${hint}`;
+}
+
+async function relierMarketplaceListings() {
+  const placeholder: VehiclePayload = {
+    id: "relier",
+    year: new Date().getFullYear(),
+    make: "Suivia",
+    model: "Auto",
+  };
+  const session = detectMarketplaceSession(document);
+  if (session === "logged_out") {
+    return {
+      success: false,
+      listings: [],
+      error:
+        "Connectez-vous à Facebook dans cet onglet, puis relancez Relier mes annonces. Sans session, Marketplace est vide.",
+    };
+  }
+  if (!isMarketplaceSellingUrl(window.location.href) && !isMarketplaceItemUrl(window.location.href)) {
+    return {
+      success: false,
+      listings: [],
+      error:
+        "Ouvrez « Vos annonces » (Marketplace → Vous) dans cet onglet Facebook connecté, puis relancez Relier mes annonces.",
+    };
+  }
+  const { banner, status } = mountAssistBanner(
+    placeholder,
+    "Lecture de vos annonces Marketplace…",
+  );
+
+  await waitForPredicate(
+    () =>
+      detectMarketplaceSession(document) === "logged_in" ||
+      document.querySelectorAll('a[href*="/marketplace/item/"]').length > 0,
+    8000,
+  );
+  const listings = await collectMarketplaceListingsUntilStable();
+  if (listings.length === 0) {
+    banner.style.background = "#b91c1c";
+    const laterSession = detectMarketplaceSession(document);
+    status.textContent =
+      laterSession === "logged_out"
+        ? "Connectez-vous à Facebook dans cet onglet, puis relancez Relier mes annonces. Sans session, Marketplace est vide."
+        : "Aucune annonce trouvée. Ouvrez « Vos annonces » (Marketplace → Vous) une fois connecté, puis relancez Relier mes annonces.";
+    return {
+      success: false,
+      listings: [],
+      error: status.textContent,
+    };
+  }
+
+  status.textContent = `${listings.length} annonce${listings.length > 1 ? "s" : ""} trouvée${listings.length > 1 ? "s" : ""}. Correspondance avec l’inventaire Suivia…`;
+
+  type RelierResponse = {
+    success?: boolean;
+    error?: string;
+    counts?: {
+      linked?: number;
+      alreadyLinked?: number;
+      unmatched?: number;
+      needsConfirmation?: number;
+      error?: number;
+    };
+    results?: Array<{
+      status?: string;
+      stockNumber?: string | null;
+      vin?: string | null;
+      year?: number | null;
+      make?: string | null;
+      model?: string | null;
+      title?: string | null;
+    }>;
+  };
+  const batches = chunkItems(listings, LINK_LISTINGS_MAX_BATCH);
+  let counts = emptyLinkListingCounts();
+  const results: NonNullable<RelierResponse["results"]> = [];
+  let response: RelierResponse = { success: true, counts, results };
+  for (const [index, batch] of batches.entries()) {
+    if (batches.length > 1) {
+      status.textContent = `Correspondance avec l’inventaire Suivia… lot ${index + 1}/${batches.length}`;
+    }
+    const batchResponse: RelierResponse = await sendRuntimeMessage<RelierResponse>(
+      {
+        type: "LINK_LISTINGS",
+        listings: batch,
+      },
+    ).catch(() => ({
+      success: false,
+      error: "Suivia Auto est inaccessible. Réessayez Relier mes annonces.",
+    }));
+    if (!batchResponse.success) {
+      response = batchResponse;
+      break;
+    }
+    counts = mergeLinkListingCounts(counts, batchResponse.counts);
+    results.push(...(batchResponse.results ?? []));
+    response = { success: true, counts, results };
+  }
+
+  if (!response.success) {
+    banner.style.background = "#b91c1c";
+    status.textContent =
+      response.error ?? "Les annonces n’ont pas pu être reliées.";
+    return response;
+  }
+
+  const unmatched = response.counts?.unmatched ?? 0;
+  const needsConfirmation = response.counts?.needsConfirmation ?? 0;
+  banner.style.background =
+    unmatched > 0 || needsConfirmation > 0 ? "#1e40af" : "#047857";
+  status.textContent = formatRelierSummary(response);
+  return response;
+}
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message.type === "RELIER_LISTINGS") {
+    relierMarketplaceListings()
+      .then((result) => sendResponse({ success: Boolean(result.success), ...result }))
+      .catch((error) =>
+        sendResponse({
+          success: false,
+          error:
+            error instanceof Error
+              ? error.message
+              : "Relier mes annonces a échoué.",
+        }),
+      );
+    return true;
+  }
   if (message.type === "FILL_MARKETPLACE_FORM") {
     const vehicle = message.vehicle as VehiclePayload;
     const pending = createPendingPublication(vehicle);
@@ -899,8 +1232,20 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 // Keep the vehicle pending across Facebook navigation. When Facebook reaches
 // the final /marketplace/item/... URL, the listing is recorded automatically.
 chrome.storage.local.get(
-  [PENDING_PUBLICATION_KEY, "pendingVehicle", "pendingStartedAt"],
+  [PENDING_PUBLICATION_KEY, PENDING_RELIER_KEY, "pendingVehicle", "pendingStartedAt"],
   (result) => {
+    if (result[PENDING_RELIER_KEY]) {
+      chrome.storage.local.remove([PENDING_RELIER_KEY]);
+      void waitForPredicate(
+        () =>
+          detectMarketplaceSession(document) !== "unknown" ||
+          isMarketplaceSellingUrl(window.location.href) ||
+          isMarketplaceItemUrl(window.location.href),
+        10000,
+      ).then(() => {
+        void relierMarketplaceListings();
+      });
+    }
     let pending = result[PENDING_PUBLICATION_KEY] as
       PendingPublication<VehiclePayload> | undefined;
     if (!pending && result.pendingVehicle) {

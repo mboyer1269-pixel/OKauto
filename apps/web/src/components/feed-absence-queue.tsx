@@ -106,7 +106,7 @@ export function FeedAbsenceQueue({
             {formatNumber(vehicles.length)} véhicule
             {vehicles.length > 1 ? "s" : ""} du lot n’
             {vehicles.length > 1 ? "étaient" : "était"} plus dans le flux
-            BuckinghamGM, ou non vus par une synchro récente. Ils ne comptent
+            du concessionnaire, ou non vus par une synchro récente. Ils ne comptent
             pas dans l’inventaire. Confirmez les absents du flux : vendu
             (retrait Marketplace ensuite) ou garder en inventaire.
           </p>

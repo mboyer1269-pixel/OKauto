@@ -16,7 +16,6 @@ import {
   X,
   Activity,
   BarChart3,
-  MessageSquare,
   Inbox,
 } from "lucide-react";
 import { useState } from "react";
@@ -43,7 +42,6 @@ const navItems: Array<{
     icon: BarChart3,
     minRole: "MANAGER",
   },
-  { href: "/dashboard/leads", label: "Leads", icon: MessageSquare },
   { href: "/dashboard/sync", label: "Synchronisation", icon: Activity },
   { href: "/dashboard/team", label: "Équipe", icon: Users },
   {

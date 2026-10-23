@@ -188,7 +188,7 @@ export async function authenticateApiKey(apiKey: string) {
     },
   });
 
-  if (!record || !record.isActive) return null;
+  if (!record || !record.isActive || record.revokedAt) return null;
   if (record.expiresAt && record.expiresAt < new Date()) return null;
   if (!record.user.isActive) return null;
   if (

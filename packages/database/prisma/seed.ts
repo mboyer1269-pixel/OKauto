@@ -32,7 +32,7 @@ const SAMPLE_VEHICLES = [
 ];
 
 function generateDescription(v: (typeof SAMPLE_VEHICLES)[0]): string {
-  return `${v.year} ${v.make} ${v.model} ${v.trim || ''}, ${v.mileage?.toLocaleString('fr-CA')} km. ${v.exteriorColor ? `Couleur extérieure : ${v.exteriorColor}.` : ''} Communiquez avec Michael Boyer chez Buckingham Chevrolet Buick GMC pour planifier une visite.`;
+  return `${v.year} ${v.make} ${v.model} ${v.trim || ''}, ${v.mileage?.toLocaleString('fr-CA')} km. ${v.exteriorColor ? `Couleur extérieure : ${v.exteriorColor}.` : ''} Communiquez avec votre concession Suivia Auto pour planifier une visite.`;
 }
 
 function placeholderPhoto(make: string, model: string, year: number): string {
@@ -105,16 +105,19 @@ async function main() {
 
   const org = await prisma.organization.upsert({
     where: { slug: 'demo-motors' },
-    update: {},
+    update: {
+      name: 'Suivia Auto',
+      website: 'https://suivia.ca',
+    },
     create: {
-      name: 'Buckingham Chevrolet Buick GMC',
+      name: 'Suivia Auto',
       slug: 'demo-motors',
-      website: 'https://www.buckinghamgm.com',
-      phone: '819-986-6714',
-      address: '975 Chemin de Masson',
+      website: 'https://suivia.ca',
+      phone: '819-555-0100',
+      address: '100 rue Démo',
       city: 'Gatineau',
       state: 'QC',
-      zip: 'J8M 1R4',
+      zip: 'J8X 1A1',
       allInPriceConfirmedAt: new Date(),
       listingLanguage: 'fr_en',
     },

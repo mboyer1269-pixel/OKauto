@@ -1,5 +1,10 @@
 import { prisma } from "@okauto/database";
-import { ApiErrorCode, hasMinRole, updateListingSchema } from "@okauto/shared";
+import {
+  ApiErrorCode,
+  hasMinRole,
+  listingExternalIdentityFromUrl,
+  updateListingSchema,
+} from "@okauto/shared";
 import { withAuth, jsonResponse, apiError, parseBody } from "@/lib/api";
 import { createAuditLog } from "@/lib/auth";
 
@@ -20,7 +25,9 @@ export const PATCH = withAuth(async (request, { auth, params }) => {
     where: { id: params!.id },
     data: {
       status: data.status,
-      externalUrl: data.externalUrl,
+      ...(data.externalUrl !== undefined
+        ? listingExternalIdentityFromUrl(data.externalUrl)
+        : {}),
       removedAt:
         data.status === "REMOVED"
           ? new Date()

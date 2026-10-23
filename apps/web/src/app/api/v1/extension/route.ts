@@ -17,7 +17,13 @@ export async function POST(request: NextRequest) {
 
     return jsonResponse({
       user: { id: auth.user.id, name: auth.user.name, email: auth.user.email },
-      organization: { id: auth.organization.id, name: auth.organization.name },
+      organization: {
+        id: auth.organization.id,
+        name: auth.organization.name,
+        logoUrl: auth.organization.logoUrl,
+        brands: auth.organization.brands,
+        dealerCodes: auth.organization.dealerCodes,
+      },
       role: auth.role,
     });
   } catch (err) {
@@ -65,6 +71,11 @@ export async function GET(request: NextRequest) {
               { make: { contains: search, mode: "insensitive" as const } },
               { model: { contains: search, mode: "insensitive" as const } },
               { trim: { contains: search, mode: "insensitive" as const } },
+              ...(Number.isInteger(Number(search)) &&
+              Number(search) >= 1900 &&
+              Number(search) <= 2100
+                ? [{ year: Number(search) }]
+                : []),
             ],
           }
         : {}),
@@ -93,6 +104,9 @@ export async function GET(request: NextRequest) {
       organization: {
         id: auth.organization.id,
         name: auth.organization.name,
+        logoUrl: auth.organization.logoUrl,
+        brands: auth.organization.brands,
+        dealerCodes: auth.organization.dealerCodes,
         city: auth.organization.city,
         state: auth.organization.state,
         phone: auth.organization.phone,

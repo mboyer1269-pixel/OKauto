@@ -66,7 +66,7 @@ function advertisedForVehicle(
 export async function getPublishQueue(organizationId: string, userId: string) {
   const staleUnseenIds = await staleUnseenVehicleIds(organizationId);
   const onSaleWhere = onSaleListingVehicleWhere(staleUnseenIds);
-  const [organization, monthListings, vehicles, staleCount, activeListings, openLeads] =
+  const [organization, monthListings, vehicles, staleCount, activeListings, clientPresentCount] =
     await Promise.all([
       prisma.organization.findUnique({ where: { id: organizationId } }),
       prisma.listing.count({
@@ -115,11 +115,8 @@ export async function getPublishQueue(organizationId: string, userId: string) {
         },
         orderBy: { listedAt: "asc" },
       }),
-      prisma.marketplaceLead.count({
-        where: {
-          organizationId,
-          status: { in: ["NEW", "CONTACTED", "APPOINTMENT"] },
-        },
+      prisma.vehicle.count({
+        where: { organizationId, status: "PENDING" },
       }),
     ]);
 
@@ -193,7 +190,7 @@ export async function getPublishQueue(organizationId: string, userId: string) {
     listingRenewalDays: renewalDays,
     listingLocale: resolveListingLocale(organization?.listingLocale),
     staleCount,
-    openLeadCount: openLeads,
+    clientPresentCount,
     dueForRenewalCount: dueForRenewal.length,
     todayPicks: remaining === 0 ? [] : todayPicks.slice(0, todayLimit),
     dueForRenewal: dueForRenewal.map((listing) => ({
@@ -226,9 +223,7 @@ export async function getDirectorStats(organizationId: string) {
     onSaleCount,
     listingGroups,
     agingWithoutListing,
-    openLeads,
-    leadsThisWeek,
-    dueFollowUps,
+    clientPresentCount,
   ] = await Promise.all([
     prisma.organization.findUnique({ where: { id: organizationId } }),
     prisma.organizationMember.findMany({
@@ -267,21 +262,8 @@ export async function getDirectorStats(organizationId: string) {
       orderBy: { createdAt: "asc" },
       take: 12,
     }),
-    prisma.marketplaceLead.count({
-      where: {
-        organizationId,
-        status: { in: ["NEW", "CONTACTED", "APPOINTMENT"] },
-      },
-    }),
-    prisma.marketplaceLead.count({
-      where: { organizationId, createdAt: { gte: weekAgo } },
-    }),
-    prisma.marketplaceLead.count({
-      where: {
-        organizationId,
-        status: { in: ["NEW", "CONTACTED", "APPOINTMENT"] },
-        nextFollowUpAt: { lte: new Date() },
-      },
+    prisma.vehicle.count({
+      where: { organizationId, status: "PENDING" },
     }),
   ]);
 
@@ -403,9 +385,7 @@ export async function getDirectorStats(organizationId: string) {
         renewalDays,
       ),
     ).length,
-    openLeadCount: openLeads,
-    leadsThisWeek,
-    dueFollowUps,
+    clientPresentCount,
     memberStats: memberStats.sort(
       (a, b) => b.monthListings - a.monthListings || b.weekListings - a.weekListings,
     ),

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { LINK_LISTINGS_MAX_BATCH } from "./listing-match";
 
 export const Role = {
   OWNER: "OWNER",
@@ -23,21 +24,14 @@ export function hasMinRole(
   return ROLE_HIERARCHY[userRole] >= ROLE_HIERARCHY[requiredRole];
 }
 
-export function isFacebookMarketplaceItemUrl(value: string): boolean {
-  try {
-    const url = new URL(value);
-    const hostname = url.hostname.toLowerCase();
-    const isFacebookHost =
-      hostname === "facebook.com" || hostname.endsWith(".facebook.com");
-    return (
-      url.protocol === "https:" &&
-      isFacebookHost &&
-      /^\/marketplace\/item\/[^/]+\/?$/.test(url.pathname)
-    );
-  } catch {
-    return false;
-  }
-}
+export {
+  canonicalMarketplaceListingFields,
+  extractFacebookMarketplaceItemId,
+  facebookMarketplaceItemUrl,
+  isFacebookMarketplaceItemUrl,
+  isSuiviaWebOrigin,
+  listingExternalIdentityFromUrl,
+} from "./marketplace-url";
 
 export const VehicleStatus = {
   AVAILABLE: "AVAILABLE",
@@ -206,6 +200,21 @@ export const extensionEventSchema = z.object({
   metadata: z.record(z.unknown()).optional(),
 });
 
+export const linkListingsSchema = z.object({
+  listings: z
+    .array(
+      z.object({
+        externalUrl: z.string().url(),
+        title: z.string().trim().max(200).optional(),
+        text: z.string().trim().max(4000).optional(),
+        vehicleId: z.string().min(1).optional(),
+        confirmApprox: z.boolean().optional(),
+      }),
+    )
+    .min(1)
+    .max(LINK_LISTINGS_MAX_BATCH),
+});
+
 // Invite schema
 export const inviteMemberSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
@@ -265,6 +274,9 @@ export const updateOrganizationSchema = z.object({
   acExciseFee: z.number().min(0).max(5000).optional().nullable(),
   metaCatalogStateForDemo: z.enum(["Used", "New"]).optional(),
   includeCarfaxSourceUrl: z.boolean().optional(),
+  logoUrl: z.string().url().optional().nullable(),
+  brands: z.array(z.string().trim().min(1).max(80)).max(20).optional(),
+  dealerCodes: z.array(z.string().trim().min(1).max(40)).max(20).optional(),
 });
 
 export const decodeVinRequestSchema = z.object({
@@ -330,50 +342,12 @@ const optionalEmail = z.preprocess(
   z.string().trim().email().nullable().optional(),
 );
 
-export const createLeadSchema = z.object({
-  name: z.string().trim().min(1).max(120),
-  phone: z.string().trim().max(30).optional().nullable(),
-  email: optionalEmail,
-  message: z.string().trim().max(4000).optional().nullable(),
-  source: z
-    .enum(["MARKETPLACE", "PHONE", "WALK_IN", "OTHER"])
-    .default("MARKETPLACE"),
-  vehicleId: z.string().optional().nullable(),
-  listingId: z.string().optional().nullable(),
-  assignedToId: z.string().optional().nullable(),
-  nextFollowUpAt: z.string().datetime().optional().nullable(),
-});
-
-export const updateLeadSchema = z.object({
-  name: z.string().trim().min(1).max(120).optional(),
-  phone: z.string().trim().max(30).optional().nullable(),
-  email: optionalEmail,
-  message: z.string().trim().max(4000).optional().nullable(),
-  source: z.enum(["MARKETPLACE", "PHONE", "WALK_IN", "OTHER"]).optional(),
-  status: z
-    .enum(["NEW", "CONTACTED", "APPOINTMENT", "SOLD", "LOST"])
-    .optional(),
-  vehicleId: z.string().optional().nullable(),
-  listingId: z.string().optional().nullable(),
-  assignedToId: z.string().optional().nullable(),
-  nextFollowUpAt: z.string().datetime().optional().nullable(),
-});
-
-export const leadQuerySchema = z.object({
-  status: z
-    .enum(["NEW", "CONTACTED", "APPOINTMENT", "SOLD", "LOST"])
-    .optional(),
-  search: z.string().optional(),
-  page: z.coerce.number().int().min(1).default(1),
-  limit: z.coerce.number().int().min(1).max(100).default(50),
-});
-
 export type CreateSyncSourceInput = z.infer<typeof createSyncSourceSchema>;
 export type UpdateSyncSourceInput = z.infer<typeof updateSyncSourceSchema>;
-export type CreateLeadInput = z.infer<typeof createLeadSchema>;
-export type UpdateLeadInput = z.infer<typeof updateLeadSchema>;
 
+export * from "./dealership";
 export * from "./description";
+export * from "./listing-match";
 export * from "./pricing";
 export * from "./publish-queue";
 export * from "./priority";

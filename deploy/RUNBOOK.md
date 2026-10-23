@@ -62,6 +62,10 @@ sudo /opt/okauto/scripts/deploy.sh <ancien-sha-40>
 
 **Le rollback ne ramène pas le schéma.** `prisma migrate deploy` n’est pas inversé. Les migrations doivent être expand/contract (compatibles avec le SHA précédent). Voir `packages/database/prisma/MIGRATIONS.md`. Une migration `DROP` / `TRUNCATE` / `RENAME` / `ALTER TYPE` / `SET NOT NULL` sans défaut exige le fichier `ALLOW_DESTRUCTIVE` (CI) et un plan de restore.
 
+## Lot 0.3.6 — DROP `marketplace_leads`
+
+La migration isolée `20261023200000_drop_marketplace_leads` est destructive (`ALLOW_DESTRUCTIVE`). **Ne l’exécuter en production qu’après un dump R2 réussi** (`backup.sh` + offsite). Le code applicatif ne lit plus cette table. Si le dump n’est pas confirmé, bloquer `prisma migrate deploy`.
+
 ## Sauvegardes
 
 Cron (`/etc/cron.d/okauto-backup`) : `15 3 * * *` → `/opt/okauto/scripts/backup.sh` → log `/opt/okauto/backups/backup.log`.

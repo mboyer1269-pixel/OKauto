@@ -4,28 +4,11 @@ import { ApiErrorCode } from '@okauto/shared';
 import { onSaleInventoryWhere } from '@/lib/on-sale-query';
 import { apiError, handleApiError } from '@/lib/api';
 import { authenticateExtensionApiKey } from '@/lib/extension-auth';
-
-const IMAGE_EXTENSIONS: Record<string, string> = {
-  'image/jpeg': 'jpg',
-  'image/png': 'png',
-  'image/webp': 'webp',
-};
-
-function isPrivateHostname(hostname: string) {
-  const normalized = hostname.toLowerCase();
-  if (normalized === 'localhost' || normalized.endsWith('.local')) return true;
-  if (normalized === '::1' || normalized === '[::1]') return true;
-
-  const octets = normalized.split('.').map(Number);
-  if (octets.length !== 4 || octets.some((octet) => !Number.isInteger(octet))) return false;
-  return (
-    octets[0] === 10 ||
-    octets[0] === 127 ||
-    (octets[0] === 169 && octets[1] === 254) ||
-    (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) ||
-    (octets[0] === 192 && octets[1] === 168)
-  );
-}
+import {
+  fetchPublicImage,
+  isPrivateHostname,
+  PUBLIC_IMAGE_EXTENSIONS,
+} from '@/lib/fetch-public-image';
 
 export async function GET(
   request: NextRequest,
@@ -62,18 +45,12 @@ export async function GET(
       return apiError(ApiErrorCode.INSECURE_PHOTO_URL, 400);
     }
 
-    const upstream = await fetch(photoUrl, {
-      headers: {
-        Accept: 'image/avif,image/webp,image/png,image/jpeg,*/*',
-        'User-Agent': 'Mozilla/5.0 OKauto/1.0',
-      },
-      redirect: 'error',
-      cache: 'no-store',
-    });
+    const upstream = await fetchPublicImage(photoUrl);
+    if (!upstream) return apiError(ApiErrorCode.INSECURE_PHOTO_URL, 400);
     if (!upstream.ok) return apiError(ApiErrorCode.PHOTO_UNAVAILABLE, 502);
 
     const contentType = upstream.headers.get('content-type')?.split(';')[0].toLowerCase() ?? '';
-    const extension = IMAGE_EXTENSIONS[contentType];
+    const extension = PUBLIC_IMAGE_EXTENSIONS[contentType];
     if (!extension) return apiError(ApiErrorCode.UNSUPPORTED_PHOTO_FORMAT, 415);
 
     const safeStock = (vehicle.stockNumber ?? vehicle.id).replace(/[^a-z0-9_-]+/gi, '-');

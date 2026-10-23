@@ -42,15 +42,7 @@ interface AuthState {
 const AuthContext = createContext<AuthState | null>(null);
 
 function normalizeLegacyDemoUser(user: User) {
-  const isDemoOwner =
-    user.email.toLocaleLowerCase("fr-CA") === "owner@demo.okauto.local";
-  const hasLegacyName = user.name
-    .trim()
-    .toLocaleLowerCase("fr-CA")
-    .startsWith("alex");
-  return isDemoOwner && hasLegacyName
-    ? { ...user, name: "Michael Boyer" }
-    : user;
+  return user;
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {

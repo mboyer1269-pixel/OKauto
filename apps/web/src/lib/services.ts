@@ -47,7 +47,7 @@ export async function generateVehicleDescription(
     salesperson?.name?.trim() ||
     process.env.MARKETPLACE_CONTACT_NAME?.trim() ||
     process.env.NEXT_PUBLIC_MARKETPLACE_CONTACT_NAME?.trim() ||
-    "Michael Boyer";
+    "Votre conseiller";
   const resolvedLocale = resolveListingLocale(
     locale ??
       vehicle.organization.listingLanguage ??

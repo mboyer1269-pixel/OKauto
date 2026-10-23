@@ -2,9 +2,11 @@ import { NextRequest } from "next/server";
 import { prisma } from "@okauto/database";
 import {
   ApiErrorCode,
+  displayDealershipName,
   generateMarketplaceTitle,
   listingDescriptionForExtension,
   resolveIncludeCarfaxSourceUrl,
+  withStockInTitle,
 } from "@okauto/shared";
 import { onSaleInventoryWhere } from "@/lib/on-sale-query";
 import { apiError, handleApiError, jsonResponse } from "@/lib/api";
@@ -61,7 +63,7 @@ export async function GET(
       bodyStyle: vehicle.bodyStyle,
       condition: vehicle.condition,
       features: vehicle.features,
-      dealershipName: auth.organization.name,
+      dealershipName: displayDealershipName(auth.organization.name),
       contactName: auth.user.name,
       phone: auth.organization.phone ?? undefined,
       vin: vehicle.vin,
@@ -99,13 +101,16 @@ export async function GET(
         drivetrain: vehicle.drivetrain,
         engine: vehicle.engine,
         features: vehicle.features,
-        title: draft?.title || generateMarketplaceTitle(marketplaceData),
+        title: withStockInTitle(
+          draft?.title || generateMarketplaceTitle(marketplaceData),
+          vehicle.stockNumber,
+        ),
         description: listingDescriptionForExtension(
           draft?.description,
           marketplaceData,
         ),
         contactName: auth.user.name,
-        dealershipName: auth.organization.name,
+        dealershipName: displayDealershipName(auth.organization.name),
         phone: auth.organization.phone,
         bodyStyle: vehicle.bodyStyle,
         condition: vehicle.condition,

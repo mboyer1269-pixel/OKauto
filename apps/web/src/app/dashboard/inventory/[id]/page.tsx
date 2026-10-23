@@ -93,6 +93,21 @@ function VehicleDetail() {
     load();
   };
 
+  const handleClientPresent = async () => {
+    await apiFetch(`/api/v1/vehicles/${id}/client-present`, {
+      method: "POST",
+    });
+    load();
+  };
+
+  const handleActivate = async () => {
+    await apiFetch(`/api/v1/vehicles/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status: "AVAILABLE" }),
+    });
+    load();
+  };
+
   if (loading) return <CockpitSkeleton rows={5} className="max-w-5xl" />;
   if (!vehicle) return <div className="card">Véhicule introuvable.</div>;
 
@@ -225,6 +240,16 @@ function VehicleDetail() {
               <ExternalLink size={14} className="mr-1" /> Page du
               concessionnaire
             </a>
+          )}
+          {vehicle.status !== "PENDING" && vehicle.status !== "SOLD" && (
+            <button onClick={handleClientPresent} className="btn-secondary text-xs">
+              Client présent
+            </button>
+          )}
+          {vehicle.status === "PENDING" && (
+            <button onClick={handleActivate} className="btn-secondary text-xs">
+              Activer
+            </button>
           )}
           {vehicle.status !== "SOLD" && (
             <button onClick={handleMarkSold} className="btn-danger text-xs">

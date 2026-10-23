@@ -48,6 +48,11 @@ function SettingsContent() {
           listingRenewalDays: String(d.listingRenewalDays ?? 7),
           listingLocale: d.listingLocale ?? "fr",
           listingLanguage: d.listingLanguage ?? "fr",
+          logoUrl: d.logoUrl ?? "",
+          brands: Array.isArray(d.brands) ? d.brands.join(", ") : "",
+          dealerCodes: Array.isArray(d.dealerCodes)
+            ? d.dealerCodes.join(", ")
+            : "",
           freightFee: String(d.freightFee ?? 0),
           pdiFee: String(d.pdiFee ?? 0),
           adminFee: String(d.adminFee ?? 0),
@@ -86,6 +91,15 @@ function SettingsContent() {
         adminFee: Number(org.adminFee || 0),
         acExciseFee: Number(org.acExciseFee || 0),
         includeCarfaxSourceUrl,
+        logoUrl: org.logoUrl || null,
+        brands: org.brands
+          .split(/[,;\n]/)
+          .map((item) => item.trim())
+          .filter(Boolean),
+        dealerCodes: org.dealerCodes
+          .split(/[,;\n]/)
+          .map((item) => item.trim())
+          .filter(Boolean),
       }),
     });
     setSaved(true);
@@ -164,6 +178,46 @@ function SettingsContent() {
             />
           </div>
         ))}
+
+        <h2 className="pt-2 font-semibold">Identité de la concession</h2>
+        <p className="text-sm text-muted-foreground">
+          Valeurs propres à ce tenant. L’extension lit cette config via l’API.
+          Si le nom est vide, Suivia Auto s’affiche.
+        </p>
+        <label className="block text-sm font-medium" htmlFor="org-logoUrl">
+          Logo (URL https)
+        </label>
+        <input
+          id="org-logoUrl"
+          className="input"
+          type="url"
+          placeholder="https://…"
+          value={org.logoUrl ?? ""}
+          onChange={(e) => setOrg({ ...org, logoUrl: e.target.value })}
+          disabled={!canEdit}
+        />
+        <label className="block text-sm font-medium" htmlFor="org-brands">
+          Marques (séparées par une virgule)
+        </label>
+        <input
+          id="org-brands"
+          className="input"
+          placeholder="À renseigner par concession"
+          value={org.brands ?? ""}
+          onChange={(e) => setOrg({ ...org, brands: e.target.value })}
+          disabled={!canEdit}
+        />
+        <label className="block text-sm font-medium" htmlFor="org-dealerCodes">
+          Codes concessionnaire
+        </label>
+        <input
+          id="org-dealerCodes"
+          className="input"
+          placeholder="Codes internes, un par virgule"
+          value={org.dealerCodes ?? ""}
+          onChange={(e) => setOrg({ ...org, dealerCodes: e.target.value })}
+          disabled={!canEdit}
+        />
 
         <h2 className="pt-2 font-semibold">Conformité et annonces</h2>
         <p className="text-sm text-muted-foreground">
