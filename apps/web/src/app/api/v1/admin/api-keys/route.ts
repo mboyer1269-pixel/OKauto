@@ -12,6 +12,7 @@ export const GET = withAuth(async (_request, { auth }) => {
       keyPrefix: true,
       lastUsedAt: true,
       expiresAt: true,
+      revokedAt: true,
       isActive: true,
       createdAt: true,
       user: { select: { id: true, name: true } },

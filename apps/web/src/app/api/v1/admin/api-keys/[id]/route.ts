@@ -1,8 +1,9 @@
 import { prisma } from '@okauto/database';
 import { ApiErrorCode } from '@okauto/shared';
 import { withAuth, jsonResponse, apiError } from '@/lib/api';
+import { createAuditLog } from '@/lib/auth';
 
-export const DELETE = withAuth(async (_request, { auth, params }) => {
+export const DELETE = withAuth(async (request, { auth, params }) => {
   const key = await prisma.apiKey.findFirst({
     where: {
       id: params!.id,
@@ -12,10 +13,26 @@ export const DELETE = withAuth(async (_request, { auth, params }) => {
   });
   if (!key) return apiError(ApiErrorCode.API_KEY_NOT_FOUND, 404);
 
+  const revokedAt = key.revokedAt ?? new Date();
   await prisma.apiKey.update({
     where: { id: params!.id },
-    data: { isActive: false },
+    data: { isActive: false, revokedAt },
   });
 
-  return jsonResponse({ success: true });
+  await createAuditLog({
+    organizationId: auth.orgId,
+    userId: auth.sub,
+    action: 'UPDATE',
+    entityType: 'api_key',
+    entityId: key.id,
+    metadata: {
+      action: 'revoke',
+      keyPrefix: key.keyPrefix,
+      name: key.name,
+      revokedAt: revokedAt.toISOString(),
+    },
+    request: request as never,
+  });
+
+  return jsonResponse({ success: true, revokedAt });
 });

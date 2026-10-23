@@ -475,7 +475,7 @@ describe("API route handlers", () => {
       where: { vehicleId: extensionVehicleId, status: "ACTIVE" },
     });
     expect(listing?.externalUrl).toBe(
-      "https://www.facebook.com/marketplace/item/123456789",
+      "https://www.facebook.com/marketplace/item/123456789/",
     );
     expect(listing?.externalId).toBe("123456789");
     expect(listing?.titleAtListing).toContain("2025 GMC Terrain");
@@ -653,7 +653,7 @@ describe("API route handlers", () => {
     });
     expect(linked?.externalId).toBe("555666777");
     expect(linked?.externalUrl).toBe(
-      "https://www.facebook.com/marketplace/item/555666777",
+      "https://www.facebook.com/marketplace/item/555666777/",
     );
 
     await prisma.listingEvent.deleteMany({
@@ -695,7 +695,7 @@ describe("API route handlers", () => {
     expect(created.status).toBe(201);
     expect(createdBody.externalId).toBe("777888999");
     expect(createdBody.externalUrl).toBe(
-      "https://www.facebook.com/marketplace/item/777888999",
+      "https://www.facebook.com/marketplace/item/777888999/",
     );
 
     const patched = await updateListingHandler(
@@ -713,7 +713,7 @@ describe("API route handlers", () => {
     expect(patched.status).toBe(200);
     expect(patchedBody.externalId).toBe("666777888");
     expect(patchedBody.externalUrl).toBe(
-      "https://www.facebook.com/marketplace/item/666777888",
+      "https://www.facebook.com/marketplace/item/666777888/",
     );
 
     const cleared = await updateListingHandler(

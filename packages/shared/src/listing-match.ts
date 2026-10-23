@@ -1,22 +1,31 @@
+import {
+  extractFacebookMarketplaceItemId,
+  facebookMarketplaceItemUrl,
+} from "./marketplace-url";
 import { isValidVinFormat, normalizeVin } from "./vin";
 
 export type MatchableVehicle = {
   id: string;
   vin?: string | null;
   stockNumber?: string | null;
+  year?: number | null;
+  make?: string | null;
+  model?: string | null;
 };
 
 export type ListingMatchHint = {
   vehicleId?: string | null;
   title?: string | null;
   text?: string | null;
+  confirmApprox?: boolean;
 };
 
-export type ListingMatchReason = "vehicleId" | "vin" | "stock";
+export type ListingMatchReason = "vehicleId" | "vin" | "stock" | "approx";
 
 export type ListingMatchResult<T extends MatchableVehicle> = {
   vehicle: T;
   reason: ListingMatchReason;
+  needsConfirmation?: boolean;
 };
 
 export const LINK_LISTINGS_MAX_BATCH = 50;
@@ -25,6 +34,7 @@ export type LinkListingCounts = {
   linked: number;
   alreadyLinked: number;
   unmatched: number;
+  needsConfirmation: number;
   error: number;
 };
 
@@ -38,7 +48,13 @@ export function chunkItems<T>(items: readonly T[], size: number): T[][] {
 }
 
 export function emptyLinkListingCounts(): LinkListingCounts {
-  return { linked: 0, alreadyLinked: 0, unmatched: 0, error: 0 };
+  return {
+    linked: 0,
+    alreadyLinked: 0,
+    unmatched: 0,
+    needsConfirmation: 0,
+    error: 0,
+  };
 }
 
 export function mergeLinkListingCounts(
@@ -49,6 +65,8 @@ export function mergeLinkListingCounts(
     linked: total.linked + (next?.linked ?? 0),
     alreadyLinked: total.alreadyLinked + (next?.alreadyLinked ?? 0),
     unmatched: total.unmatched + (next?.unmatched ?? 0),
+    needsConfirmation:
+      total.needsConfirmation + (next?.needsConfirmation ?? 0),
     error: total.error + (next?.error ?? 0),
   };
 }
@@ -95,23 +113,18 @@ export function listingsFromAnchors(
   }> = [];
 
   for (const anchor of anchors) {
-    let itemId: string | null = null;
+    let href = anchor.href;
     try {
-      const url = new URL(anchor.href, "https://www.facebook.com");
-      const hostname = url.hostname.toLowerCase();
-      const isFacebookHost =
-        hostname === "facebook.com" || hostname.endsWith(".facebook.com");
-      if (!isFacebookHost) continue;
-      const match = url.pathname.match(/^\/marketplace\/item\/([^/]+)/i);
-      itemId = match?.[1] ? decodeURIComponent(match[1]).trim() : null;
+      href = new URL(anchor.href, "https://www.facebook.com").toString();
     } catch {
       continue;
     }
+    const itemId = extractFacebookMarketplaceItemId(href);
     if (!itemId || seen.has(itemId)) continue;
     seen.add(itemId);
     listings.push({
       externalId: itemId,
-      externalUrl: `https://www.facebook.com/marketplace/item/${itemId}`,
+      externalUrl: facebookMarketplaceItemUrl(itemId),
       title: (anchor.title ?? "").replace(/\s+/g, " ").trim(),
       text: (anchor.text ?? "").replace(/\s+/g, " ").trim().slice(0, 4000),
     });
@@ -120,13 +133,48 @@ export function listingsFromAnchors(
   return listings;
 }
 
+function normalizeHaystack(value: string) {
+  return value.toLocaleLowerCase("fr-CA").replace(/\s+/g, " ");
+}
+
+export function findApproxVehicleMatches<T extends MatchableVehicle>(
+  vehicles: T[],
+  hint: ListingMatchHint,
+): T[] {
+  const haystack = normalizeHaystack(listingMatchHaystack(hint));
+  if (!haystack.trim()) return [];
+  return vehicles.filter((candidate) => {
+    if (
+      candidate.year == null ||
+      !candidate.make?.trim() ||
+      !candidate.model?.trim()
+    ) {
+      return false;
+    }
+    const year = String(candidate.year);
+    const make = normalizeHaystack(candidate.make);
+    const model = normalizeHaystack(candidate.model);
+    return (
+      haystack.includes(year) &&
+      haystack.includes(make) &&
+      haystack.includes(model)
+    );
+  });
+}
+
 export function matchListingToVehicle<T extends MatchableVehicle>(
   vehicles: T[],
   hint: ListingMatchHint,
 ): ListingMatchResult<T> | null {
   if (hint.vehicleId) {
     const vehicle = vehicles.find((candidate) => candidate.id === hint.vehicleId);
-    if (vehicle) return { vehicle, reason: "vehicleId" };
+    if (vehicle) {
+      return {
+        vehicle,
+        reason: hint.confirmApprox ? "approx" : "vehicleId",
+        needsConfirmation: false,
+      };
+    }
   }
 
   const haystack = listingMatchHaystack(hint);
@@ -145,5 +193,15 @@ export function matchListingToVehicle<T extends MatchableVehicle>(
     return hintedStocks.has(stock.toUpperCase());
   });
   if (stockHits.length === 1) return { vehicle: stockHits[0], reason: "stock" };
+  if (stockHits.length > 1) return null;
+
+  const approxHits = findApproxVehicleMatches(vehicles, hint);
+  if (approxHits.length === 1) {
+    return {
+      vehicle: approxHits[0],
+      reason: "approx",
+      needsConfirmation: hint.confirmApprox !== true,
+    };
+  }
   return null;
 }

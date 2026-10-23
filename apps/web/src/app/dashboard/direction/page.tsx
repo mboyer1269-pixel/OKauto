@@ -15,9 +15,7 @@ interface DirectorStats {
   activeListings: number;
   staleListings: number;
   dueForRenewalCount: number;
-  openLeadCount: number;
-  leadsThisWeek: number;
-  dueFollowUps: number;
+  clientPresentCount: number;
   memberStats: Array<{
     userId: string;
     name: string;
@@ -137,7 +135,7 @@ function DirectionContent() {
         <Stat label="Annonces actives" value={stats.activeListings} />
         <Stat label="À retirer" value={stats.staleListings} alert />
         <Stat label="À renouveler" value={stats.dueForRenewalCount} />
-        <Stat label="Leads ouverts" value={stats.openLeadCount} />
+        <Stat label="Clients présents" value={stats.clientPresentCount} />
       </div>
 
       <section className="card overflow-x-auto p-0">
@@ -251,11 +249,9 @@ function DirectionContent() {
         </section>
       </div>
       <p className="text-xs text-muted-foreground">
-        {formatNumber(stats.leadsThisWeek)} lead
-        {stats.leadsThisWeek > 1 ? "s" : ""} cette semaine ·{" "}
-        {formatNumber(stats.dueFollowUps)} relance
-        {stats.dueFollowUps > 1 ? "s" : ""} due
-        {stats.dueFollowUps > 1 ? "s" : ""}.
+        {formatNumber(stats.clientPresentCount)} client
+        {stats.clientPresentCount > 1 ? "s" : ""} présent
+        {stats.clientPresentCount > 1 ? "s" : ""} (statut En attente).
       </p>
     </div>
   );

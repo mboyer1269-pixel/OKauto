@@ -73,6 +73,14 @@ async function saveSettings(settings: Settings) {
   });
 }
 
+async function clearLocalApiKey() {
+  await new Promise<void>((resolve) => {
+    chrome.storage.local.remove(["apiKey"], () => resolve());
+  });
+  const field = document.getElementById("api-key") as HTMLInputElement | null;
+  if (field) field.value = "";
+}
+
 async function apiFetch(
   path: string,
   settings: Settings,
@@ -81,7 +89,14 @@ async function apiFetch(
   const headers = new Headers(options.headers);
   headers.set("X-API-Key", settings.apiKey);
   if (options.body) headers.set("Content-Type", "application/json");
-  return fetch(`${settings.apiUrl}${path}`, { ...options, headers });
+  const response = await fetch(`${settings.apiUrl}${path}`, {
+    ...options,
+    headers,
+  });
+  if (response.status === 401) {
+    await clearLocalApiKey();
+  }
+  return response;
 }
 
 function showError(msg: string) {
@@ -421,6 +436,18 @@ document
   .addEventListener("click", () => {
     void relierMesAnnonces();
   });
+
+document.getElementById("forget-local-key")?.addEventListener("click", () => {
+  void (async () => {
+    await clearLocalApiKey();
+    hideError();
+    document.getElementById("loading")!.style.display = "none";
+    const status = document.createElement("div");
+    status.className = "status";
+    status.textContent = "Clé locale effacée. Collez une nouvelle clé active.";
+    document.getElementById("vehicle-list")!.replaceChildren(status);
+  })();
+});
 
 // Init
 (async () => {

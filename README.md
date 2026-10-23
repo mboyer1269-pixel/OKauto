@@ -34,7 +34,7 @@ Vous n’avez pas besoin de compiler le projet au quotidien. Le site en ligne, c
 
 Le détail pas à pas est dans [`GUIDE_DEMARRAGE.md`](GUIDE_DEMARRAGE.md). En résumé :
 
-1. Ouvrir **Vue du matin** et confirmer que la synchro (ex. BuckinghamGM en local) est « Opérationnelle ».
+1. Ouvrir **Vue du matin** et confirmer que la synchro inventaire est « Opérationnelle ».
 2. Traiter d’abord **Publications → À retirer** (véhicules vendus encore en ligne).
 3. Dans **À préparer**, chercher un stock, un NIV, une marque ou un modèle, puis **Publier**.
 4. Vérifier prix, kilométrage, stock, NIV et photo.

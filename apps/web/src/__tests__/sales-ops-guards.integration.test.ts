@@ -4,7 +4,7 @@ import { prisma } from "@okauto/database";
 import bcrypt from "bcryptjs";
 import { POST as loginHandler } from "@/app/api/v1/auth/login/route";
 import { POST as createListingHandler } from "@/app/api/v1/listings/route";
-import { POST as createLeadHandler } from "@/app/api/v1/leads/route";
+import { POST as clientPresentHandler } from "@/app/api/v1/vehicles/[id]/client-present/route";
 import { GET as metaCatalogFeedHandler } from "@/app/api/feeds/meta/[token]/vehicles.csv/route";
 
 function makeRequest(url: string, options: RequestInit = {}): Request {
@@ -66,7 +66,7 @@ describe("sales-ops server guards", () => {
         state: "QC",
         zip: "J8P1H0",
         phone: "8195550100",
-        website: "https://www.buckinghamgm.com",
+        website: "https://example.com/guards-motors",
         freightFee: 1000,
         pdiFee: 500,
         adminFee: 399,
@@ -273,24 +273,20 @@ describe("sales-ops server guards", () => {
     expect(csv).not.toMatch(/(^|,)20000 CAD(,|$)/m);
   });
 
-  it("rejects a lead assigned to a user outside the organization", async () => {
-    const outsider = await prisma.user.findUniqueOrThrow({
-      where: { email: outsiderEmail },
-    });
-    const response = await createLeadHandler(
-      makeRequest("http://localhost/api/v1/leads", {
+  it("marks a vehicle as client present without a leads record", async () => {
+    const response = await clientPresentHandler(
+      makeRequest(`http://localhost/api/v1/vehicles/${vehicleA}/client-present`, {
         method: "POST",
         headers: { Authorization: `Bearer ${ownerToken}` },
-        body: JSON.stringify({
-          name: "Client test",
-          phone: "8195550199",
-          assignedToId: outsider.id,
-        }),
       }),
-      { params: Promise.resolve({}) },
+      { params: Promise.resolve({ id: vehicleA }) },
     );
     const body = await response.json();
-    expect(response.status).toBe(400);
-    expect(body.error).toMatch(/membre de cette organisation/);
+    expect(response.status).toBe(200);
+    expect(body.vehicle.status).toBe("PENDING");
+    const stored = await prisma.vehicle.findUniqueOrThrow({
+      where: { id: vehicleA },
+    });
+    expect(stored.status).toBe("PENDING");
   });
 });

@@ -3,6 +3,8 @@ import { prisma } from "@okauto/database";
 import bcrypt from "bcryptjs";
 import { POST as loginHandler } from "@/app/api/v1/auth/login/route";
 import { POST as extensionAuthHandler } from "@/app/api/v1/extension/route";
+import { DELETE as revokeApiKeyHandler } from "@/app/api/v1/admin/api-keys/[id]/route";
+import { POST as cleanupApiKeysHandler } from "@/app/api/v1/admin/api-keys/cleanup/route";
 import { PATCH as updateMemberHandler } from "@/app/api/v1/organizations/members/[id]/route";
 import { DELETE as deleteMemberHandler } from "@/app/api/v1/organizations/members/[id]/route";
 import { hashToken } from "@/lib/auth";
@@ -196,5 +198,46 @@ describe("API key revocation", () => {
       where: { id: staffUserId },
       data: { isActive: true },
     });
+  });
+
+  it("rejects a key after revokedAt and allows cleanup with an audit trail", async () => {
+    const owner = await prisma.user.findUniqueOrThrow({
+      where: { email: ownerEmail },
+    });
+    const raw = `suivia_test_revoked_at_${suffix}`;
+    const record = await prisma.apiKey.create({
+      data: {
+        organizationId: orgId,
+        userId: owner.id,
+        name: "revoked-at",
+        keyHash: hashToken(raw),
+        keyPrefix: raw.slice(0, 12),
+      },
+    });
+    expect((await useApiKey(raw)).status).toBe(200);
+
+    const revoked = await revokeApiKeyHandler(
+      makeRequest(`http://localhost/api/v1/admin/api-keys/${record.id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${ownerToken}` },
+      }),
+      { params: Promise.resolve({ id: record.id }) },
+    );
+    expect(revoked.status).toBe(200);
+    expect((await useApiKey(raw)).status).toBe(401);
+    const afterRevoke = await prisma.apiKey.findUniqueOrThrow({
+      where: { id: record.id },
+    });
+    expect(afterRevoke.revokedAt).toBeTruthy();
+    expect(afterRevoke.isActive).toBe(false);
+
+    const cleanup = await cleanupApiKeysHandler(
+      makeRequest("http://localhost/api/v1/admin/api-keys/cleanup", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${ownerToken}` },
+      }),
+    );
+    expect(cleanup.status).toBe(200);
+    expect(await prisma.apiKey.findUnique({ where: { id: record.id } })).toBeNull();
   });
 });

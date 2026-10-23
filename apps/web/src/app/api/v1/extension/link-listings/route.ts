@@ -65,6 +65,7 @@ export async function POST(request: NextRequest) {
         vehicleId: listing.vehicleId,
         title: listing.title,
         text: listing.text,
+        confirmApprox: listing.confirmApprox,
       });
 
       if (!match) {
@@ -72,6 +73,22 @@ export async function POST(request: NextRequest) {
           status: "unmatched",
           externalUrl,
           title: listing.title ?? null,
+        });
+        continue;
+      }
+
+      if (match.needsConfirmation) {
+        results.push({
+          status: "needs_confirmation",
+          externalUrl,
+          vehicleId: match.vehicle.id,
+          matchReason: match.reason,
+          title: listing.title ?? null,
+          stockNumber: match.vehicle.stockNumber,
+          vin: match.vehicle.vin,
+          year: match.vehicle.year,
+          make: match.vehicle.make,
+          model: match.vehicle.model,
         });
         continue;
       }
@@ -121,6 +138,9 @@ export async function POST(request: NextRequest) {
       (item) => item.status === "already_linked",
     ).length;
     const unmatched = results.filter((item) => item.status === "unmatched").length;
+    const needsConfirmation = results.filter(
+      (item) => item.status === "needs_confirmation",
+    ).length;
 
     return jsonResponse({
       success: true,
@@ -128,6 +148,7 @@ export async function POST(request: NextRequest) {
         linked,
         alreadyLinked,
         unmatched,
+        needsConfirmation,
         error: results.filter((item) => item.status === "error" || item.status === "invalid")
           .length,
       },

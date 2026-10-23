@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@okauto/database";
 import {
   ApiErrorCode,
+  displayDealershipName,
   generateMarketplaceTitle,
   listingDescriptionForExtension,
   resolveIncludeCarfaxSourceUrl,
@@ -62,7 +63,7 @@ export async function GET(
       bodyStyle: vehicle.bodyStyle,
       condition: vehicle.condition,
       features: vehicle.features,
-      dealershipName: auth.organization.name,
+      dealershipName: displayDealershipName(auth.organization.name),
       contactName: auth.user.name,
       phone: auth.organization.phone ?? undefined,
       vin: vehicle.vin,
@@ -109,7 +110,7 @@ export async function GET(
           marketplaceData,
         ),
         contactName: auth.user.name,
-        dealershipName: auth.organization.name,
+        dealershipName: displayDealershipName(auth.organization.name),
         phone: auth.organization.phone,
         bodyStyle: vehicle.bodyStyle,
         condition: vehicle.condition,

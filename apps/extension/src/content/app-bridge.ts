@@ -1,3 +1,5 @@
+import { isSuiviaWebOrigin } from "@okauto/shared";
+
 interface MarketplaceVehicle {
   id: string;
   vin?: string | null;
@@ -47,19 +49,41 @@ function validVehicle(value: unknown): value is MarketplaceVehicle {
   );
 }
 
+function echoNonce(data: { nonce?: unknown }): { nonce?: string } {
+  return typeof data.nonce === "string" ? { nonce: data.nonce } : {};
+}
+
 window.addEventListener("message", (event) => {
-  if (event.source !== window || event.origin !== window.location.origin)
+  if (event.source !== window) return;
+  if (!isSuiviaWebOrigin(event.origin) || event.origin !== window.location.origin)
     return;
   if (event.data?.source !== APP_MESSAGE_SOURCE) return;
 
   if (event.data.type === "OKAUTO_EXTENSION_PING") {
-    announce("OKAUTO_EXTENSION_READY");
+    announce("OKAUTO_EXTENSION_READY", echoNonce(event.data));
+    return;
+  }
+
+  if (event.data.type === "OKAUTO_RELIER_LISTINGS") {
+    chrome.runtime.sendMessage({ type: "RELIER_LISTINGS" }, (response) => {
+      announce("OKAUTO_RELIER_RESULT", {
+        ...echoNonce(event.data),
+        success: Boolean(response?.success),
+        openedSellingPage: Boolean(response?.openedSellingPage),
+        counts: response?.counts,
+        results: response?.results,
+        error: chrome.runtime.lastError
+          ? "Relier mes annonces n’a pas pu joindre l’extension. Rechargez Suivia, puis réessayez."
+          : response?.error,
+      });
+    });
     return;
   }
 
   if (event.data.type !== "OKAUTO_START_MARKETPLACE") return;
   if (!validVehicle(event.data.vehicle)) {
     announce("OKAUTO_EXTENSION_RESULT", {
+      ...echoNonce(event.data),
       success: false,
       error: "La fiche véhicule est incomplète.",
     });
@@ -70,6 +94,7 @@ window.addEventListener("message", (event) => {
     { type: "START_MARKETPLACE", vehicle: event.data.vehicle },
     (response) => {
       announce("OKAUTO_EXTENSION_RESULT", {
+        ...echoNonce(event.data),
         success: Boolean(response?.success),
         error: chrome.runtime.lastError
           ? "Marketplace n’a pas pu être ouvert. Rechargez Suivia, puis réessayez."

@@ -14,18 +14,18 @@ Laissez le terminal ouvert, puis ouvrez <http://localhost:3000>.
 
 Le guide local utilise `owner@demo.okauto.local`. Le mot de passe n’est **pas** destiné à la production : le seed est bloqué lorsque `NODE_ENV=production`.
 
-Le démarrage lance PostgreSQL, Redis, le site, la synchronisation BuckinghamGM et construit l’assistant Chrome.
+Le démarrage lance PostgreSQL, Redis, le site, la synchronisation inventaire et construit l’assistant Chrome.
 
 ## Routine recommandée
 
-1. Ouvrez **Vue du matin** et confirmez que BuckinghamGM est « Opérationnelle ».
+1. Ouvrez **Vue du matin** et confirmez que la synchro est « Opérationnelle ».
 2. Traitez d’abord la file **À retirer** dans **Publications**.
 3. Dans **À préparer**, recherchez un numéro de stock, un NIV, une marque ou un modèle.
 4. Cliquez **Publier**, puis vérifiez le prix, le kilométrage, le stock, le NIV et la photo.
 5. Cliquez **Publier sur Marketplace**. Avec l’assistant Chrome, Facebook s’ouvre avec les champs et la photo principale préparés. Sans l’assistant, Suivia Auto copie le contenu et télécharge la photo automatiquement.
 6. Vérifiez l’annonce dans Facebook, complétez seulement les champs encore demandés, puis cliquez **Publier**.
 7. Ouvrez ensuite l’annonce publiée, copiez son URL `/marketplace/item/...`, revenez dans Suivia Auto et cliquez **Marquer comme publiée**.
-8. Lorsqu’un véhicule disparaît de BuckinghamGM, Suivia Auto place son annonce dans **À retirer**. Retirez-la sur Facebook, puis confirmez le retrait dans Suivia Auto.
+8. Lorsqu’un véhicule disparaît du flux concessionnaire, Suivia Auto place son annonce dans **À retirer**. Retirez-la sur Facebook, puis confirmez le retrait dans Suivia Auto.
 
 ## Limite Meta à respecter
 

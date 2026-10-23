@@ -9,14 +9,14 @@ describe("marketplaceUrlFromMetadata", () => {
       }),
     ).toEqual({
       externalId: "424242",
-      externalUrl: "https://www.facebook.com/marketplace/item/424242",
+      externalUrl: "https://www.facebook.com/marketplace/item/424242/",
     });
   });
 
   it("accepts an item ID when the URL is missing", () => {
     expect(marketplaceUrlFromMetadata({ externalId: "424242" })).toEqual({
       externalId: "424242",
-      externalUrl: "https://www.facebook.com/marketplace/item/424242",
+      externalUrl: "https://www.facebook.com/marketplace/item/424242/",
     });
   });
 

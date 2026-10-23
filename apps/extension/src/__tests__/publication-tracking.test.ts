@@ -24,7 +24,7 @@ describe('publication tracking', () => {
     expect(shouldBulkRelierOnTabUrl('https://www.facebook.com/marketplace/you/selling')).toBe(true);
     expect(shouldBulkRelierOnTabUrl('https://www.facebook.com/marketplace/you')).toBe(true);
     expect(shouldBulkRelierOnTabUrl('https://www.facebook.com/marketplace')).toBe(false);
-    expect(shouldBulkRelierOnTabUrl('https://www.facebook.com/marketplace/item/123')).toBe(false);
+    expect(shouldBulkRelierOnTabUrl('https://www.facebook.com/marketplace/item/123')).toBe(true);
     expect(shouldBulkRelierOnTabUrl('https://www.facebook.com/marketplace/search/?query=honda')).toBe(false);
   });
 

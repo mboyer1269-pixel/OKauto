@@ -20,6 +20,7 @@ interface ApiKey {
   name: string;
   keyPrefix: string;
   lastUsedAt: string | null;
+  revokedAt: string | null;
   isActive: boolean;
   createdAt: string;
   user: { name: string };
@@ -100,6 +101,28 @@ function ApiKeysContent() {
       window.setTimeout(() => setCopied(false), 1800);
     } catch {
       setError("Chrome a bloqué la copie. Sélectionnez la clé manuellement.");
+    }
+  };
+
+  const handleCleanup = async () => {
+    setSaving(true);
+    setError("");
+    try {
+      const response = await apiFetch("/api/v1/admin/api-keys/cleanup", {
+        method: "POST",
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok)
+        throw new Error(data.error ?? "Le nettoyage a échoué.");
+      await load();
+    } catch (cleanupError) {
+      setError(
+        cleanupError instanceof Error
+          ? cleanupError.message
+          : "Le nettoyage a échoué.",
+      );
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -280,15 +303,25 @@ function ApiKeysContent() {
               Révoquez une clé si un ordinateur change de propriétaire.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => void load()}
-            className="btn-secondary px-3"
-            aria-label="Actualiser les clés"
-            disabled={loading}
-          >
-            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => void handleCleanup()}
+              className="btn-secondary px-3"
+              disabled={saving || keys.every((key) => key.isActive)}
+            >
+              Nettoyer les révoquées
+            </button>
+            <button
+              type="button"
+              onClick={() => void load()}
+              className="btn-secondary px-3"
+              aria-label="Actualiser les clés"
+              disabled={loading}
+            >
+              <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+            </button>
+          </div>
         </div>
 
         {loading ? (

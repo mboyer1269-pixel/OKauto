@@ -270,4 +270,4 @@ Jamais en production. `NODE_ENV=production` bloque le seed sauf `ALLOW_DEMO_SEED
 | Manager | manager@demo.okauto.local |
 | Salesperson | sales@demo.okauto.local |
 
-Organisation locale : **Buckingham Chevrolet Buick GMC** (véhicules d’exemple). Le mot de passe n’est imprimé que par `pnpm db:seed`.
+Organisation locale : **Suivia Auto** (véhicules d’exemple). Le mot de passe n’est imprimé que par `pnpm db:seed`.

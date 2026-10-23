@@ -823,7 +823,7 @@ describe("listing schema", () => {
       ),
     ).toBeNull();
     expect(facebookMarketplaceItemUrl("987654321")).toBe(
-      "https://www.facebook.com/marketplace/item/987654321",
+      "https://www.facebook.com/marketplace/item/987654321/",
     );
     expect(
       canonicalMarketplaceListingFields(
@@ -831,7 +831,7 @@ describe("listing schema", () => {
       ),
     ).toEqual({
       externalId: "424242",
-      externalUrl: "https://www.facebook.com/marketplace/item/424242",
+      externalUrl: "https://www.facebook.com/marketplace/item/424242/",
     });
     expect(
       listingExternalIdentityFromUrl(
@@ -839,7 +839,7 @@ describe("listing schema", () => {
       ),
     ).toEqual({
       externalId: "424242",
-      externalUrl: "https://www.facebook.com/marketplace/item/424242",
+      externalUrl: "https://www.facebook.com/marketplace/item/424242/",
     });
     expect(listingExternalIdentityFromUrl(null)).toEqual({
       externalId: null,
@@ -919,12 +919,14 @@ describe("listing match from Marketplace copy", () => {
         linked: 40,
         alreadyLinked: 5,
         unmatched: 4,
+        needsConfirmation: 2,
         error: 1,
       }),
     ).toEqual({
       linked: 40,
       alreadyLinked: 5,
       unmatched: 4,
+      needsConfirmation: 2,
       error: 1,
     });
     expect(() =>
@@ -934,6 +936,28 @@ describe("listing match from Marketplace copy", () => {
         })),
       }),
     ).toThrow();
+  });
+
+  it("returns an approximate title match only with confirmation", () => {
+    const match = matchListingToVehicle(vehicles, {
+      title: "2022 Honda Accord Sport",
+    });
+    expect(match).toEqual({
+      vehicle: vehicles[0],
+      reason: "approx",
+      needsConfirmation: true,
+    });
+    expect(
+      matchListingToVehicle(vehicles, {
+        title: "2022 Honda Accord Sport",
+        vehicleId: "veh-accord",
+        confirmApprox: true,
+      }),
+    ).toEqual({
+      vehicle: vehicles[0],
+      reason: "approx",
+      needsConfirmation: false,
+    });
   });
 
   it("prefers an explicit vehicleId and ignores other hints", () => {
@@ -966,7 +990,7 @@ describe("listing match from Marketplace copy", () => {
     ).toEqual([
       {
         externalId: "111",
-        externalUrl: "https://www.facebook.com/marketplace/item/111",
+        externalUrl: "https://www.facebook.com/marketplace/item/111/",
         title: "Honda",
         text: "Stock U17404",
       },

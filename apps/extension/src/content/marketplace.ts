@@ -11,7 +11,15 @@ import {
   withStockInTitle,
 } from "@okauto/shared";
 import {
+  assignFilesToInput,
+  photoResponseToFile,
+  waitForPhotoFileInput,
+  waitForPhotoThumbnails,
+  waitForPredicate,
+} from "../marketplace-photos";
+import {
   createPendingPublication,
+  detectMarketplaceSession,
   isMarketplaceCreateUrl,
   isMarketplaceItemUrl,
   isMarketplaceSellingUrl,
@@ -130,8 +138,6 @@ const SELECTORS = {
     ],
     photo: [
       'input[type="file"][accept*="image"]',
-      'input[type="file"][multiple]',
-      'input[type="file"]',
     ],
     vin: [
       'input[aria-label*="VIN" i]',
@@ -187,13 +193,10 @@ async function waitForElement(
   labels: string[] = [],
   timeoutMs = 3500,
 ) {
-  const startedAt = Date.now();
-  while (Date.now() - startedAt < timeoutMs) {
-    const element = findElement(selectors, labels);
-    if (element) return element;
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-  return null;
+  const existing = findElement(selectors, labels);
+  if (existing) return existing;
+  await waitForPredicate(() => findElement(selectors, labels) != null, timeoutMs);
+  return findElement(selectors, labels);
 }
 
 function setInputValue(el: HTMLElement, value: string) {
@@ -233,27 +236,16 @@ interface PhotoResponse {
   filename?: string;
 }
 
-function photoResponseToFile(response: PhotoResponse, fallbackName: string) {
-  if (!response.success || !response.base64) return null;
-
-  const binary = atob(response.base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index);
+async function attachVehiclePhotos(vehicle: VehiclePayload) {
+  const input = await waitForPhotoFileInput(8000);
+  if (!(input instanceof HTMLInputElement)) {
+    return {
+      attached: 0,
+      requested: 0,
+      inputFound: false,
+      step: "find_photo_input",
+    };
   }
-
-  return new File([bytes], response.filename ?? fallbackName, {
-    type: response.contentType ?? "image/jpeg",
-  });
-}
-
-async function attachVehiclePhotos(
-  vehicle: VehiclePayload,
-  selectors: string[],
-) {
-  const input = await waitForElement(selectors);
-  if (!(input instanceof HTMLInputElement))
-    return { attached: 0, requested: 0, inputFound: false };
 
   const requested = Math.min(vehicle.photos?.length ?? 0, 20);
   const responses: PhotoResponse[] = Array.from({ length: requested });
@@ -267,7 +259,7 @@ async function attachVehiclePhotos(
           type: "GET_VEHICLE_PHOTO",
           vehicleId: vehicle.id,
           index,
-        }).catch(() => ({ success: false }));
+        }).catch(() => ({ success: false, error: "fetch_photos" }));
       }
     }),
   );
@@ -279,14 +271,33 @@ async function attachVehiclePhotos(
       ),
     )
     .filter((file): file is File => file != null);
-  if (files.length === 0) return { attached: 0, requested, inputFound: true };
+  if (files.length === 0) {
+    return {
+      attached: 0,
+      requested,
+      inputFound: true,
+      step: "fetch_photos",
+    };
+  }
 
-  const transfer = new DataTransfer();
-  files.forEach((file) => transfer.items.add(file));
-  input.files = transfer.files;
-  input.dispatchEvent(new Event("input", { bubbles: true }));
-  input.dispatchEvent(new Event("change", { bubbles: true }));
-  return { attached: files.length, requested, inputFound: true };
+  const assigned = assignFilesToInput(input, files);
+  if (assigned === 0) {
+    return {
+      attached: 0,
+      requested,
+      inputFound: true,
+      step: "assign_files",
+    };
+  }
+
+  const thumbnails = await waitForPhotoThumbnails(assigned, 8000);
+  return {
+    attached: assigned,
+    requested,
+    inputFound: true,
+    thumbnails,
+    step: thumbnails > 0 ? "verify_thumbnails" : "verify_thumbnails",
+  };
 }
 
 function normalizeOptionText(value: string) {
@@ -631,9 +642,9 @@ async function fillForm(vehicle: VehiclePayload): Promise<FillReport> {
     currentStep = "attach_photos";
     if (vehicle.photos?.length) {
       try {
-        const photoResult = await attachVehiclePhotos(vehicle, selectors.photo);
+        const photoResult = await attachVehiclePhotos(vehicle);
         if (!photoResult.inputFound) {
-          report.issues.push(missingFieldIssue("photos", "find_photo_input"));
+          report.issues.push(missingFieldIssue("photos", photoResult.step));
         } else if (photoResult.attached > 0) {
           report.filled.push(
             `${photoResult.attached} photo${photoResult.attached > 1 ? "s" : ""}`,
@@ -641,18 +652,25 @@ async function fillForm(vehicle: VehiclePayload): Promise<FillReport> {
           if (photoResult.attached < photoResult.requested) {
             report.issues.push({
               field: "photos",
-              step: "attach_photos",
+              step: photoResult.step,
               reason: "partial",
-              message: `${photoResult.requested - photoResult.attached} photo(s) à ajouter manuellement (étape attach_photos).`,
+              message: `${photoResult.requested - photoResult.attached} photo(s) à ajouter manuellement (étape ${photoResult.step}).`,
+            });
+          } else if ((photoResult.thumbnails ?? 0) === 0) {
+            report.issues.push({
+              field: "photos",
+              step: "verify_thumbnails",
+              reason: "partial",
+              message:
+                "Fichiers joints, mais aucune vignette Marketplace n’est apparue (étape verify_thumbnails).",
             });
           }
         } else {
           report.issues.push({
             field: "photos",
-            step: "attach_photos",
+            step: photoResult.step,
             reason: "partial",
-            message:
-              "Champ Photos trouvé, mais aucune photo n’a pu être jointe (étape attach_photos).",
+            message: `Champ Photos trouvé, mais aucune photo n’a pu être jointe (étape ${photoResult.step}).`,
           });
         }
       } catch (error) {
@@ -887,7 +905,37 @@ function beginPendingFlow(pending: PendingPublication<VehiclePayload>) {
   }
 
   if (isMarketplaceCreateUrl(window.location.href)) {
-    window.setTimeout(() => {
+    void waitForPredicate(
+      () =>
+        Boolean(
+          document.querySelector(
+            '[role="combobox"][aria-label*="Type de véhicule" i], [role="combobox"][aria-label*="Vehicle type" i], input[type="file"][accept*="image"]',
+          ),
+        ),
+      12000,
+    ).then((ready) => {
+      if (!ready) {
+        const report: FillReport = {
+          filled: [],
+          issues: [
+            exceptionIssue(
+              "vehicleType",
+              "wait_create_form",
+              "Le formulaire Marketplace n’est pas apparu. Connectez-vous à Facebook, puis réessayez.",
+            ),
+          ],
+        };
+        mountAssistBanner(
+          pending.vehicle,
+          formatFatalBanner(
+            report,
+            "Le formulaire Marketplace n’est pas apparu. Connectez-vous à Facebook, puis réessayez.",
+          ),
+          { tone: "red" },
+        );
+        reportFillTelemetry(pending.vehicle.id, report);
+        return;
+      }
       prepareMarketplaceForm(pending.vehicle, pending.startedAt).catch(
         (error) => {
           const fallback =
@@ -912,7 +960,7 @@ function beginPendingFlow(pending: PendingPublication<VehiclePayload>) {
           reportFillTelemetry(pending.vehicle.id, report);
         },
       );
-    }, 1200);
+    });
   }
 }
 
@@ -967,6 +1015,7 @@ function formatRelierSummary(data: {
     linked?: number;
     alreadyLinked?: number;
     unmatched?: number;
+    needsConfirmation?: number;
     error?: number;
   };
   results?: Array<{
@@ -983,6 +1032,7 @@ function formatRelierSummary(data: {
   const linked = counts.linked ?? 0;
   const already = counts.alreadyLinked ?? 0;
   const unmatched = counts.unmatched ?? 0;
+  const needsConfirmation = counts.needsConfirmation ?? 0;
   const errors = counts.error ?? 0;
   const parts = [
     linked === 1 ? "1 annonce reliée" : `${linked} annonces reliées`,
@@ -995,6 +1045,11 @@ function formatRelierSummary(data: {
       ? unmatched === 1
         ? "1 sans correspondance"
         : `${unmatched} sans correspondance`
+      : null,
+    needsConfirmation > 0
+      ? needsConfirmation === 1
+        ? "1 correspondance approximative à confirmer"
+        : `${needsConfirmation} correspondances approximatives à confirmer`
       : null,
     errors > 0 ? `${errors} en erreur` : null,
   ].filter(Boolean);
@@ -1017,12 +1072,21 @@ async function relierMarketplaceListings() {
     make: "Suivia",
     model: "Auto",
   };
-  if (!isMarketplaceSellingUrl(window.location.href)) {
+  const session = detectMarketplaceSession(document);
+  if (session === "logged_out") {
     return {
       success: false,
       listings: [],
       error:
-        "Ouvrez « Vos annonces » (Marketplace → Vous), puis relancez Relier mes annonces.",
+        "Connectez-vous à Facebook dans cet onglet, puis relancez Relier mes annonces. Sans session, Marketplace est vide.",
+    };
+  }
+  if (!isMarketplaceSellingUrl(window.location.href) && !isMarketplaceItemUrl(window.location.href)) {
+    return {
+      success: false,
+      listings: [],
+      error:
+        "Ouvrez « Vos annonces » (Marketplace → Vous) dans cet onglet Facebook connecté, puis relancez Relier mes annonces.",
     };
   }
   const { banner, status } = mountAssistBanner(
@@ -1030,12 +1094,25 @@ async function relierMarketplaceListings() {
     "Lecture de vos annonces Marketplace…",
   );
 
+  await waitForPredicate(
+    () =>
+      detectMarketplaceSession(document) === "logged_in" ||
+      document.querySelectorAll('a[href*="/marketplace/item/"]').length > 0,
+    8000,
+  );
   const listings = await collectMarketplaceListingsUntilStable();
   if (listings.length === 0) {
     banner.style.background = "#b91c1c";
+    const laterSession = detectMarketplaceSession(document);
     status.textContent =
-      "Aucune annonce trouvée. Ouvrez « Vos annonces » (Marketplace → Vous), puis relancez Relier mes annonces.";
-    return { success: false, listings: [] };
+      laterSession === "logged_out"
+        ? "Connectez-vous à Facebook dans cet onglet, puis relancez Relier mes annonces. Sans session, Marketplace est vide."
+        : "Aucune annonce trouvée. Ouvrez « Vos annonces » (Marketplace → Vous) une fois connecté, puis relancez Relier mes annonces.";
+    return {
+      success: false,
+      listings: [],
+      error: status.textContent,
+    };
   }
 
   status.textContent = `${listings.length} annonce${listings.length > 1 ? "s" : ""} trouvée${listings.length > 1 ? "s" : ""}. Correspondance avec l’inventaire Suivia…`;
@@ -1047,6 +1124,7 @@ async function relierMarketplaceListings() {
       linked?: number;
       alreadyLinked?: number;
       unmatched?: number;
+      needsConfirmation?: number;
       error?: number;
     };
     results?: Array<{
@@ -1093,7 +1171,9 @@ async function relierMarketplaceListings() {
   }
 
   const unmatched = response.counts?.unmatched ?? 0;
-  banner.style.background = unmatched > 0 ? "#1e40af" : "#047857";
+  const needsConfirmation = response.counts?.needsConfirmation ?? 0;
+  banner.style.background =
+    unmatched > 0 || needsConfirmation > 0 ? "#1e40af" : "#047857";
   status.textContent = formatRelierSummary(response);
   return response;
 }
@@ -1156,11 +1236,15 @@ chrome.storage.local.get(
   (result) => {
     if (result[PENDING_RELIER_KEY]) {
       chrome.storage.local.remove([PENDING_RELIER_KEY]);
-      if (isMarketplaceSellingUrl(window.location.href)) {
-        window.setTimeout(() => {
-          void relierMarketplaceListings();
-        }, 1200);
-      }
+      void waitForPredicate(
+        () =>
+          detectMarketplaceSession(document) !== "unknown" ||
+          isMarketplaceSellingUrl(window.location.href) ||
+          isMarketplaceItemUrl(window.location.href),
+        10000,
+      ).then(() => {
+        void relierMarketplaceListings();
+      });
     }
     let pending = result[PENDING_PUBLICATION_KEY] as
       PendingPublication<VehiclePayload> | undefined;

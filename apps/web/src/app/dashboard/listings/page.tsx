@@ -140,7 +140,7 @@ type InventoryType = "" | "NEW" | "USED" | "DEMO";
 const MARKETPLACE_CREATE_URL =
   "https://www.facebook.com/marketplace/create/vehicle";
 const MARKETPLACE_CONTACT_NAME =
-  process.env.NEXT_PUBLIC_MARKETPLACE_CONTACT_NAME?.trim() || "Michael Boyer";
+  process.env.NEXT_PUBLIC_MARKETPLACE_CONTACT_NAME?.trim() || "";
 const APP_MESSAGE_SOURCE = "okauto-web";
 
 function marketplaceListingVehicle(
@@ -273,6 +273,8 @@ function ListingsContent() {
   const [savedDraft, setSavedDraft] = useState<DraftEdit | null>(null);
   const [launchingMarketplace, setLaunchingMarketplace] = useState(false);
   const [extensionConnected, setExtensionConnected] = useState(false);
+  const [bridgeNonce, setBridgeNonce] = useState("");
+  const [relierBusy, setRelierBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [copied, setCopied] = useState("");
@@ -489,10 +491,13 @@ function ListingsContent() {
   }, [selected]);
 
   useEffect(() => {
+    const nonce = crypto.randomUUID();
+    setBridgeNonce(nonce);
     const handleExtensionMessage = (event: MessageEvent) => {
       if (event.source !== window || event.origin !== window.location.origin)
         return;
       if (event.data?.source !== EXTENSION_MESSAGE_SOURCE) return;
+      if (event.data.nonce && event.data.nonce !== nonce) return;
 
       if (event.data.type === "OKAUTO_EXTENSION_READY") {
         setExtensionConnected(true);
@@ -508,16 +513,33 @@ function ListingsContent() {
           setError(event.data.error ?? "Marketplace n’a pas pu être ouvert.");
         }
       }
+      if (event.data.type === "OKAUTO_RELIER_RESULT") {
+        setRelierBusy(false);
+        if (event.data.success) {
+          setError("");
+          setMessage(
+            event.data.openedSellingPage
+              ? "Onglet Facebook ouvert. Connectez-vous si besoin : Relier lira vos annonces dans cet onglet."
+              : "Relier mes annonces a été lancé dans votre onglet Facebook connecté.",
+          );
+          void refreshListings(true);
+        } else {
+          setError(
+            event.data.error ??
+              "Relier mes annonces a échoué. Ouvrez Facebook connecté, puis réessayez.",
+          );
+        }
+      }
     };
 
     window.addEventListener("message", handleExtensionMessage);
     window.postMessage(
-      { source: APP_MESSAGE_SOURCE, type: "OKAUTO_EXTENSION_PING" },
+      { source: APP_MESSAGE_SOURCE, type: "OKAUTO_EXTENSION_PING", nonce },
       window.location.origin,
     );
     const retry = window.setTimeout(() => {
       window.postMessage(
-        { source: APP_MESSAGE_SOURCE, type: "OKAUTO_EXTENSION_PING" },
+        { source: APP_MESSAGE_SOURCE, type: "OKAUTO_EXTENSION_PING", nonce },
         window.location.origin,
       );
     }, 800);
@@ -526,7 +548,7 @@ function ListingsContent() {
       window.clearTimeout(retry);
       window.removeEventListener("message", handleExtensionMessage);
     };
-  }, []);
+  }, [refreshListings]);
 
   const activeVehicleIds = useMemo(
     () =>
@@ -945,6 +967,7 @@ function ListingsContent() {
       {
         source: APP_MESSAGE_SOURCE,
         type: "OKAUTO_START_MARKETPLACE",
+        nonce: bridgeNonce || crypto.randomUUID(),
         vehicle: {
           ...selected,
           price: selected.price == null ? null : Number(selected.price),
@@ -1114,6 +1137,31 @@ function ListingsContent() {
                   ? "Assistant connecté"
                   : "Mode rapide sans extension"}
               </span>
+              <button
+                type="button"
+                className="rounded-full border border-white/15 px-3 py-1 text-xs font-bold text-sidebar-foreground hover:border-sidebar-accent"
+                onClick={() => {
+                  if (!extensionConnected) {
+                    setError(
+                      "Installez l’extension Suivia, puis ouvrez un onglet Facebook Marketplace connecté. Relier lit les annonces dans cet onglet — hors session, la page est vide.",
+                    );
+                    return;
+                  }
+                  setRelierBusy(true);
+                  const nonce = bridgeNonce || crypto.randomUUID();
+                  window.postMessage(
+                    {
+                      source: APP_MESSAGE_SOURCE,
+                      type: "OKAUTO_RELIER_LISTINGS",
+                      nonce,
+                    },
+                    window.location.origin,
+                  );
+                }}
+                disabled={relierBusy}
+              >
+                {relierBusy ? "Relier…" : "Relier mes annonces"}
+              </button>
             </div>
             <h1 className="mt-3 max-w-3xl text-2xl font-black leading-tight tracking-[-0.035em] sm:text-3xl">
               Centre de publication Marketplace
@@ -1945,7 +1993,7 @@ function ListingsContent() {
                   <input
                     type="url"
                     className="input"
-                    placeholder="https://www.facebook.com/marketplace/item/…"
+                    placeholder="https://www.facebook.com/marketplace/item/123456789/"
                     value={externalUrl}
                     onChange={(event) => setExternalUrl(event.target.value)}
                   />

@@ -24,63 +24,14 @@ export function hasMinRole(
   return ROLE_HIERARCHY[userRole] >= ROLE_HIERARCHY[requiredRole];
 }
 
-export function extractFacebookMarketplaceItemId(
-  value: string,
-): string | null {
-  try {
-    const url = new URL(value);
-    const hostname = url.hostname.toLowerCase();
-    const isFacebookHost =
-      hostname === "facebook.com" || hostname.endsWith(".facebook.com");
-    if (!isFacebookHost) return null;
-    const match = url.pathname.match(/^\/marketplace\/item\/([^/]+)/i);
-    const id = match?.[1] ? decodeURIComponent(match[1]).trim() : "";
-    return id || null;
-  } catch {
-    return null;
-  }
-}
-
-export function facebookMarketplaceItemUrl(itemId: string): string {
-  return `https://www.facebook.com/marketplace/item/${itemId}`;
-}
-
-export function isFacebookMarketplaceItemUrl(value: string): boolean {
-  try {
-    const url = new URL(value);
-    return (
-      url.protocol === "https:" &&
-      extractFacebookMarketplaceItemId(value) != null
-    );
-  } catch {
-    return false;
-  }
-}
-
-export function canonicalMarketplaceListingFields(
-  externalUrl: string,
-): { externalId: string; externalUrl: string } | null {
-  const externalId = extractFacebookMarketplaceItemId(externalUrl);
-  if (!externalId) return null;
-  return {
-    externalId,
-    externalUrl: facebookMarketplaceItemUrl(externalId),
-  };
-}
-
-export function listingExternalIdentityFromUrl(
-  externalUrl: string | null,
-): { externalId: string | null; externalUrl: string | null } {
-  if (externalUrl == null) {
-    return { externalId: null, externalUrl: null };
-  }
-  return (
-    canonicalMarketplaceListingFields(externalUrl) ?? {
-      externalId: null,
-      externalUrl,
-    }
-  );
-}
+export {
+  canonicalMarketplaceListingFields,
+  extractFacebookMarketplaceItemId,
+  facebookMarketplaceItemUrl,
+  isFacebookMarketplaceItemUrl,
+  isSuiviaWebOrigin,
+  listingExternalIdentityFromUrl,
+} from "./marketplace-url";
 
 export const VehicleStatus = {
   AVAILABLE: "AVAILABLE",
@@ -257,6 +208,7 @@ export const linkListingsSchema = z.object({
         title: z.string().trim().max(200).optional(),
         text: z.string().trim().max(4000).optional(),
         vehicleId: z.string().min(1).optional(),
+        confirmApprox: z.boolean().optional(),
       }),
     )
     .min(1)
@@ -322,6 +274,9 @@ export const updateOrganizationSchema = z.object({
   acExciseFee: z.number().min(0).max(5000).optional().nullable(),
   metaCatalogStateForDemo: z.enum(["Used", "New"]).optional(),
   includeCarfaxSourceUrl: z.boolean().optional(),
+  logoUrl: z.string().url().optional().nullable(),
+  brands: z.array(z.string().trim().min(1).max(80)).max(20).optional(),
+  dealerCodes: z.array(z.string().trim().min(1).max(40)).max(20).optional(),
 });
 
 export const decodeVinRequestSchema = z.object({
@@ -387,49 +342,10 @@ const optionalEmail = z.preprocess(
   z.string().trim().email().nullable().optional(),
 );
 
-export const createLeadSchema = z.object({
-  name: z.string().trim().min(1).max(120),
-  phone: z.string().trim().max(30).optional().nullable(),
-  email: optionalEmail,
-  message: z.string().trim().max(4000).optional().nullable(),
-  source: z
-    .enum(["MARKETPLACE", "PHONE", "WALK_IN", "OTHER"])
-    .default("MARKETPLACE"),
-  vehicleId: z.string().optional().nullable(),
-  listingId: z.string().optional().nullable(),
-  assignedToId: z.string().optional().nullable(),
-  nextFollowUpAt: z.string().datetime().optional().nullable(),
-});
-
-export const updateLeadSchema = z.object({
-  name: z.string().trim().min(1).max(120).optional(),
-  phone: z.string().trim().max(30).optional().nullable(),
-  email: optionalEmail,
-  message: z.string().trim().max(4000).optional().nullable(),
-  source: z.enum(["MARKETPLACE", "PHONE", "WALK_IN", "OTHER"]).optional(),
-  status: z
-    .enum(["NEW", "CONTACTED", "APPOINTMENT", "SOLD", "LOST"])
-    .optional(),
-  vehicleId: z.string().optional().nullable(),
-  listingId: z.string().optional().nullable(),
-  assignedToId: z.string().optional().nullable(),
-  nextFollowUpAt: z.string().datetime().optional().nullable(),
-});
-
-export const leadQuerySchema = z.object({
-  status: z
-    .enum(["NEW", "CONTACTED", "APPOINTMENT", "SOLD", "LOST"])
-    .optional(),
-  search: z.string().optional(),
-  page: z.coerce.number().int().min(1).default(1),
-  limit: z.coerce.number().int().min(1).max(100).default(50),
-});
-
 export type CreateSyncSourceInput = z.infer<typeof createSyncSourceSchema>;
 export type UpdateSyncSourceInput = z.infer<typeof updateSyncSourceSchema>;
-export type CreateLeadInput = z.infer<typeof createLeadSchema>;
-export type UpdateLeadInput = z.infer<typeof updateLeadSchema>;
 
+export * from "./dealership";
 export * from "./description";
 export * from "./listing-match";
 export * from "./pricing";

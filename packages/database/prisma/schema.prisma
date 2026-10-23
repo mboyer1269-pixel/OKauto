@@ -45,21 +45,6 @@ enum NotificationType {
   SYSTEM
 }
 
-enum LeadStatus {
-  NEW
-  CONTACTED
-  APPOINTMENT
-  SOLD
-  LOST
-}
-
-enum LeadSource {
-  MARKETPLACE
-  PHONE
-  WALK_IN
-  OTHER
-}
-
 enum FeedAbsenceStatus {
   IN_FEED
   PENDING_REVIEW
@@ -97,8 +82,6 @@ model User {
   auditLogs                 AuditLog[]
   apiKeys                   ApiKey[]
   importJobs                ImportJob[]
-  createdLeads              MarketplaceLead[]    @relation("LeadCreatedBy")
-  assignedLeads             MarketplaceLead[]    @relation("LeadAssignedTo")
   provisionedByOrganization Organization?        @relation("ProvisionedUsers", fields: [provisionedByOrganizationId], references: [id], onDelete: SetNull)
   sentInvites               OrganizationInvite[] @relation("OrganizationInvitesSent")
 
@@ -133,8 +116,11 @@ model Organization {
   metaCatalogFeedToken           String?   @unique
   metaCatalogStateForDemo        String    @default("Used")
   includeCarfaxSourceUrl         Boolean   @default(false)
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  logoUrl              String?
+  brands               String[]  @default([])
+  dealerCodes          String[]  @default([])
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   members           OrganizationMember[]
   invites           OrganizationInvite[]
@@ -142,7 +128,6 @@ model Organization {
   vehicles          Vehicle[]
   listings          Listing[]
   marketplaceDrafts MarketplaceDraft[]
-  marketplaceLeads  MarketplaceLead[]
   syncSources       SyncSource[]
   importJobs        ImportJob[]
   syncRuns          SyncRun[]
@@ -249,7 +234,6 @@ model Vehicle {
   photos            VehiclePhoto[]
   listings          Listing[]
   marketplaceDrafts MarketplaceDraft[]
-  marketplaceLeads  MarketplaceLead[]
 
   @@unique([organizationId, vin])
   @@index([organizationId, status])
@@ -305,7 +289,6 @@ model Listing {
   vehicle          Vehicle           @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
   user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   events           ListingEvent[]
-  marketplaceLeads MarketplaceLead[]
 
   @@index([organizationId, status])
   @@index([userId])
@@ -343,35 +326,6 @@ model MarketplaceDraft {
   @@index([userId, updatedAt])
   @@index([vehicleId])
   @@map("marketplace_drafts")
-}
-
-model MarketplaceLead {
-  id             String     @id @default(cuid())
-  organizationId String
-  vehicleId      String?
-  listingId      String?
-  createdById    String
-  assignedToId   String?
-  name           String
-  phone          String?
-  email          String?
-  message        String?    @db.Text
-  source         LeadSource @default(MARKETPLACE)
-  status         LeadStatus @default(NEW)
-  nextFollowUpAt DateTime?
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
-
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  vehicle      Vehicle?     @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
-  listing      Listing?     @relation(fields: [listingId], references: [id], onDelete: SetNull)
-  createdBy    User         @relation("LeadCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
-  assignedTo   User?        @relation("LeadAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
-
-  @@index([organizationId, status, createdAt])
-  @@index([assignedToId])
-  @@index([vehicleId])
-  @@map("marketplace_leads")
 }
 
 model ListingEvent {
@@ -483,6 +437,7 @@ model ApiKey {
   keyPrefix      String
   lastUsedAt     DateTime?
   expiresAt      DateTime?
+  revokedAt      DateTime?
   isActive       Boolean   @default(true)
   createdAt      DateTime  @default(now())
 

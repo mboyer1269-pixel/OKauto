@@ -68,7 +68,7 @@ interface PublishQueue {
   remainingThisMonth: number;
   staleCount: number;
   dueForRenewalCount: number;
-  openLeadCount: number;
+  clientPresentCount: number;
   todayPicks: TodayPick[];
 }
 
@@ -186,8 +186,8 @@ function DashboardContent() {
             alert={(queue?.dueForRenewalCount ?? 0) > 0}
           />
           <HeroMetric
-            label="Leads ouverts"
-            value={queue?.openLeadCount ?? 0}
+            label="Clients présents"
+            value={queue?.clientPresentCount ?? 0}
           />
         </div>
       </section>
@@ -461,15 +461,15 @@ function DashboardContent() {
           <div className="card flex items-center gap-4 p-5">
             <MessageSquare className="text-muted-foreground" />
             <div>
-              <p className="text-sm text-muted-foreground">Leads ouverts</p>
+              <p className="text-sm text-muted-foreground">Clients présents</p>
               <p className="font-mono text-xl font-bold tabular-nums">
-                {formatNumber(queue?.openLeadCount ?? 0)}
+                {formatNumber(queue?.clientPresentCount ?? 0)}
               </p>
               <Link
-                href="/dashboard/leads"
+                href="/dashboard/inventory?status=PENDING"
                 className="text-sm font-semibold text-primary hover:underline"
               >
-                Ouvrir le carnet
+                Voir l’inventaire
               </Link>
             </div>
           </div>

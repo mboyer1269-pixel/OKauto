@@ -1,0 +1,1 @@
+Drop unused marketplace_leads CRM (product decision: no leads inbox). Requires pre-deploy R2 backup. App no longer reads this table.

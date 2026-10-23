@@ -7,9 +7,39 @@ import { authenticateExtensionApiKey } from '@/lib/extension-auth';
 
 const IMAGE_EXTENSIONS: Record<string, string> = {
   'image/jpeg': 'jpg',
+  'image/jpg': 'jpg',
+  'image/pjpeg': 'jpg',
   'image/png': 'png',
   'image/webp': 'webp',
+  'image/avif': 'avif',
+  'image/heic': 'heic',
+  'image/heif': 'heif',
 };
+
+async function fetchPublicImage(startUrl: URL) {
+  let current = startUrl;
+  for (let hop = 0; hop < 5; hop += 1) {
+    if (current.protocol !== 'https:' || isPrivateHostname(current.hostname)) {
+      return null;
+    }
+    const upstream = await fetch(current, {
+      headers: {
+        Accept: 'image/avif,image/webp,image/png,image/jpeg,image/heic,image/heif,*/*',
+        'User-Agent': 'Mozilla/5.0 OKauto/1.0',
+      },
+      redirect: 'manual',
+      cache: 'no-store',
+    });
+    if (upstream.status >= 300 && upstream.status < 400) {
+      const location = upstream.headers.get('location');
+      if (!location) return upstream;
+      current = new URL(location, current);
+      continue;
+    }
+    return upstream;
+  }
+  return null;
+}
 
 function isPrivateHostname(hostname: string) {
   const normalized = hostname.toLowerCase();
@@ -62,14 +92,8 @@ export async function GET(
       return apiError(ApiErrorCode.INSECURE_PHOTO_URL, 400);
     }
 
-    const upstream = await fetch(photoUrl, {
-      headers: {
-        Accept: 'image/avif,image/webp,image/png,image/jpeg,*/*',
-        'User-Agent': 'Mozilla/5.0 OKauto/1.0',
-      },
-      redirect: 'error',
-      cache: 'no-store',
-    });
+    const upstream = await fetchPublicImage(photoUrl);
+    if (!upstream) return apiError(ApiErrorCode.INSECURE_PHOTO_URL, 400);
     if (!upstream.ok) return apiError(ApiErrorCode.PHOTO_UNAVAILABLE, 502);
 
     const contentType = upstream.headers.get('content-type')?.split(';')[0].toLowerCase() ?? '';
