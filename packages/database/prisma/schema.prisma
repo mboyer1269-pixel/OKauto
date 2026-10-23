@@ -310,8 +310,11 @@ model Listing {
   @@index([organizationId, status])
   @@index([userId])
   @@index([vehicleId])
-  // Partial unique index (SQL migration): one ACTIVE listing per
-  // (organizationId, vehicleId, platform). Prisma cannot express WHERE status='ACTIVE'.
+  @@index([organizationId, externalId])
+  // Partial unique indexes (SQL migrations):
+  // - one ACTIVE listing per (organizationId, vehicleId, platform)
+  // - one ACTIVE Facebook item ID per organization
+  // Prisma cannot express WHERE status='ACTIVE'.
   @@map("listings")
 }
 

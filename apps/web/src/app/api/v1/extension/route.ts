@@ -65,6 +65,11 @@ export async function GET(request: NextRequest) {
               { make: { contains: search, mode: "insensitive" as const } },
               { model: { contains: search, mode: "insensitive" as const } },
               { trim: { contains: search, mode: "insensitive" as const } },
+              ...(Number.isInteger(Number(search)) &&
+              Number(search) >= 1900 &&
+              Number(search) <= 2100
+                ? [{ year: Number(search) }]
+                : []),
             ],
           }
         : {}),

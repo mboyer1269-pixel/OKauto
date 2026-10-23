@@ -5,6 +5,7 @@ import {
   generateMarketplaceTitle,
   listingDescriptionForExtension,
   resolveIncludeCarfaxSourceUrl,
+  withStockInTitle,
 } from "@okauto/shared";
 import { onSaleInventoryWhere } from "@/lib/on-sale-query";
 import { apiError, handleApiError, jsonResponse } from "@/lib/api";
@@ -99,7 +100,10 @@ export async function GET(
         drivetrain: vehicle.drivetrain,
         engine: vehicle.engine,
         features: vehicle.features,
-        title: draft?.title || generateMarketplaceTitle(marketplaceData),
+        title: withStockInTitle(
+          draft?.title || generateMarketplaceTitle(marketplaceData),
+          vehicle.stockNumber,
+        ),
         description: listingDescriptionForExtension(
           draft?.description,
           marketplaceData,

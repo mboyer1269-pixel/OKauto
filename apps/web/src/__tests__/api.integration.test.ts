@@ -16,6 +16,7 @@ import { GET as healthHandler } from "@/app/api/health/route";
 import { GET as extensionInventoryHandler } from "@/app/api/v1/extension/route";
 import { GET as extensionVehicleHandler } from "@/app/api/v1/extension/vehicles/[id]/route";
 import { POST as extensionEventHandler } from "@/app/api/v1/extension/events/route";
+import { POST as extensionLinkListingsHandler } from "@/app/api/v1/extension/link-listings/route";
 import {
   GET as apiKeysHandler,
   POST as createApiKeyHandler,
@@ -44,6 +45,8 @@ describe("API route handlers", () => {
   let extensionApiKeyId: string;
   let salespersonExtensionApiKeyId: string;
   let extensionVehicleId: string;
+  let extensionStockNumber: string;
+  let extensionVin: string;
   let demoVehicleId: string;
   let invitedMemberId: string;
   let dealerOrganizationId: string;
@@ -91,7 +94,8 @@ describe("API route handlers", () => {
     const vehicle = await prisma.vehicle.create({
       data: {
         organizationId: org.id,
-        stockNumber: `TEST-EXT-${Date.now()}`,
+        stockNumber: (extensionStockNumber = `TEST-EXT-${Date.now()}`),
+        vin: (extensionVin = `3GKALVEV0NL${String(Date.now()).slice(-6)}`),
         year: 2025,
         make: "GMC",
         model: "Terrain",
@@ -466,12 +470,14 @@ describe("API route handlers", () => {
     expect(secondResponse.status).toBe(200);
     expect(secondData.alreadyExists).toBe(true);
 
+    expect(firstData.externalId).toBe("123456789");
     const listing = await prisma.listing.findFirst({
       where: { vehicleId: extensionVehicleId, status: "ACTIVE" },
     });
     expect(listing?.externalUrl).toBe(
       "https://www.facebook.com/marketplace/item/123456789",
     );
+    expect(listing?.externalId).toBe("123456789");
     expect(listing?.titleAtListing).toContain("2025 GMC Terrain");
     expect(listing?.descriptionAtListing).toContain("Michael Boyer");
     expect(listing?.photoUrlsAtListing).toEqual([]);
@@ -535,6 +541,75 @@ describe("API route handlers", () => {
     const body = await response.json();
     expect(response.status).toBe(200);
     expect(body.success).toBe(true);
+  });
+
+  it("finds a vehicle by VIN and links an existing Marketplace listing", async () => {
+    const searchResponse = await extensionInventoryHandler(
+      makeRequest(
+        `http://localhost/api/v1/extension?search=${encodeURIComponent(extensionVin)}`,
+        { headers: { "X-API-Key": extensionApiKey } },
+      ) as never,
+    );
+    const searchData = await searchResponse.json();
+    expect(searchResponse.status).toBe(200);
+    expect(
+      searchData.vehicles.some(
+        (vehicle: { id: string; vin: string }) =>
+          vehicle.id === extensionVehicleId && vehicle.vin === extensionVin,
+      ),
+    ).toBe(true);
+
+    const relierVehicle = await prisma.vehicle.create({
+      data: {
+        organizationId: dealerOrganizationId,
+        stockNumber: `TEST-RELIER-${Date.now()}`,
+        vin: `1HGCM82633A${String(Date.now()).slice(-6)}`,
+        year: 2022,
+        make: "Honda",
+        model: "Accord",
+        mileage: 28000,
+        price: 24995,
+        condition: "Used",
+        status: "AVAILABLE",
+      },
+    });
+
+    const linkResponse = await extensionLinkListingsHandler(
+      makeRequest("http://localhost/api/v1/extension/link-listings", {
+        method: "POST",
+        headers: { "X-API-Key": extensionApiKey },
+        body: JSON.stringify({
+          listings: [
+            {
+              externalUrl:
+                "https://www.facebook.com/marketplace/item/555666777/?ref=selling",
+              title: "Honda Accord 2022",
+              text: `Stock TEST-ignore\nNIV ${relierVehicle.vin}`,
+            },
+          ],
+        }),
+      }) as never,
+    );
+    const linkData = await linkResponse.json();
+    expect(linkResponse.status).toBe(200);
+    expect(linkData.counts.linked).toBe(1);
+    expect(linkData.results[0].vehicleId).toBe(relierVehicle.id);
+    expect(linkData.results[0].externalId).toBe("555666777");
+    expect(linkData.results[0].matchReason).toBe("vin");
+
+    const linked = await prisma.listing.findFirst({
+      where: { vehicleId: relierVehicle.id, status: "ACTIVE" },
+    });
+    expect(linked?.externalId).toBe("555666777");
+    expect(linked?.externalUrl).toBe(
+      "https://www.facebook.com/marketplace/item/555666777",
+    );
+
+    await prisma.listingEvent.deleteMany({
+      where: { listing: { vehicleId: relierVehicle.id } },
+    });
+    await prisma.listing.deleteMany({ where: { vehicleId: relierVehicle.id } });
+    await prisma.vehicle.delete({ where: { id: relierVehicle.id } });
   });
 
   it("keeps publication history private while sharing the same inventory", async () => {
@@ -660,9 +735,17 @@ describe("API route handlers", () => {
     );
     const extensionDraftData = await extensionDraftResponse.json();
     expect(extensionDraftResponse.status).toBe(200);
-    expect(extensionDraftData.vehicle.title).toBe(salespersonDraftTitle);
-    expect(extensionDraftData.vehicle.description).toBe(
+    expect(extensionDraftData.vehicle.title).toBe(
+      `${salespersonDraftTitle} · ${extensionStockNumber}`,
+    );
+    expect(extensionDraftData.vehicle.description).toContain(
       salespersonDraftDescription,
+    );
+    expect(extensionDraftData.vehicle.description).toContain(
+      `Stock ${extensionStockNumber}`,
+    );
+    expect(extensionDraftData.vehicle.description).toContain(
+      `NIV ${extensionVin}`,
     );
 
     const ownerKeysResponse = await apiKeysHandler(
