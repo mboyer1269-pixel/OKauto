@@ -3,6 +3,7 @@ import {
   mergePricingFees,
   type PricingFees,
 } from "./pricing";
+import { normalizeVin } from "./vin";
 
 export type ListingLocale = "fr" | "en" | "bilingual";
 
@@ -460,14 +461,8 @@ export function generateTemplateDescription(vehicle: VehicleData): string {
   const carfaxFr = carfaxMentionFr(vehicle);
   if (carfaxFr) lines.push("", carfaxFr);
 
-  const references = [
-    cleanValue(vehicle.stockNumber)
-      ? `stock ${cleanValue(vehicle.stockNumber)}`
-      : null,
-    cleanValue(vehicle.vin) ? `NIV ${cleanValue(vehicle.vin)}` : null,
-  ].filter((value): value is string => Boolean(value));
-  if (references.length)
-    lines.push("", `Référence : ${references.join(" • ")}`);
+  const references = listingReferenceLines(vehicle);
+  if (references.length) lines.push("", ...references);
 
   lines.push(
     "",
@@ -569,13 +564,8 @@ export function generateTemplateDescriptionEn(vehicle: VehicleData): string {
   const carfaxEn = carfaxMentionEn(vehicle);
   if (carfaxEn) lines.push("", carfaxEn);
 
-  const references = [
-    cleanValue(vehicle.stockNumber)
-      ? `stock ${cleanValue(vehicle.stockNumber)}`
-      : null,
-    cleanValue(vehicle.vin) ? `VIN ${cleanValue(vehicle.vin)}` : null,
-  ].filter((value): value is string => Boolean(value));
-  if (references.length) lines.push("", `Reference: ${references.join(" • ")}`);
+  const references = listingReferenceLinesEn(vehicle);
+  if (references.length) lines.push("", ...references);
 
   lines.push(
     "",
@@ -597,6 +587,72 @@ export function composeListingDescription(
   const english = generateTemplateDescriptionEn(vehicle);
   if (locale === "en") return english;
   return `${french}\n\n${ENGLISH_VERSION_SEPARATOR}\n\n${english}`;
+}
+
+export function listingReferenceLines(vehicle: VehicleData): string[] {
+  const stock = cleanValue(vehicle.stockNumber);
+  const vin = cleanValue(vehicle.vin);
+  const lines: string[] = [];
+  if (stock) lines.push(`Stock ${stock}`);
+  if (vin) lines.push(`NIV ${vin}`);
+  return lines;
+}
+
+export function listingReferenceLinesEn(vehicle: VehicleData): string[] {
+  const stock = cleanValue(vehicle.stockNumber);
+  const vin = cleanValue(vehicle.vin);
+  const lines: string[] = [];
+  if (stock) lines.push(`Stock ${stock}`);
+  if (vin) lines.push(`VIN ${vin}`);
+  return lines;
+}
+
+export function listingHasStockReference(
+  text: string,
+  stockNumber: string,
+): boolean {
+  const stock = cleanValue(stockNumber);
+  if (!stock) return false;
+  const escaped = stock.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`\\bstock\\b[^\\n]{0,24}\\b${escaped}\\b`, "i").test(text);
+}
+
+export function listingHasVinReference(text: string, vin: string): boolean {
+  const normalized = normalizeVin(vin);
+  if (!normalized) return false;
+  return text.toUpperCase().includes(normalized);
+}
+
+export function ensureListingReferences(
+  text: string,
+  vehicle: VehicleData,
+): string {
+  const missing = listingReferenceLines(vehicle).filter((line) => {
+    if (line.startsWith("Stock ")) {
+      return !listingHasStockReference(text, line.slice("Stock ".length));
+    }
+    if (line.startsWith("NIV ")) {
+      return !listingHasVinReference(text, line.slice("NIV ".length));
+    }
+    return true;
+  });
+  if (missing.length === 0) return text;
+  const trimmed = text.trimEnd();
+  if (!trimmed) return missing.join("\n");
+  return `${trimmed}\n\n${missing.join("\n")}`;
+}
+
+export function withStockInTitle(
+  title: string,
+  stockNumber?: string | null,
+): string {
+  const base = cleanValue(title);
+  const stock = cleanValue(stockNumber);
+  if (!stock) return base.slice(0, 100);
+  if (base.toLocaleLowerCase("fr-CA").includes(stock.toLocaleLowerCase("fr-CA"))) {
+    return base.slice(0, 100);
+  }
+  return `${base} · ${stock}`.slice(0, 100);
 }
 
 export const MIN_LISTING_DESCRIPTION_LENGTH = 80;
@@ -624,11 +680,12 @@ export function listingDescriptionWithCarfax(
   const base = trimmed
     ? trimmed
     : composeListingDescription(vehicle, locale);
-  return ensureCarfaxMention(
+  const withCarfax = ensureCarfaxMention(
     base,
     vehicle,
     locale === "en" ? "en" : "fr",
   );
+  return ensureListingReferences(withCarfax, vehicle);
 }
 
 export const listingDescriptionForExtension = listingDescriptionWithCarfax;

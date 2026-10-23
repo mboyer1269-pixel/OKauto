@@ -23,16 +23,33 @@ export function hasMinRole(
   return ROLE_HIERARCHY[userRole] >= ROLE_HIERARCHY[requiredRole];
 }
 
-export function isFacebookMarketplaceItemUrl(value: string): boolean {
+export function extractFacebookMarketplaceItemId(
+  value: string,
+): string | null {
   try {
     const url = new URL(value);
     const hostname = url.hostname.toLowerCase();
     const isFacebookHost =
       hostname === "facebook.com" || hostname.endsWith(".facebook.com");
+    if (!isFacebookHost) return null;
+    const match = url.pathname.match(/^\/marketplace\/item\/([^/]+)/i);
+    const id = match?.[1] ? decodeURIComponent(match[1]).trim() : "";
+    return id || null;
+  } catch {
+    return null;
+  }
+}
+
+export function facebookMarketplaceItemUrl(itemId: string): string {
+  return `https://www.facebook.com/marketplace/item/${itemId}`;
+}
+
+export function isFacebookMarketplaceItemUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
     return (
       url.protocol === "https:" &&
-      isFacebookHost &&
-      /^\/marketplace\/item\/[^/]+\/?$/.test(url.pathname)
+      extractFacebookMarketplaceItemId(value) != null
     );
   } catch {
     return false;
@@ -206,6 +223,20 @@ export const extensionEventSchema = z.object({
   metadata: z.record(z.unknown()).optional(),
 });
 
+export const linkListingsSchema = z.object({
+  listings: z
+    .array(
+      z.object({
+        externalUrl: z.string().url(),
+        title: z.string().trim().max(200).optional(),
+        text: z.string().trim().max(4000).optional(),
+        vehicleId: z.string().min(1).optional(),
+      }),
+    )
+    .min(1)
+    .max(50),
+});
+
 // Invite schema
 export const inviteMemberSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
@@ -374,6 +405,7 @@ export type CreateLeadInput = z.infer<typeof createLeadSchema>;
 export type UpdateLeadInput = z.infer<typeof updateLeadSchema>;
 
 export * from "./description";
+export * from "./listing-match";
 export * from "./pricing";
 export * from "./publish-queue";
 export * from "./priority";
