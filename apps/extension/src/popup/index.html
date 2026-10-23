@@ -151,6 +151,27 @@
         font-size: 11px;
         color: var(--muted);
       }
+      .vehicle-vin {
+        font-family: ui-monospace, monospace;
+        letter-spacing: 0.02em;
+        cursor: pointer;
+        margin-top: 3px;
+      }
+      .toolbar {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 10px;
+      }
+      .btn-secondary {
+        background: var(--elevated);
+        color: var(--text);
+        border: 1px solid var(--border);
+        width: 100%;
+        padding: 8px 12px;
+      }
+      .btn-secondary:hover {
+        border-color: var(--amber);
+      }
       .badge {
         display: inline-block;
         padding: 1px 6px;
@@ -243,13 +264,19 @@
     </div>
     <div id="tab-inventory" class="content">
       <div id="error" class="error" style="display: none"></div>
-      <label for="vehicle-search">Rechercher</label>
+      <label for="vehicle-search">Rechercher par stock ou NIV</label>
       <input
         class="search"
         type="search"
         id="vehicle-search"
         placeholder="Stock, NIV, marque ou modèle…"
+        autocomplete="off"
       />
+      <div class="toolbar">
+        <button type="button" class="btn-secondary" id="relier-listings">
+          Relier mes annonces
+        </button>
+      </div>
       <div id="vehicle-list"></div>
       <div id="loading" class="status">Chargement de l’inventaire…</div>
     </div>
@@ -262,8 +289,9 @@
         Enregistrer et connecter
       </button>
       <p class="compliance" style="margin-top: 12px">
-        Assistance seulement. Vous devez vérifier et publier chaque annonce
-        vous-même.
+        Extension 0.3.5 — assistance seulement. Vérifiez chaque annonce avant
+        de publier. Relier mes annonces associe vos publications Facebook au
+        stock et au NIV.
       </p>
     </div>
     <script type="module" src="./popup.ts"></script>

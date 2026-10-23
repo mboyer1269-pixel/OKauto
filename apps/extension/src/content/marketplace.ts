@@ -1,7 +1,10 @@
 import {
   chromeRuntimeErrorFr,
+  extractFacebookMarketplaceItemId,
   generateMarketplaceTitle,
   generateTemplateDescription,
+  listingsFromAnchors,
+  withStockInTitle,
 } from "@okauto/shared";
 import {
   createPendingPublication,
@@ -9,6 +12,7 @@ import {
   isMarketplaceItemUrl,
   isPendingPublicationFresh,
   PENDING_PUBLICATION_KEY,
+  PENDING_RELIER_KEY,
   type PendingPublication,
 } from "../publication-tracking";
 import {
@@ -123,6 +127,18 @@ const SELECTORS = {
       'input[type="file"][accept*="image"]',
       'input[type="file"][multiple]',
       'input[type="file"]',
+    ],
+    vin: [
+      'input[aria-label*="VIN" i]',
+      'input[aria-label*="NIV" i]',
+      'input[aria-label*="identification du véhicule" i]',
+      'input[aria-label*="Vehicle identification" i]',
+      'input[placeholder*="VIN" i]',
+      'input[placeholder*="NIV" i]',
+    ],
+    stockNumber: [
+      'input[aria-label*="stock" i]',
+      'input[placeholder*="stock" i]',
     ],
   },
 };
@@ -399,15 +415,17 @@ async function fillForm(vehicle: VehiclePayload): Promise<FillReport> {
   let currentField = "vehicleType";
   let currentStep = "select_vehicleType";
 
-  const title =
+  const title = withStockInTitle(
     vehicle.title?.trim() ||
-    generateMarketplaceTitle({
-      year: vehicle.year,
-      make: vehicle.make,
-      model: vehicle.model,
-      trim: vehicle.trim,
-      mileage: vehicle.mileage,
-    });
+      generateMarketplaceTitle({
+        year: vehicle.year,
+        make: vehicle.make,
+        model: vehicle.model,
+        trim: vehicle.trim,
+        mileage: vehicle.mileage,
+      }),
+    vehicle.stockNumber,
+  );
 
   try {
     currentField = "vehicleType";
@@ -477,6 +495,34 @@ async function fillForm(vehicle: VehiclePayload): Promise<FillReport> {
         report.filled.push("kilométrage");
       } else {
         report.issues.push(missingFieldIssue("mileage", "fill_mileage"));
+      }
+    }
+
+    if (vehicle.vin?.trim()) {
+      currentField = "vin";
+      currentStep = "fill_vin";
+      const vinEl = await waitForElement(
+        selectors.vin,
+        ["NIV", "VIN", "Numéro d'identification", "Vehicle identification"],
+        800,
+      );
+      if (vinEl) {
+        setInputValue(vinEl, vehicle.vin.trim());
+        report.filled.push("NIV");
+      }
+    }
+
+    if (vehicle.stockNumber?.trim()) {
+      currentField = "stockNumber";
+      currentStep = "fill_stockNumber";
+      const stockEl = await waitForElement(
+        selectors.stockNumber,
+        ["Numéro de stock", "Stock"],
+        500,
+      );
+      if (stockEl) {
+        setInputValue(stockEl, vehicle.stockNumber.trim());
+        report.filled.push("stock");
       }
     }
 
@@ -667,12 +713,14 @@ function mountAssistBanner(
   const copy = document.createElement("div");
   const title = document.createElement("strong");
   title.textContent = "Assistant Suivia Auto";
-  copy.append(
-    title,
-    document.createTextNode(
-      ` — ${vehicle.year} ${vehicle.make} ${vehicle.model}`,
-    ),
-  );
+  const identity = [
+    `${vehicle.year} ${vehicle.make} ${vehicle.model}`,
+    vehicle.stockNumber ? `Stock ${vehicle.stockNumber}` : null,
+    vehicle.vin ? `NIV ${vehicle.vin}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  copy.append(title, document.createTextNode(` — ${identity}`));
 
   const status = document.createElement("div");
   status.id = "okauto-banner-status";
@@ -757,6 +805,7 @@ function confirmPublishedListing(vehicle: VehiclePayload) {
       type: "LISTING_CONFIRMED",
       vehicleId: vehicle.id,
       externalUrl,
+      externalId: extractFacebookMarketplaceItemId(externalUrl),
     },
     (response) => {
       if (!response?.success) {
@@ -769,9 +818,12 @@ function confirmPublishedListing(vehicle: VehiclePayload) {
       }
 
       banner.style.background = "#047857";
+      const itemId =
+        response.externalId || extractFacebookMarketplaceItemId(externalUrl);
+      const linked = itemId ? ` Annonce Facebook n° ${itemId}.` : "";
       status.textContent = response.alreadyExists
-        ? "Cette publication était déjà enregistrée dans Suivia Auto."
-        : "Publication enregistrée dans Suivia Auto. Le véhicule apparaît maintenant dans « Publiées ».";
+        ? `Cette publication était déjà enregistrée dans Suivia Auto.${linked}`
+        : `Publication enregistrée dans Suivia Auto. Le véhicule apparaît maintenant dans « Publiées ».${linked}`;
     },
   );
 }
@@ -859,7 +911,176 @@ function beginPendingFlow(pending: PendingPublication<VehiclePayload>) {
   }
 }
 
+function collectMarketplaceListingsFromDocument() {
+  const anchors = Array.from(
+    document.querySelectorAll<HTMLAnchorElement>('a[href*="/marketplace/item/"]'),
+  ).map((anchor) => {
+    const container =
+      anchor.closest('[role="article"], [role="listitem"], [role="row"]') ??
+      anchor.parentElement;
+    return {
+      href: anchor.href,
+      title: (anchor.getAttribute("aria-label") || anchor.textContent || "").trim(),
+      text: (container?.textContent || "").replace(/\s+/g, " ").trim(),
+    };
+  });
+
+  if (isMarketplaceItemUrl(window.location.href)) {
+    anchors.unshift({
+      href: window.location.href,
+      title: document.title,
+      text: (document.body.innerText || "").replace(/\s+/g, " ").trim().slice(0, 4000),
+    });
+  }
+
+  return listingsFromAnchors(anchors);
+}
+
+async function collectMarketplaceListingsUntilStable(timeoutMs = 4500) {
+  const startedAt = Date.now();
+  let lastCount = 0;
+  let stableTicks = 0;
+  let listings = collectMarketplaceListingsFromDocument();
+
+  while (Date.now() - startedAt < timeoutMs) {
+    listings = collectMarketplaceListingsFromDocument();
+    if (listings.length === lastCount) {
+      stableTicks += 1;
+      if (stableTicks >= 4 && listings.length > 0) return listings;
+    } else {
+      stableTicks = 0;
+      lastCount = listings.length;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+
+  return listings;
+}
+
+function formatRelierSummary(data: {
+  counts?: {
+    linked?: number;
+    alreadyLinked?: number;
+    unmatched?: number;
+    error?: number;
+  };
+  results?: Array<{
+    status?: string;
+    stockNumber?: string | null;
+    vin?: string | null;
+    year?: number | null;
+    make?: string | null;
+    model?: string | null;
+    title?: string | null;
+  }>;
+}): string {
+  const counts = data.counts ?? {};
+  const linked = counts.linked ?? 0;
+  const already = counts.alreadyLinked ?? 0;
+  const unmatched = counts.unmatched ?? 0;
+  const errors = counts.error ?? 0;
+  const parts = [
+    linked === 1 ? "1 annonce reliée" : `${linked} annonces reliées`,
+    already > 0
+      ? already === 1
+        ? "1 déjà liée"
+        : `${already} déjà liées`
+      : null,
+    unmatched > 0
+      ? unmatched === 1
+        ? "1 sans correspondance"
+        : `${unmatched} sans correspondance`
+      : null,
+    errors > 0 ? `${errors} en erreur` : null,
+  ].filter(Boolean);
+  const unmatchedTitles = (data.results ?? [])
+    .filter((result) => result.status === "unmatched")
+    .map((result) => result.title)
+    .filter(Boolean)
+    .slice(0, 2);
+  const hint =
+    unmatched > 0
+      ? ` Ouvrez l’annonce${unmatchedTitles.length ? ` (${unmatchedTitles.join(", ")})` : ""} puis choisissez le véhicule dans Suivia.`
+      : "";
+  return `${parts.join(" · ")}.${hint}`;
+}
+
+async function relierMarketplaceListings() {
+  const placeholder: VehiclePayload = {
+    id: "relier",
+    year: new Date().getFullYear(),
+    make: "Suivia",
+    model: "Auto",
+  };
+  const { banner, status } = mountAssistBanner(
+    placeholder,
+    "Lecture de vos annonces Marketplace…",
+  );
+
+  const listings = await collectMarketplaceListingsUntilStable();
+  if (listings.length === 0) {
+    banner.style.background = "#b91c1c";
+    status.textContent =
+      "Aucune annonce trouvée. Ouvrez « Vos annonces » (Marketplace → Vous), puis relancez Relier mes annonces.";
+    return { success: false, listings: [] };
+  }
+
+  status.textContent = `${listings.length} annonce${listings.length > 1 ? "s" : ""} trouvée${listings.length > 1 ? "s" : ""}. Correspondance avec l’inventaire Suivia…`;
+
+  const response = await sendRuntimeMessage<{
+    success?: boolean;
+    error?: string;
+    counts?: {
+      linked?: number;
+      alreadyLinked?: number;
+      unmatched?: number;
+      error?: number;
+    };
+    results?: Array<{
+      status?: string;
+      stockNumber?: string | null;
+      vin?: string | null;
+      year?: number | null;
+      make?: string | null;
+      model?: string | null;
+      title?: string | null;
+    }>;
+  }>({
+    type: "LINK_LISTINGS",
+    listings,
+  }).catch(() => ({
+    success: false,
+    error: "Suivia Auto est inaccessible. Réessayez Relier mes annonces.",
+  }));
+
+  if (!response.success) {
+    banner.style.background = "#b91c1c";
+    status.textContent =
+      response.error ?? "Les annonces n’ont pas pu être reliées.";
+    return response;
+  }
+
+  const unmatched = response.counts?.unmatched ?? 0;
+  banner.style.background = unmatched > 0 ? "#1e40af" : "#047857";
+  status.textContent = formatRelierSummary(response);
+  return response;
+}
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message.type === "RELIER_LISTINGS") {
+    relierMarketplaceListings()
+      .then((result) => sendResponse({ success: Boolean(result.success), ...result }))
+      .catch((error) =>
+        sendResponse({
+          success: false,
+          error:
+            error instanceof Error
+              ? error.message
+              : "Relier mes annonces a échoué.",
+        }),
+      );
+    return true;
+  }
   if (message.type === "FILL_MARKETPLACE_FORM") {
     const vehicle = message.vehicle as VehiclePayload;
     const pending = createPendingPublication(vehicle);
@@ -899,8 +1120,14 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 // Keep the vehicle pending across Facebook navigation. When Facebook reaches
 // the final /marketplace/item/... URL, the listing is recorded automatically.
 chrome.storage.local.get(
-  [PENDING_PUBLICATION_KEY, "pendingVehicle", "pendingStartedAt"],
+  [PENDING_PUBLICATION_KEY, PENDING_RELIER_KEY, "pendingVehicle", "pendingStartedAt"],
   (result) => {
+    if (result[PENDING_RELIER_KEY]) {
+      chrome.storage.local.remove([PENDING_RELIER_KEY]);
+      window.setTimeout(() => {
+        void relierMarketplaceListings();
+      }, 1200);
+    }
     let pending = result[PENDING_PUBLICATION_KEY] as
       PendingPublication<VehiclePayload> | undefined;
     if (!pending && result.pendingVehicle) {

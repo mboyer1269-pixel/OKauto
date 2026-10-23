@@ -1,4 +1,17 @@
-import { userFacingApiError } from "@okauto/shared";
+import { extractFacebookMarketplaceItemId, userFacingApiError } from "@okauto/shared";
+import {
+  filterVehicles,
+  formatVehicleMeta,
+  formatVehicleVin,
+  vehicleHeading,
+} from "../popup-inventory";
+import {
+  isMarketplaceCreateUrl,
+  isMarketplaceItemUrl,
+  MARKETPLACE_SELLING_URL,
+  PENDING_PUBLICATION_KEY,
+  PENDING_RELIER_KEY,
+} from "../publication-tracking";
 
 interface Vehicle {
   id: string;
@@ -36,21 +49,10 @@ interface Settings {
 
 const MARKETPLACE_CREATE_URL =
   "https://www.facebook.com/marketplace/create/vehicle";
-const PENDING_PUBLICATION_KEY = "pendingPublication";
 const DEFAULT_API_URL = "https://suivia.ca";
-
-function isMarketplaceCreateUrl(value: string): boolean {
-  try {
-    const url = new URL(value);
-    return (
-      /(^|\.)facebook\.com$/i.test(url.hostname) &&
-      url.pathname.startsWith("/marketplace/create")
-    );
-  } catch {
-    return false;
-  }
-}
 let inventory: Vehicle[] = [];
+let lastSearch = "";
+let activeTabIsMarketplaceItem = false;
 
 async function getSettings(): Promise<Settings> {
   return new Promise((resolve) => {
@@ -96,15 +98,18 @@ function renderVehicles(vehicles: Vehicle[]) {
   const loading = document.getElementById("loading")!;
   loading.style.display = "none";
 
-  if (vehicles.length === 0) {
+  const visible = filterVehicles(vehicles, lastSearch);
+  if (visible.length === 0) {
     const status = document.createElement("div");
     status.className = "status";
-    status.textContent = "Aucun véhicule trouvé.";
+    status.textContent = lastSearch
+      ? "Aucun véhicule ne correspond à ce stock ou NIV."
+      : "Aucun véhicule trouvé.";
     list.replaceChildren(status);
     return;
   }
 
-  const cards = vehicles.map((vehicle) => {
+  const cards = visible.map((vehicle) => {
     const card = document.createElement("div");
     card.className = "vehicle-card";
 
@@ -124,19 +129,31 @@ function renderVehicles(vehicles: Vehicle[]) {
     const info = document.createElement("div");
     info.className = "vehicle-info";
     const heading = document.createElement("h3");
-    heading.textContent = [vehicle.year, vehicle.make, vehicle.model]
-      .filter(Boolean)
-      .join(" ");
+    heading.textContent = vehicleHeading(vehicle);
     const details = document.createElement("p");
-    details.textContent = [
-      vehicle.stockNumber ? `Stock ${vehicle.stockNumber}` : null,
-      `${vehicle.mileage?.toLocaleString("fr-CA") ?? "—"} km`,
-      `${vehicle.price?.toLocaleString("fr-CA") ?? "—"} $ CA`,
-      vehicle.photoCount ? `${vehicle.photoCount} photos` : null,
-    ]
-      .filter(Boolean)
-      .join(" · ");
+    details.textContent = formatVehicleMeta(vehicle);
     info.append(heading, details);
+    const vinLabel = formatVehicleVin(vehicle);
+    if (vinLabel) {
+      const vinLine = document.createElement("p");
+      vinLine.className = "vehicle-vin";
+      vinLine.textContent = vinLabel;
+      vinLine.title = "Cliquez pour copier le NIV";
+      vinLine.addEventListener("click", async (event) => {
+        event.stopPropagation();
+        if (!vehicle.vin) return;
+        try {
+          await navigator.clipboard.writeText(vehicle.vin);
+          vinLine.textContent = "NIV copié";
+          window.setTimeout(() => {
+            vinLine.textContent = vinLabel;
+          }, 1200);
+        } catch {
+          // Clipboard can be blocked in some extension contexts.
+        }
+      });
+      info.append(vinLine);
+    }
     if (vehicle.hasActiveListing) {
       const badge = document.createElement("span");
       badge.className = "badge badge-listed";
@@ -146,11 +163,16 @@ function renderVehicles(vehicles: Vehicle[]) {
 
     const button = document.createElement("button");
     button.className = "btn-assist";
-    button.textContent = vehicle.hasActiveListing ? "Déjà publiée" : "Publier";
-    button.disabled = Boolean(vehicle.hasActiveListing);
+    if (activeTabIsMarketplaceItem) {
+      button.textContent = vehicle.hasActiveListing ? "Mettre à jour le lien" : "Relier";
+      button.disabled = false;
+    } else {
+      button.textContent = vehicle.hasActiveListing ? "Déjà publiée" : "Publier";
+      button.disabled = Boolean(vehicle.hasActiveListing);
+    }
     button.addEventListener("click", async () => {
       button.disabled = true;
-      button.textContent = "Préparation…";
+      button.textContent = activeTabIsMarketplaceItem ? "Liaison…" : "Préparation…";
       await assistListing(vehicle, button);
     });
 
@@ -169,6 +191,7 @@ function isSafeImageUrl(value: string) {
 }
 
 async function loadInventory(settings: Settings, search = "") {
+  lastSearch = search;
   hideError();
   document.getElementById("loading")!.style.display = "block";
   document.getElementById("vehicle-list")!.innerHTML = "";
@@ -232,16 +255,43 @@ async function assistListing(vehicle: Vehicle, button?: HTMLButtonElement) {
     );
     if (button) {
       button.disabled = false;
-      button.textContent = "Publier";
+      button.textContent = activeTabIsMarketplaceItem ? "Relier" : "Publier";
     }
+    return;
+  }
+
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+
+  if (tab?.url && isMarketplaceItemUrl(tab.url)) {
+    chrome.runtime.sendMessage(
+      {
+        type: "LISTING_CONFIRMED",
+        vehicleId: vehicle.id,
+        externalUrl: tab.url,
+        externalId: extractFacebookMarketplaceItemId(tab.url),
+      },
+      (response) => {
+        if (chrome.runtime.lastError || !response?.success) {
+          showError(
+            response?.error ??
+              "L’annonce ouverte n’a pas pu être reliée. Réessayez.",
+          );
+          if (button) {
+            button.disabled = false;
+            button.textContent = activeTabIsMarketplaceItem ? "Relier" : "Publier";
+          }
+          return;
+        }
+        vehicle.hasActiveListing = true;
+        renderVehicles(inventory);
+      },
+    );
     return;
   }
 
   await chrome.storage.local.set({
     [PENDING_PUBLICATION_KEY]: { vehicle, startedAt: Date.now() },
   });
-
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
   if (tab?.url && isMarketplaceCreateUrl(tab.url)) {
     chrome.tabs.sendMessage(tab.id!, {
@@ -253,6 +303,31 @@ async function assistListing(vehicle: Vehicle, button?: HTMLButtonElement) {
     chrome.tabs.create({ url: MARKETPLACE_CREATE_URL });
     window.close();
   }
+}
+
+async function relierMesAnnonces() {
+  hideError();
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (tab?.id && tab.url && /facebook\.com/i.test(tab.url) && tab.url.includes("/marketplace")) {
+    chrome.tabs.sendMessage(tab.id, { type: "RELIER_LISTINGS" }, (response) => {
+      if (chrome.runtime.lastError) {
+        void startRelierOnSellingPage();
+        return;
+      }
+      if (response && response.success === false && response.error) {
+        showError(response.error);
+      }
+    });
+    window.close();
+    return;
+  }
+  await startRelierOnSellingPage();
+}
+
+async function startRelierOnSellingPage() {
+  await chrome.storage.local.set({ [PENDING_RELIER_KEY]: true });
+  chrome.tabs.create({ url: MARKETPLACE_SELLING_URL });
+  window.close();
 }
 
 // Tab switching
@@ -313,10 +388,19 @@ document
   .addEventListener("input", (event) => {
     window.clearTimeout(searchTimer);
     const query = (event.target as HTMLInputElement).value.trim();
+    lastSearch = query;
+    renderVehicles(inventory);
     searchTimer = window.setTimeout(async () => {
       const settings = await getSettings();
+      if (!settings.apiKey) return;
       await loadInventory(settings, query);
     }, 250);
+  });
+
+document
+  .getElementById("relier-listings")!
+  .addEventListener("click", () => {
+    void relierMesAnnonces();
   });
 
 // Init
@@ -326,6 +410,9 @@ document
     settings.apiUrl;
   (document.getElementById("api-key") as HTMLInputElement).value =
     settings.apiKey;
+
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  activeTabIsMarketplaceItem = Boolean(tab?.url && isMarketplaceItemUrl(tab.url));
 
   if (settings.apiKey) {
     loadInventory(settings);

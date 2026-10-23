@@ -30,6 +30,8 @@ const FIELD_LABELS_FR: Record<string, string> = {
   fuelType: "Type de carburant",
   transmission: "Transmission",
   photos: "Photos",
+  vin: "NIV",
+  stockNumber: "Numéro de stock",
 };
 
 const STEP_LABELS_FR: Record<string, string> = {
@@ -47,6 +49,8 @@ const STEP_LABELS_FR: Record<string, string> = {
   select_transmission: "sélection de la transmission",
   attach_photos: "ajout des photos",
   find_photo_input: "ajout des photos",
+  fill_vin: "saisie du NIV",
+  fill_stockNumber: "saisie du numéro de stock",
 };
 
 export function fieldLabelFr(field: string): string {

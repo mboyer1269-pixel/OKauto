@@ -50,7 +50,11 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           body: JSON.stringify({
             eventType: "listing_created",
             vehicleId: message.vehicleId,
-            metadata: { externalUrl: url, source: "extension" },
+            metadata: {
+              externalUrl: url,
+              externalId: message.externalId ?? undefined,
+              source: "extension",
+            },
           }),
         });
         const data = await response.json().catch(() => ({}));
@@ -152,6 +156,52 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         sendResponse({
           success: false,
           error: "La photo n’a pas pu être préparée.",
+        });
+      }
+    });
+    return true;
+  }
+  if (message.type === "LINK_LISTINGS") {
+    chrome.storage.local.get(["apiKey", "apiUrl"], async (result) => {
+      try {
+        const apiUrl = String(result.apiUrl ?? DEFAULT_API_URL);
+        const listings = Array.isArray(message.listings) ? message.listings : [];
+        if (listings.length === 0) {
+          sendResponse({
+            success: false,
+            error: "Aucune annonce Marketplace à relier.",
+          });
+          return;
+        }
+        const response = await fetch(
+          `${apiUrl}/api/v1/extension/link-listings`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-API-Key": String(result.apiKey ?? ""),
+            },
+            body: JSON.stringify({ listings }),
+          },
+        );
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          sendResponse({
+            success: false,
+            error: userFacingApiError(
+              response.status,
+              data,
+              "Les annonces n’ont pas pu être reliées. Réessayez.",
+            ),
+            code: data.code,
+          });
+          return;
+        }
+        sendResponse({ success: true, ...data });
+      } catch {
+        sendResponse({
+          success: false,
+          error: "Suivia Auto est inaccessible. Réessayez Relier mes annonces.",
         });
       }
     });

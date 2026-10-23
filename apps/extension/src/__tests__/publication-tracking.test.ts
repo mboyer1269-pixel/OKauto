@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   PENDING_PUBLICATION_TTL_MS,
   createPendingPublication,
+  isFacebookMarketplaceHost,
   isMarketplaceCreateUrl,
   isMarketplaceItemUrl,
+  isMarketplaceSellingUrl,
   isPendingPublicationFresh,
 } from '../publication-tracking';
 
@@ -14,6 +16,9 @@ describe('publication tracking', () => {
     expect(isMarketplaceItemUrl('https://www.facebook.com/marketplace/item/123')).toBe(true);
     expect(isMarketplaceItemUrl('https://m.facebook.com/marketplace/item/456/')).toBe(true);
     expect(isMarketplaceItemUrl('https://www.facebook.com/marketplace/create/vehicle')).toBe(false);
+    expect(isMarketplaceSellingUrl('https://www.facebook.com/marketplace/you/selling')).toBe(true);
+    expect(isMarketplaceSellingUrl('https://www.facebook.com/marketplace/you')).toBe(true);
+    expect(isFacebookMarketplaceHost('https://www.facebook.com/marketplace/you/selling')).toBe(true);
   });
 
   it('expires an abandoned pending publication', () => {

@@ -10,6 +10,13 @@ import {
 } from "../marketplace-fill-report";
 
 describe("marketplace fill report", () => {
+  it("names the NIV field in French", () => {
+    const issue = missingFieldIssue("vin", "fill_vin");
+    expect(issue.message).toMatch(/NIV/);
+    expect(issue.message).toMatch(/saisie du NIV/);
+    expect(issue.message).not.toMatch(/fill_vin/);
+  });
+
   it("names the missing Facebook field in the banner copy", () => {
     const report = {
       filled: ["année"],
@@ -67,7 +74,7 @@ describe("extension version and telemetry wiring", () => {
         "utf8",
       ),
     ) as { version: string };
-    expect(manifest.version).toBe("0.3.1");
+    expect(manifest.version).toBe("0.3.5");
   });
 
   it("reports missing fields through the existing events endpoint", () => {
