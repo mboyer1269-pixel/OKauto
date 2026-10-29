@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite';
+import { defineConfig, build as viteBuild } from 'vite';
 import { resolve } from 'path';
 import { copyFileSync, mkdirSync, cpSync, existsSync, readFileSync, writeFileSync, rmSync } from 'fs';
 
@@ -28,7 +28,26 @@ export default defineConfig({
   plugins: [
     {
       name: 'copy-extension-assets',
-      closeBundle() {
+      async closeBundle() {
+        // Chrome content scripts cannot use ES imports: rebuild each one as a
+        // single self-contained IIFE file so no shared chunk is imported.
+        if (!process.env.OKAUTO_CONTENT_IIFE) {
+          process.env.OKAUTO_CONTENT_IIFE = '1';
+          for (const [name, entry] of [
+            ['content', 'src/content/marketplace.ts'],
+            ['app-bridge', 'src/content/app-bridge.ts'],
+          ] as const) {
+            await viteBuild({
+              configFile: false,
+              logLevel: 'warn',
+              build: {
+                outDir: 'dist',
+                emptyOutDir: false,
+                lib: { entry: resolve(__dirname, entry), formats: ['iife'], name: name.replace('-', '_'), fileName: () => `${name}.js` },
+              },
+            });
+          }
+        }
         copyFileSync('public/manifest.json', 'dist/manifest.json');
         if (existsSync('public/icons')) {
           mkdirSync('dist/icons', { recursive: true });
