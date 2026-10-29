@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Suivia — Assistant Marketplace auto",
-  "version": "0.3.6",
+  "version": "0.3.7",
   "description": "Assistant de publication Facebook Marketplace pour les équipes automobiles",
   "permissions": ["storage", "activeTab", "tabs"],
   "host_permissions": [
