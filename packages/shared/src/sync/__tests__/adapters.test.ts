@@ -122,6 +122,32 @@ describe('sync adapters', () => {
     expect(vehicles[0].photos).toEqual(['https://cdn.example.com/silverado.jpg']);
   });
 
+  it('keeps detail URLs and photos when D2C moves JSON-LD outside the cards', () => {
+    const url = 'https://dealer.example/occasion/Kia-Sportage-2026-id123456.html';
+    const html = `
+      <script type="application/ld+json">{"@graph":[{"@type":"ItemList","itemListElement":[
+        {"url":"https://dealer.example/occasion/Other-id654321.html"},
+        {"url":"${url}"}
+      ]}]}</script>
+      <li class="carBoxWrapper" data-carid="123456">
+        <div class="carImage" data-vin="TESTGALLERY1234567" data-make="Kia" data-model="Sportage" data-year="2026"></div>
+        <input name="vehicledata" data-carid="123456" data-vin="TESTGALLERY1234567" data-condition="USED">
+        <img class="mainImage liveload" src="/placeholder.gif" data-imgsrc="https://imagescdn.d2cmedia.ca/mb123/1964/123456/1/Kia.jpg" data-imgsrc="/placeholder.gif">
+      </li>`;
+    const vehicles = parseSyncFeed('d2c', html, 'text/html');
+    expect(vehicles).toHaveLength(1);
+    expect(vehicles[0]).toMatchObject({
+      sourceUrl: url, condition: 'Used',
+      photos: ['https://imagescdn.d2cmedia.ca/mb123/1964/123456/1/Kia.jpg'],
+    });
+  });
+
+  it('does not assign another car detail URL to a D2C card', () => {
+    const html = `<script type="application/ld+json">{"@type":"ItemList","itemListElement":[{"url":"https://dealer.example/occasion/Other-id2.html"}]}</script>
+      <li class="carBoxWrapper" data-carid="1"><input name="vehicledata" data-vin="TESTGALLERY1234567" data-carid="1"></li>`;
+    expect(parseSyncFeed('d2c', html)[0].sourceUrl).toBeUndefined();
+  });
+
   it('skips items without valid VIN', () => {
     const body = JSON.stringify([{ make: 'Honda', model: 'Civic' }]);
     const vehicles = parseSyncFeed('generic', body);

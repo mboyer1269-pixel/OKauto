@@ -50,7 +50,9 @@ function parseAttributes(tag?: string | null): Record<string, string> {
   const regex = /([\w:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
   let match: RegExpExecArray | null;
   while ((match = regex.exec(tag)) !== null) {
-    attributes[match[1].toLowerCase()] = decodeHtml(match[2] ?? match[3] ?? '');
+    // HTML keeps the first duplicate attribute. D2C lazy images repeat
+    // data-imgsrc with a placeholder after the real CDN URL.
+    attributes[match[1].toLowerCase()] ??= decodeHtml(match[2] ?? match[3] ?? '');
   }
   return attributes;
 }
@@ -131,7 +133,33 @@ function mapAvailability(value: unknown): SyncVehicle['status'] {
   return 'AVAILABLE';
 }
 
-function parseCard(card: string): SyncVehicle | null {
+function inventoryDetailUrls(html: string): Map<string, string> {
+  const urls = new Map<string, string>();
+  // Current D2C pages put an ItemList outside the cards instead of a Vehicle
+  // JSON-LD block inside each card. Match by car ID, never by list position.
+  const scripts = /<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+  for (const match of html.matchAll(scripts)) {
+    try {
+      const parsed = JSON.parse(match[1]);
+      const nodes = Array.isArray(parsed) ? parsed : parsed['@graph'] ?? [parsed];
+      for (const node of nodes) {
+        if (node?.['@type'] !== 'ItemList' || !Array.isArray(node.itemListElement)) continue;
+        for (const item of node.itemListElement) {
+          const value = item?.url ?? item?.item?.url;
+          if (typeof value !== 'string') continue;
+          const url = new URL(value);
+          const id = /-id(\d+)\.html$/i.exec(url.pathname)?.[1];
+          if (url.protocol === 'https:' && id) urls.set(id, url.toString());
+        }
+      }
+    } catch {
+      // Other structured-data blocks must not prevent inventory parsing.
+    }
+  }
+  return urls;
+}
+
+function parseCard(card: string, detailUrls: Map<string, string>): SyncVehicle | null {
   const jsonLd = extractVehicleJsonLd(card);
   const inputTag = /<input[^>]*name=["']vehicledata["'][^>]*>/i.exec(card)?.[0];
   const imageTag = /<div[^>]*class=["'][^"']*\bcarImage\b[^"']*["'][^>]*>/i.exec(card)?.[0];
@@ -144,13 +172,18 @@ function parseCard(card: string): SyncVehicle | null {
   if (vin.length < 11) return null;
 
   const offers = jsonLd?.offers as Record<string, unknown> | undefined;
-  const sourceUrl = typeof offers?.url === 'string' ? offers.url : undefined;
+  const carId = input['data-carid'] ?? parseAttributes(card.match(/^<li\b[^>]*>/i)?.[0])['data-carid'];
+  const sourceUrl = typeof offers?.url === 'string' ? offers.url : detailUrls.get(carId);
+  const thumbnail = parseAttributes(
+    card.match(/<img\b[^>]*class=["'][^"']*\bmainImage\b[^"']*["'][^>]*>/i)?.[0],
+  );
+  const thumbnailUrl = thumbnail['data-imgsrc'] || thumbnail.src;
   const jsonImages = jsonLd?.image;
   const photos = Array.isArray(jsonImages)
     ? jsonImages.filter((url): url is string => typeof url === 'string' && url.startsWith('http'))
     : typeof jsonImages === 'string' && jsonImages.startsWith('http')
       ? [jsonImages]
-      : undefined;
+      : thumbnailUrl?.startsWith('https://') ? [thumbnailUrl] : undefined;
   const specs = extractSpecs(card);
   const summary = findClassText(card, 's-desc');
   const mileage = parseMileage(findClassText(card, 's-km'));
@@ -241,8 +274,9 @@ export const d2cAdapter: SyncAdapter = {
   name: 'd2c',
   parse(body: string): SyncVehicle[] {
     const seen = new Set<string>();
+    const detailUrls = inventoryDetailUrls(body);
     return extractCards(body)
-      .map(parseCard)
+      .map((card) => parseCard(card, detailUrls))
       .filter((vehicle): vehicle is SyncVehicle => {
         if (!vehicle?.vin || seen.has(vehicle.vin)) return false;
         seen.add(vehicle.vin);

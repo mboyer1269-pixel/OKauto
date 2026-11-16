@@ -100,6 +100,7 @@ function handleRuntimeMessage(
             "X-API-Key": apiKey,
           },
           body: JSON.stringify({
+            apiKey,
             eventType: "listing_created",
             vehicleId: message.vehicleId,
             metadata: {
@@ -234,7 +235,7 @@ function handleRuntimeMessage(
                 "Content-Type": "application/json",
                 "X-API-Key": apiKey,
               },
-              body: JSON.stringify({ listings: batch }),
+              body: JSON.stringify({ apiKey, listings: batch }),
             },
           );
           const data = await response.json().catch(() => ({}));
@@ -309,6 +310,7 @@ function handleRuntimeMessage(
             "X-API-Key": apiKey,
           },
           body: JSON.stringify({
+            apiKey,
             eventType: message.eventType,
             vehicleId: message.vehicleId,
             listingId: message.listingId,
