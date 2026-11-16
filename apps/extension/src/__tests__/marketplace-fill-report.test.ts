@@ -74,7 +74,7 @@ describe("extension version and telemetry wiring", () => {
         "utf8",
       ),
     ) as { version: string };
-    expect(manifest.version).toBe("0.3.7");
+    expect(manifest.version).toBe("0.3.8");
   });
 
   it("reports missing fields through the existing events endpoint", () => {

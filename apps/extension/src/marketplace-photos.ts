@@ -18,7 +18,9 @@ export const PHOTO_THUMBNAIL_HINTS = [
   "miniature",
 ];
 
-export function isPhotoFileInput(element: Element | null): element is HTMLInputElement {
+export function isPhotoFileInput(
+  element: Element | null,
+): element is HTMLInputElement {
   return element instanceof HTMLInputElement && element.type === "file";
 }
 
@@ -35,24 +37,43 @@ export function scorePhotoInput(input: HTMLInputElement): number {
 export function pickPhotoFileInput(
   candidates: Array<Element | null | undefined>,
 ): HTMLInputElement | null {
-  const inputs = candidates.filter((candidate): candidate is HTMLInputElement =>
-    isPhotoFileInput(candidate ?? null),
+  const inputs = candidates.filter(
+    (candidate): candidate is HTMLInputElement =>
+      isPhotoFileInput(candidate ?? null) &&
+      !(candidate as HTMLInputElement).disabled &&
+      acceptsPhotos(candidate as HTMLInputElement),
   );
   if (inputs.length === 0) return null;
-  return [...inputs].sort((left, right) => scorePhotoInput(right) - scorePhotoInput(left))[0];
+  return [...inputs].sort(
+    (left, right) => scorePhotoInput(right) - scorePhotoInput(left),
+  )[0];
 }
 
-export function findPhotoFileInput(root: ParentNode = document): HTMLInputElement | null {
+function acceptsPhotos(input: HTMLInputElement): boolean {
+  // Facebook can advertise filename extensions instead of MIME types.
+  return input.accept
+    .split(",")
+    .some((value) =>
+      /^(image\/[^\s]+|\.(jpe?g|png|webp|gif|avif|heic|heif))$/i.test(
+        value.trim(),
+      ),
+    );
+}
+
+export function findPhotoFileInput(
+  root: ParentNode = document,
+): HTMLInputElement | null {
   return pickPhotoFileInput(
-    Array.from(root.querySelectorAll('input[type="file"][accept*="image"]')),
+    Array.from(root.querySelectorAll('input[type="file"]')),
   );
 }
 
 export function elementLooksLikePhotoPrompt(element: Element): boolean {
-  const text = `${element.getAttribute("aria-label") ?? ""} ${element.textContent ?? ""}`
-    .trim()
-    .replace(/\s+/g, " ")
-    .toLocaleLowerCase("fr-CA");
+  const text =
+    `${element.getAttribute("aria-label") ?? ""} ${element.textContent ?? ""}`
+      .trim()
+      .replace(/\s+/g, " ")
+      .toLocaleLowerCase("fr-CA");
   if (!text) return false;
   return PHOTO_PROMPT_LABELS.some((label) => text.includes(label));
 }
@@ -62,7 +83,9 @@ export function revealPhotoPrompt(root: ParentNode = document): boolean {
     root.querySelectorAll('[role="button"], button, [aria-label]'),
   ).find(elementLooksLikePhotoPrompt);
   if (!prompt) return false;
-  prompt.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+  prompt.dispatchEvent(
+    new MouseEvent("click", { bubbles: true, cancelable: true }),
+  );
   return true;
 }
 
@@ -107,7 +130,11 @@ export async function waitForPhotoFileInput(
   return findPhotoFileInput();
 }
 
-export function assignFilesToInput(input: HTMLInputElement, files: File[]): number {
+export function assignFilesToInput(
+  input: HTMLInputElement,
+  files: File[],
+): number {
+  if (!input.isConnected || input.disabled) return 0;
   const transfer = new DataTransfer();
   for (const file of files) transfer.items.add(file);
   const setter = Object.getOwnPropertyDescriptor(
@@ -116,9 +143,11 @@ export function assignFilesToInput(input: HTMLInputElement, files: File[]): numb
   )?.set;
   setter?.call(input, transfer.files);
   if (!setter) input.files = transfer.files;
+  // React may clear/recreate the input synchronously in its change handler.
+  const assigned = input.files?.length ?? 0;
   input.dispatchEvent(new Event("input", { bubbles: true }));
   input.dispatchEvent(new Event("change", { bubbles: true }));
-  return input.files?.length ?? 0;
+  return assigned;
 }
 
 export function countPhotoThumbnails(root: ParentNode = document): number {
@@ -126,7 +155,8 @@ export function countPhotoThumbnails(root: ParentNode = document): number {
     if (img.closest("#okauto-assist-banner")) return false;
     const src = img.currentSrc || img.src || "";
     if (src.startsWith("blob:") || src.startsWith("data:")) return true;
-    const label = `${img.alt} ${img.getAttribute("aria-label") ?? ""}`.toLowerCase();
+    const label =
+      `${img.alt} ${img.getAttribute("aria-label") ?? ""}`.toLowerCase();
     return PHOTO_THUMBNAIL_HINTS.some((hint) => label.includes(hint));
   }).length;
 }

@@ -458,9 +458,28 @@ Le Centre de publication **fonctionne sans extension** (copie du texte + téléc
 Après un nouveau `pnpm --filter @okauto/extension build` (ou un deploy qui change le bundle) :
 
 1. `chrome://extensions` → **Recharger** sur la fiche Suivia.
-2. Actualiser l’onglet Suivia (`localhost` ou suivia.ca).
+2. Actualiser les onglets Suivia (`localhost` ou suivia.ca) **et Facebook Marketplace**.
 
 Sans ce rechargement, Chrome continue d’exécuter l’ancienne copie en mémoire.
+
+La version 0.3.8 corrige le chargement des scripts de contenu et le transfert des photos
+quand Facebook remplace son champ de fichiers. Pour une installation depuis un ZIP,
+remplacer les fichiers dans le dossier déjà chargé par Chrome, puis recharger
+l'extension : cela conserve son identifiant et ses réglages. Une mise à jour du site
+Suivia ne met pas automatiquement à jour une extension chargée depuis un dossier.
+
+Validation du paquet avant livraison :
+
+```bash
+pnpm --filter @okauto/extension build
+pnpm --filter @okauto/extension test
+pnpm --filter @okauto/extension exec playwright install chromium
+pnpm --filter @okauto/extension test:browser
+```
+
+Les tests Chromium utilisent un formulaire local simulé et le fichier `dist/content.js`
+livré. Ils ne publient aucune annonce. La vérification finale reste l'apparition des
+aperçus des photos dans le formulaire Facebook du vendeur avant son clic sur **Publier**.
 
 ### Dépannage fréquent
 

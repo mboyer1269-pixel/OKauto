@@ -12,6 +12,7 @@ import {
 } from "@okauto/shared";
 import {
   assignFilesToInput,
+  countPhotoThumbnails,
   photoResponseToFile,
   waitForPhotoFileInput,
   waitForPhotoThumbnails,
@@ -237,17 +238,17 @@ interface PhotoResponse {
 }
 
 async function attachVehiclePhotos(vehicle: VehiclePayload) {
-  const input = await waitForPhotoFileInput(8000);
+  const requested = Math.min(vehicle.photos?.length ?? 0, 20);
+  let input = await waitForPhotoFileInput(8000);
   if (!(input instanceof HTMLInputElement)) {
     return {
       attached: 0,
-      requested: 0,
+      requested,
       inputFound: false,
       step: "find_photo_input",
     };
   }
 
-  const requested = Math.min(vehicle.photos?.length ?? 0, 20);
   const responses: PhotoResponse[] = Array.from({ length: requested });
   let nextPhoto = 0;
   await Promise.all(
@@ -259,7 +260,7 @@ async function attachVehiclePhotos(vehicle: VehiclePayload) {
           type: "GET_VEHICLE_PHOTO",
           vehicleId: vehicle.id,
           index,
-        }).catch(() => ({ success: false, error: "fetch_photos" }));
+        }).catch(() => ({ success: false, error: "Connexion à l'extension interrompue. Rechargez Facebook, puis réessayez." }));
       }
     }),
   );
@@ -277,9 +278,14 @@ async function attachVehiclePhotos(vehicle: VehiclePayload) {
       requested,
       inputFound: true,
       step: "fetch_photos",
+      error: responses.find((response) => response?.error)?.error,
     };
   }
 
+  // Downloading the gallery can take long enough for React to replace the input.
+  input = await waitForPhotoFileInput(8000);
+  if (!input) return { attached: 0, requested, inputFound: false, step: "find_photo_input" };
+  const previousThumbnails = countPhotoThumbnails();
   const assigned = assignFilesToInput(input, files);
   if (assigned === 0) {
     return {
@@ -290,13 +296,14 @@ async function attachVehiclePhotos(vehicle: VehiclePayload) {
     };
   }
 
-  const thumbnails = await waitForPhotoThumbnails(assigned, 8000);
+  const totalThumbnails = await waitForPhotoThumbnails(previousThumbnails + assigned, 15000);
+  const thumbnails = Math.max(0, totalThumbnails - previousThumbnails);
   return {
     attached: assigned,
     requested,
     inputFound: true,
     thumbnails,
-    step: thumbnails > 0 ? "verify_thumbnails" : "verify_thumbnails",
+    step: "verify_thumbnails",
   };
 }
 
@@ -647,7 +654,7 @@ async function fillForm(vehicle: VehiclePayload): Promise<FillReport> {
           report.issues.push(missingFieldIssue("photos", photoResult.step));
         } else if (photoResult.attached > 0) {
           report.filled.push(
-            `${photoResult.attached} photo${photoResult.attached > 1 ? "s" : ""}`,
+            `${photoResult.attached} photo${photoResult.attached > 1 ? "s" : ""} transmise${photoResult.attached > 1 ? "s" : ""} à Facebook`,
           );
           if (photoResult.attached < photoResult.requested) {
             report.issues.push({
@@ -656,13 +663,14 @@ async function fillForm(vehicle: VehiclePayload): Promise<FillReport> {
               reason: "partial",
               message: `${photoResult.requested - photoResult.attached} photo(s) à ajouter manuellement (étape ${photoResult.step}).`,
             });
-          } else if ((photoResult.thumbnails ?? 0) === 0) {
+          }
+          if ((photoResult.thumbnails ?? 0) < photoResult.attached) {
             report.issues.push({
               field: "photos",
               step: "verify_thumbnails",
               reason: "partial",
               message:
-                "Fichiers joints, mais aucune vignette Marketplace n’est apparue (étape verify_thumbnails).",
+                "Les photos ont été transmises, mais leurs aperçus ne sont pas tous confirmés. Vérifiez la zone Photos de Facebook avant de publier.",
             });
           }
         } else {
@@ -670,7 +678,7 @@ async function fillForm(vehicle: VehiclePayload): Promise<FillReport> {
             field: "photos",
             step: photoResult.step,
             reason: "partial",
-            message: `Champ Photos trouvé, mais aucune photo n’a pu être jointe (étape ${photoResult.step}).`,
+            message: photoResult.error ?? "Champ Photos trouvé, mais aucune photo n'a pu être jointe. Vérifiez la connexion de l'extension dans Réglages.",
           });
         }
       } catch (error) {
