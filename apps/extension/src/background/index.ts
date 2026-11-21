@@ -120,10 +120,11 @@ function handleRuntimeMessage(
           return;
         }
 
-        chrome.storage.local.remove(
-          [PENDING_PUBLICATION_KEY, "pendingVehicle", "pendingStartedAt"],
-          () => sendResponse({ success: true, ...data }),
-        );
+        const stored = await chrome.storage.local.get(PENDING_PUBLICATION_KEY);
+        if (stored[PENDING_PUBLICATION_KEY]?.vehicle?.id === message.vehicleId) {
+          await chrome.storage.local.remove([PENDING_PUBLICATION_KEY, "pendingVehicle", "pendingStartedAt"]);
+        }
+        sendResponse({ success: true, ...data });
       } catch {
         sendResponse({
           success: false,
@@ -267,7 +268,7 @@ function handleRuntimeMessage(
   if (message.type === "RELIER_LISTINGS") {
     chrome.tabs.query({ url: "https://www.facebook.com/marketplace/*" }, (tabs) => {
       const preferred =
-        tabs.find((tab) => shouldBulkRelierOnTabUrl(tab.url)) ?? tabs[0];
+        tabs.find((tab) => shouldBulkRelierOnTabUrl(tab.url));
       if (preferred?.id) {
         chrome.tabs.update(preferred.id, { active: true });
         chrome.tabs.sendMessage(

@@ -1,3 +1,5 @@
+import { sellerListings } from "../seller-listings";
+import { renderVehicleVideo } from "../vehicle-video";
 import {
   chromeRuntimeErrorFr,
   chunkItems,
@@ -125,6 +127,10 @@ const SELECTORS = {
       '[role="combobox"][aria-label*="Style de carrosserie" i]',
       '[role="combobox"][aria-label*="Body style" i]',
     ],
+    interiorColor: [
+      '[role="combobox"][aria-label*="Couleur intérieure" i]',
+      '[role="combobox"][aria-label*="Interior color" i]',
+    ],
     exteriorColor: [
       '[role="combobox"][aria-label*="Couleur extérieure" i]',
       '[role="combobox"][aria-label*="Exterior color" i]',
@@ -186,6 +192,13 @@ function findElement(
       // Invalid selector, skip
     }
   }
+  if (selectors.some(selector => selector.includes("combobox"))) {
+    for (const control of Array.from(document.querySelectorAll<HTMLElement>('[role="combobox"]'))) {
+      const label = (control.getAttribute("aria-labelledby") || "").split(/\s+/)
+        .map(id => document.getElementById(id)?.textContent || "").join(" ");
+      if (normalizedLabels.some(candidate => [label, control.innerText].some(text => normalizeOptionText(text || "").startsWith(candidate)))) return control;
+    }
+  }
   return null;
 }
 
@@ -237,7 +250,7 @@ interface PhotoResponse {
   filename?: string;
 }
 
-async function attachVehiclePhotos(vehicle: VehiclePayload) {
+async function attachVehiclePhotos(vehicle: VehiclePayload, report: FillReport, composer: number) {
   const requested = Math.min(vehicle.photos?.length ?? 0, 20);
   let input = await waitForPhotoFileInput(8000);
   if (!(input instanceof HTMLInputElement)) {
@@ -285,8 +298,53 @@ async function attachVehiclePhotos(vehicle: VehiclePayload) {
   // Downloading the gallery can take long enough for React to replace the input.
   input = await waitForPhotoFileInput(8000);
   if (!input) return { attached: 0, requested, inputFound: false, step: "find_photo_input" };
+  // A mixed picker receives photos and video in a single change event.
+  // A second assignment to that picker could overwrite the photo selection.
+  let uploads = files;
+  const images: ImageBitmap[] = [];
+  try {
+    for (const file of files.slice(0, 6)) {
+      try { images.push(await createImageBitmap(file, { resizeWidth: 960 })); } catch { /* skip unreadable photos */ }
+    }
+    const title = [vehicle.year, vehicle.make, vehicle.model, vehicle.trim].filter(Boolean).join(" ");
+    const blob = await renderVehicleVideo(images, title, AbortSignal.timeout(45000));
+    const ext = blob.type.includes("mp4") ? "mp4" : "webm";
+    const file = new File([blob], `Suivia-${vehicle.stockNumber || vehicle.id}.${ext}`, { type: `video/${ext}` });
+    if (composer !== activeComposer || !isMarketplaceCreateUrl(location.href)) throw new Error("Le formulaire a changé.");
+    const mediaInputs = Array.from(document.querySelectorAll<HTMLInputElement>('input[type="file"]:not(:disabled)'));
+    const accepts = (el: HTMLInputElement) => el.accept.toLowerCase().split(",").map(v => v.trim()).some(v => ["video/*", file.type, "." + ext].includes(v));
+    input = await waitForPhotoFileInput(2000);
+    const separate = mediaInputs.find(el => el !== input && accepts(el) && !/image|jpg|png/i.test(el.accept));
+    if (separate && assignFilesToInput(separate, [file])) {
+      report.filled.push("vidéo publicitaire transmise à Facebook (vérifiez son aperçu)");
+    } else if (input?.multiple && accepts(input)) {
+      uploads = [...files, file];
+    } else {
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(file);
+      link.download = file.name;
+      link.textContent = "Télécharger la vidéo du véhicule";
+      link.style.cssText = "position:fixed;bottom:12px;right:12px;z-index:2147483647;background:white;color:#123;padding:12px";
+      document.getElementById("suivia-video-download")?.remove();
+      link.id = "suivia-video-download";
+      document.body.append(link);
+      const clear = () => { URL.revokeObjectURL(link.href); link.remove(); };
+      window.addEventListener("pagehide", clear, { once: true });
+      window.setTimeout(clear, 300000);
+      report.issues.push({field:"video", step:"attach_video", reason:"partial", message:"Vidéo prête à télécharger. Aucun champ compatible trouvé."});
+    }
+  } catch (error) {
+    report.issues.push(exceptionIssue("video", "attach_video", error instanceof Error ? error.message : "Export impossible."));
+  } finally {
+    for (const image of images) image.close();
+  }
+  if (composer !== activeComposer || !isMarketplaceCreateUrl(location.href)) throw new Error("Le formulaire a changé.");
+  input = await waitForPhotoFileInput(2000);
+  if (!input) return { attached: 0, requested, inputFound: false, step: "find_photo_input" };
   const previousThumbnails = countPhotoThumbnails();
-  const assigned = assignFilesToInput(input, files);
+  const submitted = assignFilesToInput(input, uploads);
+  const assigned = Math.min(files.length, submitted);
+  if (uploads.length > files.length && submitted === uploads.length) report.filled.push("vidéo publicitaire transmise à Facebook (vérifiez son aperçu)");
   if (assigned === 0) {
     return {
       attached: 0,
@@ -320,19 +378,16 @@ async function selectComboboxOption(
   if (!combobox) return "missing_field";
 
   combobox.click();
-  let options: HTMLElement[] = [];
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    options = Array.from(
-      document.querySelectorAll<HTMLElement>('[role="option"]'),
-    );
-    if (options.length > 0) break;
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-
+  let option: HTMLElement | undefined;
   const normalizedLabels = optionLabels.map(normalizeOptionText);
-  const option = options.find((candidate) =>
-    normalizedLabels.includes(normalizeOptionText(candidate.textContent ?? "")),
-  );
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const controlledId = combobox.getAttribute("aria-controls");
+    const root = (controlledId && document.getElementById(controlledId)) || document;
+    option = Array.from(root.querySelectorAll<HTMLElement>('[role="option"]')).find(candidate =>
+      candidate.getClientRects().length > 0 && normalizedLabels.includes(normalizeOptionText(candidate.textContent || "")));
+    if (option) break;
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
   if (!option) {
     // Facebook keeps its React portal open when a click lands outside the menu.
     // Escape closes only the combobox we just opened and prevents later fields
@@ -364,14 +419,14 @@ async function selectComboboxOption(
 
 function bodyStyleLabels(value?: string) {
   const normalized = normalizeOptionText(value ?? "");
-  if (/suv|utilitaire/.test(normalized)) return ["SUV"];
-  if (/truck|camion|pickup/.test(normalized)) return ["Camion"];
-  if (/sedan|berline/.test(normalized)) return ["Berline"];
-  if (/hatch|hayon/.test(normalized)) return ["Hayon"];
+  if (/suv|vus|utilitaire|crossover|multisegment/.test(normalized)) return ["VUS", "SUV", "Véhicule utilitaire sport", "Sport utility vehicle"];
+  if (/truck|camion|pickup/.test(normalized)) return ["Camion","Camionnette","Truck","Pickup truck"];
+  if (/sedan|berline/.test(normalized)) return ["Berline","Sedan"];
+  if (/hatch|hayon/.test(normalized)) return ["Hayon","Hatchback"];
   if (/coupe|coupé/.test(normalized)) return ["Coupé"];
   if (/convertible|cabriolet/.test(normalized)) return ["Cabriolet"];
-  if (/wagon|estate/.test(normalized)) return ["Estate"];
-  if (/van|monospace/.test(normalized)) return ["Monospace"];
+  if (/wagon|estate/.test(normalized)) return ["Familiale","Wagon","Estate"];
+  if (/van|monospace/.test(normalized)) return ["Monospace","Minifourgonnette","Minivan","Van"];
   return [];
 }
 
@@ -387,7 +442,7 @@ function exteriorColorLabels(value?: string) {
     [/green|vert/, ["Vert", "Green"]],
     [/orange/, ["Orange"]],
     [/yellow|jaune/, ["Jaune", "Yellow"]],
-    [/brown|marron/, ["Marron", "Brown"]],
+    [/brown|marron|brun/, ["Marron", "Brun", "Brown"]],
     [/beige/, ["Beige"]],
     [/purple|violet/, ["Violet", "Purple"]],
   ];
@@ -432,7 +487,7 @@ function recordCombobox(
   );
 }
 
-async function fillForm(vehicle: VehiclePayload): Promise<FillReport> {
+async function fillForm(vehicle: VehiclePayload, composer: number): Promise<FillReport> {
   const report: FillReport = { filled: [], issues: [] };
   const selectors = SELECTORS.v1;
   let currentField = "vehicleType";
@@ -597,16 +652,19 @@ async function fillForm(vehicle: VehiclePayload): Promise<FillReport> {
       }
     }
 
-    const bodyLabels = bodyStyleLabels(vehicle.bodyStyle);
-    if (bodyLabels.length > 0) {
-      currentField = "bodyStyle";
-      currentStep = "select_bodyStyle";
-      const result = await selectComboboxOption(
-        selectors.bodyStyle,
-        ["Style de carrosserie", "Body style"],
-        bodyLabels,
-      );
-      if (result === "ok") report.filled.push("style de carrosserie");
+    for (const [field, french, english, labels] of [
+      ["bodyStyle", "Style de carrosserie", "Body style", bodyStyleLabels(vehicle.bodyStyle)],
+      ["interiorColor", "Couleur intérieure", "Interior color", exteriorColorLabels(vehicle.interiorColor)],
+    ] as const) {
+      currentField = field;
+      currentStep = `select_${field}`;
+      const value = vehicle[field]?.trim();
+      if (!value) {
+        report.issues.push({ field, step: currentStep, reason: "partial", message: `${french} à vérifier : la fiche véhicule ne fournit aucune valeur.` });
+        continue;
+      }
+      const result = await selectComboboxOption(selectors[field], [french, english], [value, ...labels]);
+      recordCombobox(report, field, french.toLowerCase(), result, value);
     }
 
     const mappedExteriorColorLabels = exteriorColorLabels(vehicle.exteriorColor);
@@ -649,7 +707,7 @@ async function fillForm(vehicle: VehiclePayload): Promise<FillReport> {
     currentStep = "attach_photos";
     if (vehicle.photos?.length) {
       try {
-        const photoResult = await attachVehiclePhotos(vehicle);
+        const photoResult = await attachVehiclePhotos(vehicle, report, composer);
         if (!photoResult.inputFound) {
           report.issues.push(missingFieldIssue("photos", photoResult.step));
         } else if (photoResult.attached > 0) {
@@ -814,15 +872,14 @@ function reportFillTelemetry(vehicleId: string, report: FillReport) {
 
 let confirmationUrl: string | null = null;
 
-function confirmPublishedListing(vehicle: VehiclePayload) {
-  const externalUrl = window.location.href;
+function confirmPublishedListing(vehicle: VehiclePayload, externalUrl: string) {
   if (!isMarketplaceItemUrl(externalUrl) || confirmationUrl === externalUrl)
     return;
   confirmationUrl = externalUrl;
 
   const retry = () => {
     confirmationUrl = null;
-    confirmPublishedListing(vehicle);
+    confirmPublishedListing(vehicle, externalUrl);
   };
   const { banner, status, actionButton } = mountAssistBanner(
     vehicle,
@@ -859,28 +916,61 @@ function confirmPublishedListing(vehicle: VehiclePayload) {
   );
 }
 
+const publicationMarker = "suivia-publish-intent";
+let stopWatching: (() => void) | undefined;
+
 function watchForPublishedListing(vehicle: VehiclePayload, startedAt: number) {
+  stopWatching?.();
+  const key = vehicle.id + ":" + startedAt;
+  const mark = (event: MouseEvent) => {
+    if (!event.isTrusted || !isMarketplaceCreateUrl(location.href)) return;
+    const button = (event.target as Element)?.closest("button,[role=button]");
+    if (button && /^(publier|publish)$/i.test((button.getAttribute("aria-label") || button.textContent || "").trim())) {
+      sessionStorage.setItem(publicationMarker, JSON.stringify({key, at:Date.now()}));
+    }
+  };
+  document.addEventListener("click", mark, true);
   const timer = window.setInterval(() => {
-    const pending = {
-      vehicle,
-      startedAt,
-    } satisfies PendingPublication<VehiclePayload>;
-    if (!isPendingPublicationFresh(pending)) {
-      window.clearInterval(timer);
-      chrome.storage.local.remove([
-        PENDING_PUBLICATION_KEY,
-        "pendingVehicle",
-        "pendingStartedAt",
-      ]);
+    if (!isPendingPublicationFresh({ vehicle, startedAt })) { stopWatching?.(); return; }
+    if (location.protocol !== "https:") return;
+    let marker;
+    try { marker = JSON.parse(sessionStorage.getItem(publicationMarker) || "null"); } catch { return; }
+    if (marker?.key !== key || Date.now() - marker.at > 180000) return;
+    const successLinks = Array.from(document.querySelectorAll<HTMLAnchorElement>('[role=status] a[href], [role=alert] a[href], [aria-live] a[href]')).filter(a =>
+      isMarketplaceItemUrl(a.href) && /voir.*annonce|view.*listing/i.test(a.innerText || a.getAttribute("aria-label") || ""));
+    let url = successLinks.length === 1 ? successLinks[0].href : undefined;
+    if (!url) {
+      const candidates = isMarketplaceSellingUrl(location.href) || isMarketplaceItemUrl(location.href) ? collectMarketplaceListingsFromDocument() : [];
+      const title = [vehicle.year, vehicle.make, vehicle.model].join(" ").toLowerCase();
+      const matches = candidates.filter(card => {
+        const text = (card.title + " " + card.text).toLowerCase();
+        if (!text.includes(title)) return false;
+        const tokens = text.toUpperCase().split(/[^A-Z0-9-]+/);
+        return Boolean(vehicle.vin && tokens.includes(vehicle.vin.toUpperCase()) ||
+          vehicle.stockNumber && tokens.includes(vehicle.stockNumber.toUpperCase()) ||
+          /quelques secondes|à l.instant|just now|seconds ago/i.test(card.text));
+      });
+      if (matches.length === 1) url = matches[0].externalUrl;
+    }
+    if (!url && !isMarketplaceSellingUrl(location.href) && !isMarketplaceCreateUrl(location.href) && !isMarketplaceItemUrl(location.href) &&
+      /^\/marketplace\/?$/.test(location.pathname) && Date.now() - marker.at > 3500) {
+      location.assign("https://www.facebook.com/marketplace/you/selling");
       return;
     }
-
-    if (isMarketplaceItemUrl(window.location.href)) {
-      window.clearInterval(timer);
-      confirmPublishedListing(vehicle);
+    if (url) {
+      stopWatching?.();
+      sessionStorage.removeItem(publicationMarker);
+      confirmPublishedListing(vehicle, url);
     }
-  }, 750);
+  }, 900);
+  stopWatching = () => {
+    clearInterval(timer);
+    document.removeEventListener("click", mark, true);
+    stopWatching = undefined;
+  };
 }
+
+let activeComposer = 0;
 
 async function prepareMarketplaceForm(
   vehicle: VehiclePayload,
@@ -890,10 +980,12 @@ async function prepareMarketplaceForm(
     vehicle,
     `Préparation de l’annonce et des ${Math.min(vehicle.photos?.length ?? 0, 20)} photo(s)…`,
   );
-  const fillResult = await fillForm(vehicle);
+  watchForPublishedListing(vehicle, startedAt);
+  const composer = ++activeComposer;
+  const fillResult = await fillForm(vehicle, composer);
+  if (composer !== activeComposer || confirmationUrl || !isMarketplaceCreateUrl(location.href)) return fillResult;
   showPreparationBanner(vehicle, fillResult);
   reportFillTelemetry(vehicle.id, fillResult);
-  watchForPublishedListing(vehicle, startedAt);
   return fillResult;
 }
 
@@ -907,8 +999,8 @@ function beginPendingFlow(pending: PendingPublication<VehiclePayload>) {
     return;
   }
 
-  if (isMarketplaceItemUrl(window.location.href)) {
-    confirmPublishedListing(pending.vehicle);
+  if (!isMarketplaceCreateUrl(location.href) && sessionStorage.getItem(publicationMarker)) {
+    watchForPublishedListing(pending.vehicle, pending.startedAt);
     return;
   }
 
@@ -973,49 +1065,35 @@ function beginPendingFlow(pending: PendingPublication<VehiclePayload>) {
 }
 
 function collectMarketplaceListingsFromDocument() {
-  const anchors = Array.from(
-    document.querySelectorAll<HTMLAnchorElement>('a[href*="/marketplace/item/"]'),
-  ).map((anchor) => {
-    const container =
-      anchor.closest('[role="article"], [role="listitem"], [role="row"]') ??
-      anchor.parentElement;
-    return {
-      href: anchor.href,
-      title: (anchor.getAttribute("aria-label") || anchor.textContent || "").trim(),
-      text: (container?.textContent || "").replace(/\s+/g, " ").trim(),
-    };
-  });
-
-  if (isMarketplaceItemUrl(window.location.href)) {
-    anchors.unshift({
-      href: window.location.href,
-      title: document.title,
-      text: (document.body.innerText || "").replace(/\s+/g, " ").trim().slice(0, 4000),
-    });
-  }
-
-  return listingsFromAnchors(anchors);
+  if (isMarketplaceSellingUrl(location.href)) return sellerListings();
+  const title = document.querySelector("h1")?.textContent || document.title;
+  const description = document.querySelector('meta[property="og:description"]')?.getAttribute("content") || "";
+  return listingsFromAnchors([{ href: location.href, title, text: description }]);
 }
 
-async function collectMarketplaceListingsUntilStable(timeoutMs = 4500) {
-  const startedAt = Date.now();
-  let lastCount = 0;
-  let stableTicks = 0;
-  let listings = collectMarketplaceListingsFromDocument();
-
-  while (Date.now() - startedAt < timeoutMs) {
-    listings = collectMarketplaceListingsFromDocument();
-    if (listings.length === lastCount) {
-      stableTicks += 1;
-      if (stableTicks >= 4 && listings.length > 0) return listings;
-    } else {
-      stableTicks = 0;
-      lastCount = listings.length;
+async function collectMarketplaceListingsUntilStable(timeoutMs = 12000) {
+  const found = new Map<string, ReturnType<typeof sellerListings>[number]>();
+  const start = Date.now();
+  const heading = Array.from(document.querySelectorAll<HTMLElement>("h1,h2,h3,[role=heading]")).find(el => /^(vos annonces|your listings)$/i.test(el.innerText.trim()));
+  let scroller: Element | null = heading?.parentElement || document.querySelector('[role="main"],main');
+  while (scroller && scroller.scrollHeight <= scroller.clientHeight + 5) scroller = scroller.parentElement;
+  scroller ??= document.scrollingElement;
+  const original = scroller?.scrollTop || 0;
+  let stable = 0;
+  try {
+    while (Date.now() - start < timeoutMs) {
+      const size = found.size;
+      for (const listing of collectMarketplaceListingsFromDocument()) found.set(listing.externalId, listing);
+      const before = scroller?.scrollTop || 0;
+      if (scroller && isMarketplaceSellingUrl(location.href)) scroller.scrollTop += Math.max(300, scroller.clientHeight * 0.8);
+      stable = found.size === size && before === scroller?.scrollTop ? stable + 1 : 0;
+      if (found.size && stable >= 4) break;
+      await new Promise(resolve => setTimeout(resolve, 400));
     }
-    await new Promise((resolve) => setTimeout(resolve, 250));
+  } finally {
+    if (scroller) scroller.scrollTop = original;
   }
-
-  return listings;
+  return [...found.values()];
 }
 
 function formatRelierSummary(data: {
@@ -1081,7 +1159,7 @@ async function relierMarketplaceListings() {
     model: "Auto",
   };
   const session = detectMarketplaceSession(document);
-  if (session === "logged_out") {
+  if (session === "logged_out" && document.querySelector('input[type="password"]')) {
     return {
       success: false,
       listings: [],
@@ -1115,7 +1193,7 @@ async function relierMarketplaceListings() {
     status.textContent =
       laterSession === "logged_out"
         ? "Connectez-vous à Facebook dans cet onglet, puis relancez Relier mes annonces. Sans session, Marketplace est vide."
-        : "Aucune annonce trouvée. Ouvrez « Vos annonces » (Marketplace → Vous) une fois connecté, puis relancez Relier mes annonces.";
+        : "Aucun identifiant d’annonce détecté sur cette page. Faites défiler vos annonces pour les charger, puis relancez la lecture.";
     return {
       success: false,
       listings: [],
@@ -1242,7 +1320,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 chrome.storage.local.get(
   [PENDING_PUBLICATION_KEY, PENDING_RELIER_KEY, "pendingVehicle", "pendingStartedAt"],
   (result) => {
-    if (result[PENDING_RELIER_KEY]) {
+    if (result[PENDING_RELIER_KEY] && isMarketplaceSellingUrl(location.href)) {
       chrome.storage.local.remove([PENDING_RELIER_KEY]);
       void waitForPredicate(
         () =>

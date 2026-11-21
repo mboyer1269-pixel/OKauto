@@ -11,11 +11,19 @@ for (const scenario of [
   "no-previews",
 ] as const) {
   test(`photo transfer: ${scenario}`, async ({ page }) => {
+    test.setTimeout(60000);
+    const url = "https://www.facebook.com/marketplace/create/vehicle";
+    await page.route(url, route => route.fulfill({ contentType: "text/html", body: "<html></html>" }));
+    await page.goto(url);
     await page.setContent(`
       <button role="combobox" aria-label="Vehicle type">Type</button>
       <button role="combobox" aria-label="Year">Year</button>
       <button role="combobox" aria-label="Make">Make</button>
       <div role="option">Car/Truck</div><div role="option">2024</div><div role="option">GMC</div>
+      <button role="combobox" aria-label="Style de carrosserie"></button>
+      <button role="combobox" aria-label="Couleur intérieure"></button>
+      <div role="option" onclick="this.dataset.selected='yes'">VUS</div>
+      <div role="option" onclick="this.dataset.selected='yes'">Noir</div>
       <input aria-label="Model"><input aria-label="Title">
       <textarea aria-label="Description"></textarea>
       <input id="disabled" type="file" accept="image/*" multiple disabled>
@@ -31,6 +39,8 @@ for (const scenario of [
           make: "GMC",
           model: "Sierra",
           description: "Fixture",
+          interiorColor: "Jet Black",
+          bodyStyle: "VUS",
           photos: ["one", "two"],
         },
         startedAt: Date.now(),
@@ -111,7 +121,7 @@ for (const scenario of [
               filename: `${message.index}.png`,
               contentType: "image/png",
               base64:
-                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aX1cAAAAASUVORK5CYII=",
+                "iVBORw0KGgoAAAANSUhEUgAAAHgAAABQCAIAAABd+SbeAAAAyUlEQVR4nO3QQREAIRDAsAX/nu9UUB4kCjpdM99w3r4d8AqjI0ZHjI4YHTE6YnTE6IjREaMjRkeMjhgdMTpidMToiNERoyNGR4yOGB0xOmJ0xOiI0RGjI0ZHjI4YHTE6YnTE6IjREaMjRkeMjhgdMTpidMToiNERoyNGR4yOGB0xOmJ0xOiI0RGjI0ZHjI4YHTE6YnTE6IjREaMjRkeMjhgdMTpidMToiNERoyNGR4yOGB0xOmJ0xOiI0RGjI0ZHjI4YHTE6YnTkBxavAZ/Sos9KAAAAAElFTkSuQmCC",
             });
           },
         },
@@ -135,6 +145,7 @@ for (const scenario of [
       () => (window as unknown as { received: string[] }).received,
     );
     expect(errors).toEqual([]);
+    await expect(page.locator('[role=option][data-selected=yes]')).toHaveCount(2);
     if (scenario === "denied") {
       expect(received).toEqual([]);
       expect(report.issues).toEqual(
@@ -155,10 +166,15 @@ for (const scenario of [
         scenario === "partial" || scenario === "no-previews" ? 1 : 0,
       );
     }
-    expect(
-      await page
-        .locator("#video")
-        .evaluate((input: HTMLInputElement) => input.files!.length),
-    ).toBe(0);
+    const video = await page.locator("#video").evaluate((input: HTMLInputElement) => {
+      const file = input.files?.[0];
+      return file ? { size: file.size, type: file.type, name: file.name } : null;
+    });
+    if (scenario === "denied") expect(video).toBeNull();
+    else {
+      expect(video?.size).toBeGreaterThan(100);
+      expect(video?.type).toMatch(/^video\/(mp4|webm)$/);
+      expect(video?.name).toContain("fixture");
+    }
   });
 }
