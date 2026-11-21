@@ -218,23 +218,27 @@ export async function runSyncSource(syncSourceId: string): Promise<SyncResult> {
       .filter(
         (vin): vin is string => typeof vin === "string" && vin.length > 0,
       );
-    const missingVehicles = await prisma.vehicle.findMany({
-      where: {
-        syncSourceId: source.id,
-        status: { in: ["AVAILABLE", "PENDING"] },
-        vin: { notIn: activeVins },
-      },
-      select: {
-        id: true,
-        vin: true,
-        year: true,
-        make: true,
-        model: true,
-        assignedToId: true,
-        missingSyncCount: true,
-        feedAbsenceStatus: true,
-      },
-    });
+    // Absence is actionable only after all observed vehicles were processed.
+    const missingVehicles =
+      errorCount === 0
+        ? await prisma.vehicle.findMany({
+            where: {
+              syncSourceId: source.id,
+              status: { in: ["AVAILABLE", "PENDING"] },
+              vin: { notIn: activeVins },
+            },
+            select: {
+              id: true,
+              vin: true,
+              year: true,
+              make: true,
+              model: true,
+              assignedToId: true,
+              missingSyncCount: true,
+              feedAbsenceStatus: true,
+            },
+          })
+        : [];
 
     const trackedActiveCount = await prisma.vehicle.count({
       where: {

@@ -293,7 +293,7 @@ describe("runSyncSource", () => {
     expect(notifications.some((n) => n.message.includes(formatted))).toBe(true);
   });
 
-  it("marks vehicles sold only after two consecutive feed absences", async () => {
+  it("marks vehicles sold after two feed absences, ignoring failed processing", async () => {
     await runSyncSource(sourceId);
     const [vehicle, member] = await Promise.all([
       prisma.vehicle.findFirstOrThrow({
@@ -340,6 +340,22 @@ describe("runSyncSource", () => {
     });
     expect(afterFirstMiss?.status).toBe("AVAILABLE");
     expect(afterFirstMiss?.missingSyncCount).toBe(1);
+
+    const upsert = vi
+      .spyOn(prisma.vehicle, "upsert")
+      .mockRejectedValueOnce(new Error("Écriture du véhicule indisponible"));
+    try {
+      const partialResult = await runSyncSource(sourceId);
+      expect(partialResult.errors).toBe(1);
+      expect(partialResult.sold).toBe(0);
+      const unchanged = await prisma.vehicle.findUniqueOrThrow({
+        where: { id: vehicle.id },
+      });
+      expect(unchanged.status).toBe("AVAILABLE");
+      expect(unchanged.missingSyncCount).toBe(1);
+    } finally {
+      upsert.mockRestore();
+    }
 
     const result = await runSyncSource(sourceId);
     expect(result.sold).toBe(1);
