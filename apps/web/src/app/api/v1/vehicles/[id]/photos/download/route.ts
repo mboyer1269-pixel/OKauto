@@ -10,6 +10,7 @@ import {
 
 export const GET = withAuth(async (request, { auth, params }) => {
   const requestUrl = new URL(request.url);
+  const photoId = requestUrl.searchParams.get('photoId');
   const parsedIndex = Number.parseInt(requestUrl.searchParams.get('index') ?? '0', 10);
   const index = Number.isFinite(parsedIndex) && parsedIndex >= 0 ? parsedIndex : 0;
 
@@ -20,13 +21,14 @@ export const GET = withAuth(async (request, { auth, params }) => {
       stockNumber: true,
       photos: {
         orderBy: { sortOrder: 'asc' },
-        select: { url: true },
+        select: { id: true, url: true },
       },
     },
   });
 
   if (!vehicle) return apiError(ApiErrorCode.VEHICLE_NOT_FOUND, 404);
-  const photo = vehicle.photos[index];
+  const position = photoId === null ? index : vehicle.photos.findIndex((entry) => entry.id === photoId);
+  const photo = vehicle.photos[position];
   if (!photo) return apiError(ApiErrorCode.PHOTO_NOT_FOUND, 404);
 
   const photoUrl = new URL(photo.url);
@@ -34,7 +36,8 @@ export const GET = withAuth(async (request, { auth, params }) => {
     return apiError(ApiErrorCode.INSECURE_PHOTO_URL, 400);
   }
 
-  const upstream = await fetchPublicImage(photoUrl);
+  const upstream = await fetchPublicImage(photoUrl, AbortSignal.any([request.signal, AbortSignal.timeout(12000)])).catch(() => undefined);
+  if (upstream === undefined) return apiError(ApiErrorCode.PHOTO_UNAVAILABLE, 502);
   if (!upstream) return apiError(ApiErrorCode.INSECURE_PHOTO_URL, 400);
   if (!upstream.ok) return apiError(ApiErrorCode.PHOTO_UNAVAILABLE, 502);
 
@@ -43,9 +46,9 @@ export const GET = withAuth(async (request, { auth, params }) => {
   if (!extension) return apiError(ApiErrorCode.UNSUPPORTED_PHOTO_FORMAT, 415);
 
   const safeStock = (vehicle.stockNumber ?? vehicle.id).replace(/[^a-z0-9_-]+/gi, '-');
-  const filename = `${safeStock}-photo-${index + 1}.${extension}`;
+  const filename = `${safeStock}-photo-${position + 1}.${extension}`;
 
-  return new NextResponse(await upstream.arrayBuffer(), {
+  return new NextResponse(upstream.body, {
     headers: {
       'Content-Type': contentType,
       'Content-Disposition': `attachment; filename="${filename}"`,

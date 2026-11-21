@@ -60,35 +60,43 @@ export async function renderVehicleVideo(
       mimeType: mime,
       videoBitsPerSecond: 3500000,
     });
-    return await new Promise<Blob>((resolve, reject) => {
-      const chunks: Blob[] = [];
-      const abort = () => {
-        if (recorder.state !== "inactive") recorder.stop();
-      };
-      signal.addEventListener("abort", abort, { once: true });
-      recorder.ondataavailable = ({ data }) => {
-        if (data.size) chunks.push(data);
-      };
-      recorder.onerror = () => {
-        signal.removeEventListener("abort", abort);
-        reject(new Error("L’export vidéo a échoué."));
-      };
-      recorder.onstop = () => {
-        signal.removeEventListener("abort", abort);
-        if (signal.aborted) reject(signal.reason);
-        else if (chunks.length)
-          resolve(new Blob(chunks, { type: recorder.mimeType }));
-        else reject(new Error("La vidéo est vide. Relancez la génération."));
-      };
-      recorder.start();
-      const start = performance.now();
-      timer = setInterval(() => {
-        const elapsed = performance.now() - start;
-        draw(elapsed);
-        if (elapsed >= duration && recorder.state !== "inactive")
-          recorder.stop();
-      }, 1000 / 24);
-    });
+    let abortRecording: (() => void) | undefined;
+    try {
+      return await new Promise<Blob>((resolve, reject) => {
+        const chunks: Blob[] = [];
+        const abort = () => {
+          reject(signal.reason);
+          if (recorder.state !== "inactive") recorder.stop();
+        };
+        abortRecording = abort;
+        signal.addEventListener("abort", abort, { once: true });
+        recorder.ondataavailable = ({ data }) => {
+          if (data.size) chunks.push(data);
+        };
+        recorder.onerror = () => {
+          signal.removeEventListener("abort", abort);
+          reject(new Error("L’export vidéo a échoué."));
+        };
+        recorder.onstop = () => {
+          signal.removeEventListener("abort", abort);
+          if (signal.aborted) reject(signal.reason);
+          else if (chunks.length)
+            resolve(new Blob(chunks, { type: recorder.mimeType }));
+          else reject(new Error("La vidéo est vide. Relancez la génération."));
+        };
+        signal.throwIfAborted();
+        recorder.start();
+        const start = performance.now();
+        timer = setInterval(() => {
+          const elapsed = performance.now() - start;
+          draw(elapsed);
+          if (elapsed >= duration && recorder.state !== "inactive")
+            recorder.stop();
+        }, 1000 / 24);
+      });
+    } finally {
+      if (abortRecording) signal.removeEventListener("abort", abortRecording);
+    }
   } finally {
     clearInterval(timer);
     stream.getTracks().forEach((track) => track.stop());

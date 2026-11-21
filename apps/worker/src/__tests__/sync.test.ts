@@ -396,7 +396,12 @@ describe("runSyncSource", () => {
           new Response(JSON.stringify([{ vin: testVin, status: "sold" }])),
       ),
     );
-    expect((await runSyncSource(sourceId)).sold).toBe(1);
+    const simultaneous = await Promise.all([
+      runSyncSource(sourceId),
+      runSyncSource(sourceId),
+    ]);
+    expect(simultaneous.map((run) => run.errors)).toEqual([0, 0]);
+    expect(simultaneous.map((run) => run.sold).sort()).toEqual([0, 1]);
     const first = await prisma.vehicle.findUniqueOrThrow({
       where: { id: vehicle.id },
     });

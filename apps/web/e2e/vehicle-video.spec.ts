@@ -34,12 +34,14 @@ test("creates a playable vertical ad from inventory photos", async ({
       },
     }),
   );
+  let unavailable = false;
   await page.route(
     "**/api/v1/vehicles/video-test/photos/download?*",
     (route) => {
       const index = Number(
-        new URL(route.request().url()).searchParams.get("index"),
+        new URL(route.request().url()).searchParams.get("photoId"),
       );
+      if (unavailable || index === 0) return route.fulfill({ status: 502 });
       return route.fulfill({
         contentType: "image/png",
         body: Buffer.from(frames[index].split(",")[1], "base64"),
@@ -51,9 +53,45 @@ test("creates a playable vertical ad from inventory photos", async ({
   const video = page.locator("video");
   await expect(video).toHaveJSProperty("videoWidth", 720, { timeout: 20000 });
   await expect(video).toHaveJSProperty("videoHeight", 1280);
+  await expect(
+    page.getByRole("status").filter({ hasText: "Photos omises" }),
+  ).toContainText("1");
   const download = page.waitForEvent("download");
   await page.getByRole("link", { name: "Télécharger la vidéo" }).click();
   expect((await download).suggestedFilename()).toMatch(
     /2024-Test-Démo\.(mp4|webm)$/,
   );
+  const previous = await video.getAttribute("src");
+  unavailable = true;
+  await page.getByRole("button", { name: "Créer la vidéo" }).click();
+  await expect(
+    page.getByRole("alert").filter({ hasText: "Aucune photo lisible" }),
+  ).toBeVisible();
+  await expect(video).toHaveAttribute("src", previous!);
+  unavailable = false;
+  await page.getByRole("button", { name: "Créer la vidéo" }).click();
+  await page.getByRole("button", { name: "Annuler", exact: true }).click();
+  await expect(
+    page.getByRole("alert").filter({ hasText: "Création annulée" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Créer la vidéo" }),
+  ).toBeEnabled();
+  await expect(video).toHaveAttribute("src", previous!);
+  await page.getByRole("button", { name: "Créer la vidéo" }).click();
+  await page.evaluate(() => {
+    Object.defineProperty(document, "hidden", {
+      configurable: true,
+      value: true,
+    });
+    document.dispatchEvent(new Event("visibilitychange"));
+    Reflect.deleteProperty(document, "hidden");
+  });
+  await expect(
+    page.getByRole("alert").filter({ hasText: "Création interrompue" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Créer la vidéo" }),
+  ).toBeEnabled();
+  await expect(video).toHaveAttribute("src", previous!);
 });

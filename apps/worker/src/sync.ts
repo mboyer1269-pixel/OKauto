@@ -70,8 +70,6 @@ export async function runSyncSource(syncSourceId: string): Promise<SyncResult> {
           },
           select: {
             id: true,
-            status: true,
-            soldAt: true,
             price: true,
             vinDecodedAt: true,
             vinDecodedFields: true,
@@ -139,7 +137,6 @@ export async function runSyncSource(syncSourceId: string): Promise<SyncResult> {
             cylinders: v.cylinders,
             condition: v.condition,
             status,
-            soldAt: status === "SOLD" ? startedAt : null,
             lastSeenAt: startedAt,
             missingSyncCount: 0,
             feedAbsenceStatus: "IN_FEED",
@@ -174,7 +171,7 @@ export async function runSyncSource(syncSourceId: string): Promise<SyncResult> {
                 }),
             condition: v.condition,
             status,
-            soldAt: status === "SOLD" ? (existing?.soldAt ?? startedAt) : null,
+            soldAt: status === "SOLD" ? undefined : null,
             lastSeenAt: startedAt,
             missingSyncCount: 0,
             feedAbsenceStatus: "IN_FEED",
@@ -188,10 +185,19 @@ export async function runSyncSource(syncSourceId: string): Promise<SyncResult> {
                 : undefined,
           },
         } satisfies Prisma.VehicleUpsertArgs;
+        let newSales = 0;
         const vehicle =
           status === "SOLD"
             ? await prisma.$transaction(async (tx) => {
                 const sold = await tx.vehicle.upsert(upsert);
+                // The upsert holds the vehicle row lock until this transaction commits.
+                if (sold.soldAt === null) {
+                  await tx.vehicle.update({
+                    where: { id: sold.id },
+                    data: { soldAt: startedAt },
+                  });
+                  newSales = 1;
+                }
                 const listings = await tx.listing.updateManyAndReturn({
                   where: {
                     vehicleId: sold.id,
@@ -217,7 +223,7 @@ export async function runSyncSource(syncSourceId: string): Promise<SyncResult> {
                 return sold;
               })
             : await prisma.vehicle.upsert(upsert);
-        if (status === "SOLD" && existing?.status !== "SOLD") reportedSold++;
+        reportedSold += newSales;
 
         if (
           existing &&

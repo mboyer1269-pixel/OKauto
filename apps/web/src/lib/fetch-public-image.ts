@@ -26,7 +26,7 @@ export function isPrivateHostname(hostname: string) {
   );
 }
 
-export async function fetchPublicImage(startUrl: URL) {
+export async function fetchPublicImage(startUrl: URL, signal?: AbortSignal) {
   let current = startUrl;
   for (let hop = 0; hop < 5; hop += 1) {
     if (current.protocol !== "https:" || isPrivateHostname(current.hostname)) {
@@ -38,12 +38,14 @@ export async function fetchPublicImage(startUrl: URL) {
           "image/avif,image/webp,image/png,image/jpeg,image/heic,image/heif,*/*",
         "User-Agent": "Mozilla/5.0 OKauto/1.0",
       },
+      signal,
       redirect: "manual",
       cache: "no-store",
     });
     if (upstream.status >= 300 && upstream.status < 400) {
       const location = upstream.headers.get("location");
       if (!location) return upstream;
+      await upstream.body?.cancel();
       current = new URL(location, current);
       continue;
     }

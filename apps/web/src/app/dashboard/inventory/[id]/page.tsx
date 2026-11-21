@@ -341,7 +341,7 @@ function VehicleDetail() {
 
           <PhotoManager vehicleId={id} photos={photos} onUpdate={load} />
           {vehicle.status === "AVAILABLE" && (
-            <VehicleVideo key={[id, title, ...photos.map((photo) => photo.id)].join("|")} id={id} title={title || "Votre prochain véhicule"} count={photos.length} />
+            <VehicleVideo key={[id, title, ...photos.map((photo) => photo.id)].join("|")} id={id} title={title || "Votre prochain véhicule"} photoIds={photos.map((photo) => photo.id)} />
           )}
 
           <div className="card">
