@@ -13,6 +13,20 @@ function itemUrl(node: Element) {
   if (id && /^\d+$/.test(id)) return "/marketplace/item/" + id;
 }
 
+function visibleCardText(root: Element, title: string) {
+  const labels = Array.from(root.querySelectorAll<HTMLElement>("span,[role=link],strong,h3"))
+    .filter(node => node.childElementCount === 0 && node.innerText.trim() === title);
+  if (labels.length !== 1) return title;
+  let card = labels[0];
+  while (card.parentElement && card.parentElement !== root) {
+    const text = card.parentElement.innerText;
+    if ((text.match(/^(?:19|20)\d{2}\s+.+/gm) ?? []).length !== 1) break;
+    card = card.parentElement;
+    if (/publié|listed|mis en vente|just now|seconds ago/i.test(text)) break;
+  }
+  return card.innerText;
+}
+
 export function sellerListings() {
   const root = document.querySelector('[role="main"],main') ?? document.body;
   const hints: Array<{ href: string; title: string; text: string }> = [];
@@ -51,7 +65,7 @@ export function sellerListings() {
         const record = current as Record<string, unknown>;
         const title = record.marketplace_listing_title ?? record.base_marketplace_listing_title;
         if (typeof title === "string" && titles.has(title) && typeof record.id === "string" && /^\d+$/.test(record.id)) {
-          hints.push({ href: "/marketplace/item/" + record.id, title, text: title });
+          hints.push({ href: "/marketplace/item/" + record.id, title, text: visibleCardText(root, title) });
         }
         for (const child of Object.values(record)) if (child && typeof child === "object") stack.push(child);
       }

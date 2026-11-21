@@ -4,6 +4,7 @@ import {
   chromeRuntimeErrorFr,
   chunkItems,
   extractFacebookMarketplaceItemId,
+  extractVinsFromText,
   generateMarketplaceTitle,
   generateTemplateDescription,
   LINK_LISTINGS_MAX_BATCH,
@@ -935,7 +936,13 @@ function watchForPublishedListing(vehicle: VehiclePayload, startedAt: number) {
     if (location.protocol !== "https:") return;
     let marker;
     try { marker = JSON.parse(sessionStorage.getItem(publicationMarker) || "null"); } catch { return; }
-    if (marker?.key !== key || Date.now() - marker.at > 180000) return;
+    if (marker?.key !== key) return;
+    if (Date.now() - marker.at > 180000) {
+      stopWatching?.();
+      sessionStorage.removeItem(publicationMarker);
+      mountAssistBanner(vehicle, "Facebook n’a pas fourni de lien certain pour ce véhicule. Utilisez « Relier mes annonces » dans Suivia.", { tone: "blue" });
+      return;
+    }
     const successLinks = Array.from(document.querySelectorAll<HTMLAnchorElement>('[role=status] a[href], [role=alert] a[href], [aria-live] a[href]')).filter(a =>
       isMarketplaceItemUrl(a.href) && /voir.*annonce|view.*listing/i.test(a.innerText || a.getAttribute("aria-label") || ""));
     let url = successLinks.length === 1 ? successLinks[0].href : undefined;
@@ -946,9 +953,13 @@ function watchForPublishedListing(vehicle: VehiclePayload, startedAt: number) {
         const text = (card.title + " " + card.text).toLowerCase();
         if (!text.includes(title)) return false;
         const tokens = text.toUpperCase().split(/[^A-Z0-9-]+/);
-        return Boolean(vehicle.vin && tokens.includes(vehicle.vin.toUpperCase()) ||
-          vehicle.stockNumber && tokens.includes(vehicle.stockNumber.toUpperCase()) ||
-          /quelques secondes|à l.instant|just now|seconds ago/i.test(card.text));
+        const vins = extractVinsFromText(text);
+        if (vehicle.vin && vins.some(vin => vin !== vehicle.vin!.toUpperCase())) return false;
+        const fresh = /quelques secondes|à l.instant|just now|seconds ago/i.test(card.text);
+        const exactId = Boolean(vehicle.vin && tokens.includes(vehicle.vin.toUpperCase()) ||
+          vehicle.stockNumber && tokens.includes(vehicle.stockNumber.toUpperCase()));
+        return fresh || (isMarketplaceItemUrl(location.href) && exactId);
+
       });
       if (matches.length === 1) url = matches[0].externalUrl;
     }
@@ -1067,7 +1078,10 @@ function beginPendingFlow(pending: PendingPublication<VehiclePayload>) {
 function collectMarketplaceListingsFromDocument() {
   if (isMarketplaceSellingUrl(location.href)) return sellerListings();
   const title = document.querySelector("h1")?.textContent || document.title;
-  const description = document.querySelector('meta[property="og:description"]')?.getAttribute("content") || "";
+  const meta = document.querySelector('meta[property="og:description"]')?.getAttribute("content") || "";
+  const recent = Array.from(document.querySelectorAll("time,span")).find(el =>
+    el.childElementCount === 0 && /^(publié|listed).{0,35}(quelques secondes|à l.instant|just now|seconds ago)/i.test(el.textContent || ""));
+  const description = [meta, recent?.textContent].filter(Boolean).join(" ");
   return listingsFromAnchors([{ href: location.href, title, text: description }]);
 }
 
