@@ -11,6 +11,7 @@ import {
   getStatusBadgeClass,
   formatDateTime,
 } from "@/lib/utils";
+import { VehicleVideo } from "@/components/vehicle-video";
 import { PhotoManager } from "@/components/photo-manager";
 import { CockpitSkeleton } from "@/components/cockpit-skeleton";
 import { FadeIn } from "@/components/fade-in";
@@ -339,6 +340,9 @@ function VehicleDetail() {
           </div>
 
           <PhotoManager vehicleId={id} photos={photos} onUpdate={load} />
+          {vehicle.status === "AVAILABLE" && (
+            <VehicleVideo key={[id, title, ...photos.map((photo) => photo.id)].join("|")} id={id} title={title || "Votre prochain véhicule"} count={photos.length} />
+          )}
 
           <div className="card">
             <h2 className="mb-3 font-semibold">Description</h2>

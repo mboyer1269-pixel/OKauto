@@ -341,21 +341,19 @@ describe("runSyncSource", () => {
     expect(afterFirstMiss?.status).toBe("AVAILABLE");
     expect(afterFirstMiss?.missingSyncCount).toBe(1);
 
-    const upsert = vi
-      .spyOn(prisma.vehicle, "upsert")
-      .mockRejectedValueOnce(new Error("Écriture du véhicule indisponible"));
-    try {
-      const partialResult = await runSyncSource(sourceId);
-      expect(partialResult.errors).toBe(1);
-      expect(partialResult.sold).toBe(0);
-      const unchanged = await prisma.vehicle.findUniqueOrThrow({
-        where: { id: vehicle.id },
-      });
-      expect(unchanged.status).toBe("AVAILABLE");
-      expect(unchanged.missingSyncCount).toBe(1);
-    } finally {
-      upsert.mockRestore();
-    }
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(
+        JSON.stringify([{ vin: "TESTSYNC987654321", mileage: 3_000_000_000 }]),
+      ),
+    );
+    const failed = await runSyncSource(sourceId);
+    expect(failed.errors).toBe(1);
+    expect(failed.sold).toBe(0);
+    const unchanged = await prisma.vehicle.findUniqueOrThrow({
+      where: { id: vehicle.id },
+    });
+    expect(unchanged.status).toBe("AVAILABLE");
+    expect(unchanged.missingSyncCount).toBe(1);
 
     const result = await runSyncSource(sourceId);
     expect(result.sold).toBe(1);
@@ -375,17 +373,63 @@ describe("runSyncSource", () => {
     });
   });
 
+  it("routes a reported sale to the publisher once and preserves the sale date", async () => {
+    await runSyncSource(sourceId);
+    const vehicle = await prisma.vehicle.findFirstOrThrow({
+      where: { vin: testVin, organizationId: orgId },
+    });
+    const member = await prisma.organizationMember.findFirstOrThrow({
+      where: { organizationId: orgId },
+    });
+    const listing = await prisma.listing.create({
+      data: {
+        organizationId: orgId,
+        vehicleId: vehicle.id,
+        userId: member.userId,
+        status: "ACTIVE",
+      },
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify([{ vin: testVin, status: "sold" }])),
+      ),
+    );
+    expect((await runSyncSource(sourceId)).sold).toBe(1);
+    const first = await prisma.vehicle.findUniqueOrThrow({
+      where: { id: vehicle.id },
+    });
+    expect(first.soldAt).not.toBeNull();
+    expect((await runSyncSource(sourceId)).sold).toBe(0);
+    const again = await prisma.vehicle.findUniqueOrThrow({
+      where: { id: vehicle.id },
+    });
+    expect(again.soldAt).toEqual(first.soldAt);
+    expect(
+      (await prisma.listing.findUniqueOrThrow({ where: { id: listing.id } }))
+        .status,
+    ).toBe("STALE");
+    expect(
+      await prisma.notification.count({
+        where: {
+          type: "SOLD_ALERT",
+          userId: member.userId,
+          metadata: { path: ["vehicleId"], equals: vehicle.id },
+        },
+      }),
+    ).toBe(1);
+  });
+
   it("marks source as error on fetch failure", async () => {
     vi.stubGlobal(
       "fetch",
-      vi
-        .fn()
-        .mockResolvedValue({
-          ok: false,
-          status: 500,
-          headers: { get: () => null },
-          text: async () => "",
-        }),
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 500,
+        headers: { get: () => null },
+        text: async () => "",
+      }),
     );
 
     await expect(runSyncSource(sourceId)).rejects.toThrow("HTTP 500");

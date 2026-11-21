@@ -86,7 +86,7 @@ Voir [§ 9](#9-extension-chrome). En une phrase : construire (ou récupérer) `a
 | Tenir l’inventaire à jour | Synchro URL (plusieurs adaptateurs), import CSV, saisie manuelle |
 | Préparer une annonce | Titre, description (modèle ou OpenAI si clé), photo, mention Carfax (occasions / démos) |
 | Publier sur Marketplace | Extension Chrome (préremplissage) **ou** mode rapide (copie + téléchargement photo) |
-| Suivre l’équipe | Files du matin, quota, écarts de prix, renouvellements, retraits, leads, page Direction |
+| Suivre l’équipe | Files du matin, quota, écarts de prix, renouvellements, retraits, page Direction |
 | Diffuser tout le lot | Flux CSV catalogue Meta, à coller dans le Commerce Manager (Suivia ne crée ni ne paie de publicité) |
 
 Ce n’est **pas** un autoposter. Pas d’API Meta cachée, pas de frappe simulée pour republier en boucle.
@@ -103,7 +103,6 @@ Ce n’est **pas** un autoposter. Pas d’API Meta cachée, pas de frappe simul�
 | **Inventaire** | Toute l’équipe | Parc, vues (sans annonce, à renouveler, sans photos, > 45 jours…), import CSV, ajout / fiche |
 | **Publications** | Toute l’équipe | Files : Aujourd’hui, À préparer, Publiées, À renouveler, À retirer, Historique |
 | **Direction** | Direction et plus (`MANAGER`+) | Stats d’équipe, véhicules âgés sans annonce, renouvellements, export |
-| **Leads** | Toute l’équipe | Suivi manuel (Nouveau → Contacté → Rendez-vous → Vendu / Perdu) |
 | **Synchronisation** | Toute l’équipe (gestion `MANAGER`+) | Sources, « Synchroniser maintenant », file d’absences du flux |
 | **Équipe** | Selon le rôle | Invitations (lien à copier, **aucun courriel envoyé**) |
 | **Demandes d’accès** | Admins **plateforme** seulement | Lecture / suppression des formulaires `/demande-acces` |

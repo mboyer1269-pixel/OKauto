@@ -134,7 +134,7 @@ interface Organization {
   includeCarfaxSourceUrl?: boolean;
 }
 
-type Queue = "today" | "prepare" | "active" | "remove" | "renew" | "history";
+type Queue = "correct" | "today" | "prepare" | "active" | "remove" | "renew" | "history";
 type InventoryType = "" | "NEW" | "USED" | "DEMO";
 
 const MARKETPLACE_CREATE_URL =
@@ -169,6 +169,7 @@ const EXTENSION_MESSAGE_SOURCE = "okauto-extension";
 const QUEUES: Array<{ id: Queue; label: string; icon: typeof Clipboard }> = [
   { id: "today", label: "Aujourd’hui", icon: Zap },
   { id: "prepare", label: "À préparer", icon: Clipboard },
+  { id: "correct", label: "À corriger", icon: AlertTriangle },
   { id: "active", label: "Publiées", icon: CheckCircle2 },
   { id: "renew", label: "À renouveler", icon: RefreshCw },
   { id: "remove", label: "À retirer", icon: AlertTriangle },
@@ -222,6 +223,7 @@ function ListingsContent() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [readyTotal, setReadyTotal] = useState(0);
   const [allReadyTotal, setAllReadyTotal] = useState(0);
+  const [priceMismatchListings, setPriceMismatchListings] = useState<Listing[]>([]);
   const [listings, setListings] = useState<Listing[]>([]);
   const [orgListingsToRemove, setOrgListingsToRemove] = useState<
     Array<{
@@ -251,7 +253,7 @@ function ListingsContent() {
     "all" | "price" | "renew"
   >("all");
   const [queue, setQueue] = useState<Queue>(
-    queueParam === "remove" ? "remove" : "today",
+    queueParam === "remove" || queueParam === "correct" ? queueParam : "today",
   );
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -324,6 +326,7 @@ function ListingsContent() {
         setReadyTotal(vehicleData.pagination?.total ?? 0);
         setAllReadyTotal(vehicleData.pagination?.total ?? 0);
         setReadyPage(1);
+        setPriceMismatchListings(listingData.listingsToCorrect ?? []);
         setListings(listingData.listings ?? []);
         setOrgListingsToRemove(listingData.listingsToRemove ?? []);
         setListingCounts(listingData.counts ?? {});
@@ -453,6 +456,7 @@ function ListingsContent() {
       const response = await apiFetch("/api/v1/listings?limit=250&page=1");
       if (!response.ok) return;
       const data = await response.json();
+      setPriceMismatchListings(data.listingsToCorrect ?? []);
       setListings(data.listings ?? []);
       setOrgListingsToRemove(data.listingsToRemove ?? []);
       setListingCounts(data.counts ?? {});
@@ -605,9 +609,7 @@ function ListingsContent() {
         renewalDays,
       ),
   );
-  const priceMismatchListings = activeListings.filter(
-    (listing) => listing.health?.priceMismatch,
-  );
+
 
   const normalizedSearch = search.trim().toLowerCase();
   const filteredReady = readyVehicles.filter((vehicle) =>
@@ -624,6 +626,7 @@ function ListingsContent() {
       : (filteredReady[0] ?? null);
 
   const counts: Record<Queue, number> = {
+    correct: priceMismatchListings.length,
     today: todaySuggestions.length,
     prepare: allReadyTotal,
     active: listingCounts.ACTIVE ?? activeListings.length,
@@ -1551,7 +1554,7 @@ function ListingsContent() {
         <ListingQueue
           queue={queue}
           listings={
-            queue === "active"
+            queue === "correct" ? priceMismatchListings : queue === "active"
               ? activeHealthFilter === "price"
                 ? priceMismatchListings
                 : activeHealthFilter === "renew"
@@ -2106,6 +2109,7 @@ function ListingQueue({
   onConfirmPrice?: (listing: Listing) => void;
 }) {
   const copy = {
+    correct: { title: "Prix à corriger", detail: "Mettez le prix à jour dans Facebook, puis confirmez la correction ici.", empty: "Aucun écart de prix à corriger." },
     active: {
       title: "Annonces publiées",
       detail: "Prix à jour, renouvellement officiel, sans suppression.",
@@ -2127,7 +2131,7 @@ function ListingQueue({
       detail: "Annonces vendues ou retirées, conservées pour le suivi.",
       empty: "Aucune annonce archivée.",
     },
-  }[queue as "active" | "renew" | "remove" | "history"];
+  }[queue as "correct" | "active" | "renew" | "remove" | "history"];
 
   return (
     <section aria-labelledby={`${queue}-heading`}>
