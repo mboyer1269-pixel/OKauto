@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import {
   PENDING_PUBLICATION_TTL_MS,
   PUBLISH_CLICK_WINDOW_MS,
@@ -156,5 +158,29 @@ describe('tab-scoped publication intent', () => {
 
   it('does not create an intent before a human clicks Publish', () => {
     expect(publicationSessionIntent(createPendingPublication({ id: 'my-car' }, now))).toBeNull();
+  });
+});
+
+describe("manual confirmation before association", () => {
+  it("never sends LISTING_CONFIRMED directly from the seller-page watcher", () => {
+    const content = readFileSync(
+      resolve(__dirname, "../content/marketplace.ts"),
+      "utf8",
+    );
+    const watcher = content.split("function watchForPublishedListing(")[1]?.split("async function prepareMarketplaceForm(")[0] ?? "";
+    expect(watcher).toContain("promptPublishedListingConfirmation(current.vehicle, match.externalUrl)");
+    expect(watcher).not.toContain("confirmPublishedListing(current.vehicle, match.externalUrl)");
+  });
+
+  it("requires an explicit confirmation button to submit the matched URL", () => {
+    const content = readFileSync(
+      resolve(__dirname, "../content/marketplace.ts"),
+      "utf8",
+    );
+    const prompt = content.split("function promptPublishedListingConfirmation(")[1]?.split("function watchForPublishedListing(")[0] ?? "";
+    expect(prompt).toContain('actionLabel: "Confirmer la liaison"');
+    expect(prompt).toContain("onAction: () => {");
+    expect(prompt).toContain("confirmPublishedListing(vehicle, canonicalUrl)");
+    expect(prompt).not.toContain("chrome.runtime.sendMessage(");
   });
 });
