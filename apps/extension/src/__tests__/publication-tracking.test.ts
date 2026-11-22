@@ -5,6 +5,8 @@ import {
   PENDING_PUBLICATION_TTL_MS,
   PUBLISH_CLICK_WINDOW_MS,
   findPublishedListingForVehicle,
+  canConfirmPublicationCandidate,
+  recoverPendingPublicationClick,
   hasMatchingPublicationSessionIntent,
   publicationSessionIntent,
   isMarketplacePublishButtonLabel,
@@ -182,5 +184,47 @@ describe("manual confirmation before association", () => {
     expect(prompt).toContain("onAction: () => {");
     expect(prompt).toContain("confirmPublishedListing(vehicle, canonicalUrl)");
     expect(prompt).not.toContain("chrome.runtime.sendMessage(");
+  });
+});
+
+
+describe('navigation recovery and confirmation freshness', () => {
+  const vehicle = { id: 'v1', stockNumber: 'ABC123', vin: '1HGCM82633A123456' };
+  const now = 100000;
+  const unarmed = createPendingPublication(vehicle, now - 2000);
+  const clicked = markPendingPublicationClicked(unarmed, now - 1000);
+  const intent = publicationSessionIntent(clicked);
+  const listing = {
+    externalUrl: 'https://www.facebook.com/marketplace/item/123456789/',
+    title: '2025 GMC Terrain · ABC123',
+    text: 'Stock ABC123',
+  };
+
+  it('recovers a clicked publication lost during navigation from the same tab', () => {
+    expect(recoverPendingPublicationClick(unarmed, intent, now)).toEqual(clicked);
+    expect(recoverPendingPublicationClick(clicked, intent, now)).toBe(clicked);
+  });
+
+  it('rejects recovery for another vehicle, another attempt, invalid or expired intents', () => {
+    expect(recoverPendingPublicationClick({ ...unarmed, vehicle: { ...vehicle, id: 'v2' } }, intent, now)).toEqual({ ...unarmed, vehicle: { ...vehicle, id: 'v2' } });
+    expect(recoverPendingPublicationClick({ ...unarmed, startedAt: now - 2001 }, intent, now)).toEqual({ ...unarmed, startedAt: now - 2001 });
+    expect(recoverPendingPublicationClick(unarmed, '{broken', now)).toBe(unarmed);
+    expect(recoverPendingPublicationClick(unarmed, intent, now + PUBLISH_CLICK_WINDOW_MS + 1)).toBe(unarmed);
+  });
+
+  it('requires current listing and tab intent when confirming; rejects stale and ambiguous cards', () => {
+    expect(canConfirmPublicationCandidate(clicked, intent, listing.externalUrl, [listing], now)).toBe(true);
+    expect(canConfirmPublicationCandidate(clicked, null, listing.externalUrl, [listing], now)).toBe(false);
+    expect(canConfirmPublicationCandidate(clicked, intent, listing.externalUrl, [], now)).toBe(false);
+    expect(canConfirmPublicationCandidate(clicked, intent, listing.externalUrl, [listing, {
+      ...listing, externalUrl: 'https://www.facebook.com/marketplace/item/999999999/',
+    }], now)).toBe(false);
+    expect(canConfirmPublicationCandidate(clicked, intent, 'https://www.facebook.com/marketplace/item/555555555/', [listing], now)).toBe(false);
+    expect(canConfirmPublicationCandidate(clicked, intent, listing.externalUrl, [listing], now + PUBLISH_CLICK_WINDOW_MS + 1)).toBe(false);
+  });
+
+  it('prevents confirmation when the pending vehicle changed', () => {
+    expect(canConfirmPublicationCandidate({ ...clicked, vehicle: { ...vehicle, id: 'other' } },
+      intent, listing.externalUrl, [listing], now)).toBe(false);
   });
 });
