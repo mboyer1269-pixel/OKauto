@@ -17,6 +17,37 @@ export function markPendingPublicationClicked<T>(
   return { ...pending, publishClickedAt: now };
 }
 
+
+export const PUBLICATION_SESSION_INTENT_KEY = 'suivia-marketplace-publish-intent-v1';
+
+export function publicationSessionIntent<T extends { id: string }>(
+  pending: PendingPublication<T>,
+): string | null {
+  if (pending.publishClickedAt == null) return null;
+  return JSON.stringify({
+    vehicleId: pending.vehicle.id,
+    startedAt: pending.startedAt,
+    publishClickedAt: pending.publishClickedAt,
+  });
+}
+
+/** A different Facebook tab must never claim this pending publication. */
+export function hasMatchingPublicationSessionIntent<T extends { id: string }>(
+  pending: PendingPublication<T>,
+  rawIntent: string | null,
+  now = Date.now(),
+): boolean {
+  if (!rawIntent || !isPendingPublicationArmed(pending, now)) return false;
+  try {
+    const saved = JSON.parse(rawIntent) as Record<string, unknown>;
+    return saved.vehicleId === pending.vehicle.id &&
+      saved.startedAt === pending.startedAt &&
+      saved.publishClickedAt === pending.publishClickedAt;
+  } catch {
+    return false;
+  }
+}
+
 export function isPendingPublicationArmed(
   pending: PendingPublication<unknown> | null | undefined,
   now = Date.now(),

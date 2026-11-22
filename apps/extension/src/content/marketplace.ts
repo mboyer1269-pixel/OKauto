@@ -26,7 +26,10 @@ import {
   isMarketplacePublishButtonLabel,
   isPendingPublicationFresh,
   findPublishedListingForVehicle,
+  hasMatchingPublicationSessionIntent,
   markPendingPublicationClicked,
+  publicationSessionIntent,
+  PUBLICATION_SESSION_INTENT_KEY,
   PENDING_PUBLICATION_KEY,
   PENDING_RELIER_KEY,
   type PendingPublication,
@@ -809,6 +812,15 @@ function reportFillTelemetry(vehicleId: string, report: FillReport) {
 
 let confirmationUrl: string | null = null;
 let publicationTimer: number | null = null;
+let activePendingPublication: PendingPublication<VehiclePayload> | null = null;
+
+function getTabPublicationIntent(): string | null {
+  try {
+    return window.sessionStorage.getItem(PUBLICATION_SESSION_INTENT_KEY);
+  } catch {
+    return null;
+  }
+}
 
 /** The canonical URL comes from the matched card; the browser may still be on /you/selling. */
 function confirmPublishedListing(vehicle: VehiclePayload, externalUrl: string) {
@@ -855,6 +867,7 @@ function confirmPublishedListing(vehicle: VehiclePayload, externalUrl: string) {
       }
 
       banner.style.background = "#047857";
+      try { window.sessionStorage.removeItem(PUBLICATION_SESSION_INTENT_KEY); } catch { /* fail closed */ }
       const linked = ` Annonce Facebook n° ${response.externalId || itemId}.`;
       status.textContent = response.alreadyExists
         ? `Cette publication était déjà enregistrée dans Suivia Auto.${linked}`
@@ -864,6 +877,7 @@ function confirmPublishedListing(vehicle: VehiclePayload, externalUrl: string) {
 }
 
 function watchForPublishedListing(pending: PendingPublication<VehiclePayload>) {
+  activePendingPublication = pending;
   if (publicationTimer !== null) window.clearInterval(publicationTimer);
   const timer = window.setInterval(() => {
     chrome.storage.local.get([PENDING_PUBLICATION_KEY], (result) => {
@@ -884,7 +898,8 @@ function watchForPublishedListing(pending: PendingPublication<VehiclePayload>) {
         ]);
         return;
       }
-      if (confirmationUrl) return;
+      if (confirmationUrl ||
+          !hasMatchingPublicationSessionIntent(current, getTabPublicationIntent())) return;
       const href = window.location.href;
       let listings: Array<{ externalUrl: string; title: string; text: string }>;
       if (isMarketplaceSellingUrl(href)) {
@@ -917,14 +932,17 @@ document.addEventListener("click", (event) => {
   if (!isMarketplacePublishButtonLabel(label) &&
       !isMarketplacePublishButtonLabel(control.textContent ?? "")) return;
 
-  chrome.storage.local.get([PENDING_PUBLICATION_KEY], (result) => {
-    const current = result[PENDING_PUBLICATION_KEY] as
-      PendingPublication<VehiclePayload> | undefined;
-    if (!isPendingPublicationFresh(current) || !current?.vehicle?.id) return;
-    chrome.storage.local.set({
-      [PENDING_PUBLICATION_KEY]: markPendingPublicationClicked(current),
-    });
-  });
+  const current = activePendingPublication;
+  if (!isPendingPublicationFresh(current) || !current?.vehicle?.id) return;
+  if (control.matches(':disabled, [aria-disabled="true"]')) return;
+  const clicked = markPendingPublicationClicked(current);
+  const intent = publicationSessionIntent(clicked);
+  if (!intent) return;
+  // sessionStorage is tab-scoped and synchronous; fail closed if unavailable.
+  try { window.sessionStorage.setItem(PUBLICATION_SESSION_INTENT_KEY, intent); }
+  catch { return; }
+  activePendingPublication = clicked;
+  chrome.storage.local.set({ [PENDING_PUBLICATION_KEY]: clicked });
 }, true);
 
 async function prepareMarketplaceForm(
@@ -935,6 +953,7 @@ async function prepareMarketplaceForm(
     vehicle,
     `Préparation de l’annonce et des ${Math.min(vehicle.photos?.length ?? 0, 20)} photo(s)…`,
   );
+  activePendingPublication = { vehicle, startedAt };
   const fillResult = await fillForm(vehicle);
   showPreparationBanner(vehicle, fillResult);
   reportFillTelemetry(vehicle.id, fillResult);
@@ -943,6 +962,7 @@ async function prepareMarketplaceForm(
 }
 
 function beginPendingFlow(pending: PendingPublication<VehiclePayload>) {
+  activePendingPublication = pending;
   if (!isPendingPublicationFresh(pending)) {
     chrome.storage.local.remove([
       PENDING_PUBLICATION_KEY,

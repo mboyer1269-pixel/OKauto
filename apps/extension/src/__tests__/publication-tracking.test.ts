@@ -3,6 +3,8 @@ import {
   PENDING_PUBLICATION_TTL_MS,
   PUBLISH_CLICK_WINDOW_MS,
   findPublishedListingForVehicle,
+  hasMatchingPublicationSessionIntent,
+  publicationSessionIntent,
   isMarketplacePublishButtonLabel,
   isPendingPublicationArmed,
   markPendingPublicationClicked,
@@ -127,5 +129,32 @@ describe('automatic published listing association', () => {
     expect(isPendingPublicationArmed(clicked, 2000 + PUBLISH_CLICK_WINDOW_MS + 1)).toBe(false);
     expect(findPublishedListingForVehicle(clicked, [published()], 2000 + PUBLISH_CLICK_WINDOW_MS + 1)).toBeNull();
     expect(isPendingPublicationArmed(markPendingPublicationClicked(original, 10_000), 9000)).toBe(false);
+  });
+});
+
+
+describe('tab-scoped publication intent', () => {
+  const now = 100_000;
+  const pending = markPendingPublicationClicked(
+    createPendingPublication({ id: 'my-car' }, now - 2000),
+    now - 1000,
+  );
+
+  it('accepts the same publish intent in the publishing tab only', () => {
+    const intent = publicationSessionIntent(pending);
+    expect(hasMatchingPublicationSessionIntent(pending, intent, now)).toBe(true);
+    expect(hasMatchingPublicationSessionIntent(pending, null, now)).toBe(false);
+  });
+
+  it('rejects another vehicle, timestamp, invalid JSON and stale click', () => {
+    const intent = publicationSessionIntent(pending)!;
+    expect(hasMatchingPublicationSessionIntent({ ...pending, vehicle: { id: 'other-car' } }, intent, now)).toBe(false);
+    expect(hasMatchingPublicationSessionIntent({ ...pending, startedAt: now - 1999 }, intent, now)).toBe(false);
+    expect(hasMatchingPublicationSessionIntent(pending, '{broken', now)).toBe(false);
+    expect(hasMatchingPublicationSessionIntent(pending, intent, now + PUBLISH_CLICK_WINDOW_MS + 1)).toBe(false);
+  });
+
+  it('does not create an intent before a human clicks Publish', () => {
+    expect(publicationSessionIntent(createPendingPublication({ id: 'my-car' }, now))).toBeNull();
   });
 });
