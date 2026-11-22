@@ -38,7 +38,7 @@ for (const viewport of viewports) {
     await expect(sidebar).toBeInViewport();
 
     const branding = sidebar.locator(".cockpit-scan");
-    await expect(branding.getByLabel("SUIVIA AUTO")).toBeVisible();
+    await expect(branding.locator('span[aria-label="SUIVIA AUTO"]')).toBeVisible();
     await expect(branding.locator("p")).toHaveCount(0);
     await expect(branding).not.toContainText(organizationName);
 
