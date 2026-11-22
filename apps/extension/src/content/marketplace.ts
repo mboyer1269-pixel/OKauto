@@ -23,7 +23,13 @@ import {
   isMarketplaceCreateUrl,
   isMarketplaceItemUrl,
   isMarketplaceSellingUrl,
+  isMarketplacePublishButtonLabel,
   isPendingPublicationFresh,
+  findPublishedListingForVehicle,
+  hasMatchingPublicationSessionIntent,
+  markPendingPublicationClicked,
+  publicationSessionIntent,
+  PUBLICATION_SESSION_INTENT_KEY,
   PENDING_PUBLICATION_KEY,
   PENDING_RELIER_KEY,
   type PendingPublication,
@@ -789,7 +795,7 @@ function showPreparationBanner(vehicle: VehiclePayload, report: FillReport) {
   const tone = report.issues.length > 0 ? "red" : "blue";
   mountAssistBanner(
     vehicle,
-    `${formatPreparationStatus(report)} Vérifiez, puis publiez dans Facebook; Suivia Auto enregistrera automatiquement l’annonce finale.`,
+    `${formatPreparationStatus(report)} Vérifiez, puis publiez dans Facebook; Suivia Auto détectera l’annonce à confirmer sans devoir l’ouvrir.`,
     { tone },
   );
 }
@@ -805,20 +811,33 @@ function reportFillTelemetry(vehicleId: string, report: FillReport) {
 }
 
 let confirmationUrl: string | null = null;
+let suggestedUrl: string | null = null;
+let publicationTimer: number | null = null;
+let activePendingPublication: PendingPublication<VehiclePayload> | null = null;
 
-function confirmPublishedListing(vehicle: VehiclePayload) {
-  const externalUrl = window.location.href;
-  if (!isMarketplaceItemUrl(externalUrl) || confirmationUrl === externalUrl)
-    return;
-  confirmationUrl = externalUrl;
+function getTabPublicationIntent(): string | null {
+  try {
+    return window.sessionStorage.getItem(PUBLICATION_SESSION_INTENT_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/** The canonical URL comes from the matched card; the browser may still be on /you/selling. */
+function confirmPublishedListing(vehicle: VehiclePayload, externalUrl: string) {
+  const itemId = extractFacebookMarketplaceItemId(externalUrl);
+  if (!itemId) return;
+  const canonicalUrl = `https://www.facebook.com/marketplace/item/${itemId}/`;
+  if (confirmationUrl === canonicalUrl) return;
+  confirmationUrl = canonicalUrl;
 
   const retry = () => {
     confirmationUrl = null;
-    confirmPublishedListing(vehicle);
+    confirmPublishedListing(vehicle, canonicalUrl);
   };
   const { banner, status, actionButton } = mountAssistBanner(
     vehicle,
-    "Publication Facebook détectée. Enregistrement dans Suivia Auto…",
+    "Annonce Facebook identifiée. Enregistrement dans Suivia Auto…",
     { actionLabel: "Réessayer", onAction: retry },
   );
   if (actionButton) actionButton.style.display = "none";
@@ -827,23 +846,30 @@ function confirmPublishedListing(vehicle: VehiclePayload) {
     {
       type: "LISTING_CONFIRMED",
       vehicleId: vehicle.id,
-      externalUrl,
-      externalId: extractFacebookMarketplaceItemId(externalUrl),
+      externalUrl: canonicalUrl,
+      externalId: itemId,
     },
-    (response) => {
-      if (!response?.success) {
-        confirmationUrl = null;
+    (response: {
+      success?: boolean;
+      error?: string;
+      alreadyExists?: boolean;
+      externalId?: string;
+    } | undefined) => {
+      const runtimeError = chrome.runtime.lastError;
+      if (runtimeError || !response?.success) {
+        // Keep the in-flight guard until the user deliberately retries:
+        // the interval must not create a request storm on API errors.
         banner.style.background = "#b91c1c";
-        status.textContent =
-          response?.error ?? "La publication n’a pas pu être enregistrée.";
+        status.textContent = response?.error ??
+          runtimeError?.message ??
+          "La publication n’a pas pu être enregistrée.";
         if (actionButton) actionButton.style.display = "";
         return;
       }
 
       banner.style.background = "#047857";
-      const itemId =
-        response.externalId || extractFacebookMarketplaceItemId(externalUrl);
-      const linked = itemId ? ` Annonce Facebook n° ${itemId}.` : "";
+      try { window.sessionStorage.removeItem(PUBLICATION_SESSION_INTENT_KEY); } catch { /* fail closed */ }
+      const linked = ` Annonce Facebook n° ${response.externalId || itemId}.`;
       status.textContent = response.alreadyExists
         ? `Cette publication était déjà enregistrée dans Suivia Auto.${linked}`
         : `Publication enregistrée dans Suivia Auto. Le véhicule apparaît maintenant dans « Publiées ».${linked}`;
@@ -851,28 +877,103 @@ function confirmPublishedListing(vehicle: VehiclePayload) {
   );
 }
 
-function watchForPublishedListing(vehicle: VehiclePayload, startedAt: number) {
-  const timer = window.setInterval(() => {
-    const pending = {
-      vehicle,
-      startedAt,
-    } satisfies PendingPublication<VehiclePayload>;
-    if (!isPendingPublicationFresh(pending)) {
-      window.clearInterval(timer);
-      chrome.storage.local.remove([
-        PENDING_PUBLICATION_KEY,
-        "pendingVehicle",
-        "pendingStartedAt",
-      ]);
-      return;
-    }
-
-    if (isMarketplaceItemUrl(window.location.href)) {
-      window.clearInterval(timer);
-      confirmPublishedListing(vehicle);
-    }
-  }, 750);
+/**
+ * A stock/VIN match on the selling page is not proof of a new publication:
+ * the same vehicle may already have an older listing. Require explicit
+ * human confirmation before sending LISTING_CONFIRMED to the service worker.
+ * No opening of the Facebook item page is required.
+ */
+function promptPublishedListingConfirmation(
+  vehicle: VehiclePayload,
+  externalUrl: string,
+) {
+  const itemId = extractFacebookMarketplaceItemId(externalUrl);
+  if (!itemId || suggestedUrl || confirmationUrl) return;
+  const canonicalUrl = `https://www.facebook.com/marketplace/item/${itemId}/`;
+  suggestedUrl = canonicalUrl;
+  mountAssistBanner(
+    vehicle,
+    `Annonce Facebook n° ${itemId} détectée. Confirmez que c’est bien l’annonce que vous venez de publier avant de la relier.`,
+    {
+      tone: "blue",
+      actionLabel: "Confirmer la liaison",
+      onAction: () => {
+        if (suggestedUrl !== canonicalUrl || confirmationUrl) return;
+        suggestedUrl = null;
+        confirmPublishedListing(vehicle, canonicalUrl);
+      },
+    },
+  );
 }
+
+function watchForPublishedListing(pending: PendingPublication<VehiclePayload>) {
+  activePendingPublication = pending;
+  if (publicationTimer !== null) window.clearInterval(publicationTimer);
+  const timer = window.setInterval(() => {
+    chrome.storage.local.get([PENDING_PUBLICATION_KEY], (result) => {
+      const current = result[PENDING_PUBLICATION_KEY] as
+        PendingPublication<VehiclePayload> | undefined;
+      if (!current ||
+          current.vehicle?.id !== pending.vehicle.id ||
+          current.startedAt !== pending.startedAt) {
+        window.clearInterval(timer);
+        if (publicationTimer === timer) publicationTimer = null;
+        return;
+      }
+      if (!isPendingPublicationFresh(current)) {
+        window.clearInterval(timer);
+        if (publicationTimer === timer) publicationTimer = null;
+        chrome.storage.local.remove([
+          PENDING_PUBLICATION_KEY, "pendingVehicle", "pendingStartedAt",
+        ]);
+        return;
+      }
+      if (confirmationUrl || suggestedUrl ||
+          !hasMatchingPublicationSessionIntent(current, getTabPublicationIntent())) return;
+      const href = window.location.href;
+      let listings: Array<{ externalUrl: string; title: string; text: string }>;
+      if (isMarketplaceSellingUrl(href)) {
+        listings = collectMarketplaceListingsFromDocument();
+      } else if (isMarketplaceItemUrl(href)) {
+        listings = [{
+          externalUrl: href,
+          title: document.title,
+          text: document.querySelector("main")?.textContent ?? "",
+        }];
+      } else {
+        return;
+      }
+
+      const match = findPublishedListingForVehicle(current, listings);
+      if (match) promptPublishedListingConfirmation(current.vehicle, match.externalUrl);
+    });
+  }, 850);
+  publicationTimer = timer;
+}
+
+// Observe the user's own Publish action. Never click Publish from the extension.
+document.addEventListener("click", (event) => {
+  if (!event.isTrusted || !isMarketplaceCreateUrl(window.location.href)) return;
+  const target = event.target;
+  if (!(target instanceof Element)) return;
+  const control = target.closest<HTMLElement>('button, [role="button"]');
+  if (!control) return;
+  const label = control.getAttribute("aria-label") ?? "";
+  if (!isMarketplacePublishButtonLabel(label) &&
+      !isMarketplacePublishButtonLabel(control.textContent ?? "")) return;
+
+  const current = activePendingPublication;
+  if (!isPendingPublicationFresh(current) || !current?.vehicle?.id) return;
+  if (control.matches(':disabled, [aria-disabled="true"]')) return;
+  const clicked = markPendingPublicationClicked(current);
+  const intent = publicationSessionIntent(clicked);
+  if (!intent) return;
+  // sessionStorage is tab-scoped and synchronous; fail closed if unavailable.
+  try { window.sessionStorage.setItem(PUBLICATION_SESSION_INTENT_KEY, intent); }
+  catch { return; }
+  activePendingPublication = clicked;
+  chrome.storage.local.set({ [PENDING_PUBLICATION_KEY]: clicked });
+}, true);
 
 async function prepareMarketplaceForm(
   vehicle: VehiclePayload,
@@ -882,14 +983,16 @@ async function prepareMarketplaceForm(
     vehicle,
     `Préparation de l’annonce et des ${Math.min(vehicle.photos?.length ?? 0, 20)} photo(s)…`,
   );
+  activePendingPublication = { vehicle, startedAt };
   const fillResult = await fillForm(vehicle);
   showPreparationBanner(vehicle, fillResult);
   reportFillTelemetry(vehicle.id, fillResult);
-  watchForPublishedListing(vehicle, startedAt);
+  watchForPublishedListing({ vehicle, startedAt });
   return fillResult;
 }
 
 function beginPendingFlow(pending: PendingPublication<VehiclePayload>) {
+  activePendingPublication = pending;
   if (!isPendingPublicationFresh(pending)) {
     chrome.storage.local.remove([
       PENDING_PUBLICATION_KEY,
@@ -899,8 +1002,9 @@ function beginPendingFlow(pending: PendingPublication<VehiclePayload>) {
     return;
   }
 
-  if (isMarketplaceItemUrl(window.location.href)) {
-    confirmPublishedListing(pending.vehicle);
+  if (isMarketplaceItemUrl(window.location.href) ||
+      isMarketplaceSellingUrl(window.location.href)) {
+    watchForPublishedListing(pending);
     return;
   }
 
@@ -1195,6 +1299,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
   if (message.type === "FILL_MARKETPLACE_FORM") {
     const vehicle = message.vehicle as VehiclePayload;
+    confirmationUrl = null;
+    suggestedUrl = null;
+    try { window.sessionStorage.removeItem(PUBLICATION_SESSION_INTENT_KEY); } catch { /* fail closed */ }
     const pending = createPendingPublication(vehicle);
     chrome.storage.local.set({ [PENDING_PUBLICATION_KEY]: pending });
     prepareMarketplaceForm(vehicle, pending.startedAt)
@@ -1229,8 +1336,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   return false;
 });
 
-// Keep the vehicle pending across Facebook navigation. When Facebook reaches
-// the final /marketplace/item/... URL, the listing is recorded automatically.
+// Preserve a pending vehicle across navigation. Only a recent user Publish click
+// followed by a unique matching item in the seller's listings can auto-link it.
 chrome.storage.local.get(
   [PENDING_PUBLICATION_KEY, PENDING_RELIER_KEY, "pendingVehicle", "pendingStartedAt"],
   (result) => {
