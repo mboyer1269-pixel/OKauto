@@ -363,3 +363,12 @@ jobs:
 
       - name: Run E2E tests
         run: pnpm --filter @okauto/web test:e2e
+
+      - name: Upload responsive browser regression report
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dashboard-brand-playwright
+          path: apps/web/playwright-report/
+          if-no-files-found: ignore
+          retention-days: 7
