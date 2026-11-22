@@ -974,9 +974,9 @@ function watchForPublishedListing(pending: PendingPublication<VehiclePayload>) {
       }
       const intent = getTabPublicationIntent();
       const current = recoverPendingPublicationClick(stored, intent);
-      if (current !== stored) {
-        chrome.storage.local.set({ [PENDING_PUBLICATION_KEY]: current });
-      }
+      // Recover the click locally. Never write an old snapshot back to
+      // shared extension storage: another Marketplace tab may have started
+      // a newer vehicle while this storage callback was in flight.
       if (confirmationUrl || suggestedUrl ||
           !hasMatchingPublicationSessionIntent(current, intent)) return;
       const match = findPublishedListingForVehicle(
