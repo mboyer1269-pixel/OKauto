@@ -67,7 +67,7 @@ const navItems: Array<{
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { user, organization, role, logout, isPlatformAdmin } = useAuth();
+  const { user, role, logout, isPlatformAdmin } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const professionalTitle = getTeamMemberTitle(role, user);
   const currentRole = role as RoleType | null;
@@ -110,9 +110,6 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
         >
           <div className="cockpit-scan shrink-0 border-b border-sidebar-border px-3 py-4">
             <BrandMark lockup inverted size="app" className="w-full max-w-full" />
-            <p className="mt-2 truncate font-mono text-[11px] uppercase tracking-[0.16em] text-sidebar-accent">
-              {organization?.name}
-            </p>
           </div>
           <nav
             className="min-h-0 flex-1 space-y-0.5 overflow-y-auto p-2 pb-40"
