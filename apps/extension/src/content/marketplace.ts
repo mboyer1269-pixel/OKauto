@@ -4,7 +4,6 @@ import {
   chromeRuntimeErrorFr,
   chunkItems,
   extractFacebookMarketplaceItemId,
-  extractVinsFromText,
   generateMarketplaceTitle,
   generateTemplateDescription,
   LINK_LISTINGS_MAX_BATCH,
