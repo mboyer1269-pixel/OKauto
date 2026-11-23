@@ -35,6 +35,15 @@ Sans cette case, n’importe qui tire le binaire applicatif.
 
 ## Déployer
 
+Le workflow transmet son `GITHUB_TOKEN` temporaire sur l'entrée standard SSH.
+`registry-auth.sh` ouvre une session GHCR dans un répertoire Docker temporaire,
+supprimé à la sortie du script, y compris en cas d'échec. Aucun jeton GitHub
+permanent n'est nécessaire pour les livraisons automatiques. Après cette mise à
+jour, recopier `deploy.sh` et `registry-auth.sh` dans `/opt/okauto/scripts/` avant
+la première livraison. La commande SSH autorisée reste `deploy <sha>`.
+Une invocation manuelle sans jeton sur stdin utilise encore la connexion Docker
+existante de l'hôte; un ancien PAT expiré doit être renouvelé pour ce mode manuel.
+
 1. CI verte sur `main` (jobs `quality`, `test`, `images`).
 2. Le workflow **Deploy** pousse les images GHCR (paquets **privés**) puis attend l’approbation environment `production`.
 3. Approuver. Le job SSH exécute `deploy <sha>` (≤ 10 min : postgres+redis up → dump → répétition de migration → pull → migrate → up web/worker → health → `APP_VERSION` dans `.env`).

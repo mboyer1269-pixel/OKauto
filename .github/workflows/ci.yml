@@ -54,6 +54,9 @@ jobs:
       - name: Persist APP_VERSION helper
         run: bash deploy/scripts/persist-app-version.test.sh
 
+      - name: Ephemeral registry credentials
+        run: bash deploy/scripts/registry-auth.test.sh
+
       - name: Offsite backup / restore helpers
         run: |
           sudo apt-get update
