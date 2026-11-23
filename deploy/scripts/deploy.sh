@@ -158,6 +158,10 @@ rehearse_migrate() {
   echo "migration rehearsal ok"
 }
 
+# shellcheck source=registry-auth.sh
+source "${ROOT}/scripts/registry-auth.sh"
+prepare_registry_auth
+
 trap 'echo "deploy failed for ${SHA}" >&2; rollback || true' ERR
 
 echo "deploy ${SHA} (previous=${previous_sha:-none})"

@@ -126,6 +126,7 @@ jobs:
           VPS_USER: ${{ vars.VPS_USER || 'deploy' }}
           VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
           VPS_DEPLOY_KEY: ${{ secrets.VPS_DEPLOY_KEY }}
+          GHCR_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           mkdir -p ~/.ssh
@@ -134,7 +135,8 @@ jobs:
           chmod 600 ~/.ssh/known_hosts
           printf '%s\n' "$VPS_DEPLOY_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+          printf '%s\n' "$GHCR_TOKEN" | \
+            ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
             -o BatchMode=yes "${VPS_USER}@${VPS_HOST}" "deploy ${SHA}"
 
       - name: Smoke check public health
