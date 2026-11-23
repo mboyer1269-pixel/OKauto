@@ -245,7 +245,7 @@ export function isFacebookMarketplaceHost(value: string): boolean {
 }
 
 export function shouldBulkRelierOnTabUrl(url?: string | null): boolean {
-  return Boolean(url && (isMarketplaceSellingUrl(url) || isMarketplaceItemUrl(url)));
+  return Boolean(url && isMarketplaceSellingUrl(url));
 }
 
 export type MarketplaceSessionState = "logged_in" | "logged_out" | "unknown";
