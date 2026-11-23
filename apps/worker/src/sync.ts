@@ -1,4 +1,4 @@
-import { prisma } from "@okauto/database";
+import { prisma, type Prisma } from "@okauto/database";
 import type { SyncVehicle } from "@okauto/shared";
 import {
   extractD2cDetailPhotos,
@@ -52,6 +52,7 @@ export async function runSyncSource(syncSourceId: string): Promise<SyncResult> {
     let successCount = 0;
     let errorCount = 0;
     let priceChanges = 0;
+    let reportedSold = 0;
 
     for (const v of vehicles) {
       if (!v.vin) {
@@ -105,7 +106,7 @@ export async function runSyncSource(syncSourceId: string): Promise<SyncResult> {
             })
           : null;
 
-        const vehicle = await prisma.vehicle.upsert({
+        const upsert = {
           where: {
             organizationId_vin: {
               organizationId: source.organizationId,
@@ -136,7 +137,6 @@ export async function runSyncSource(syncSourceId: string): Promise<SyncResult> {
             cylinders: v.cylinders,
             condition: v.condition,
             status,
-            soldAt: status === "SOLD" ? new Date() : null,
             lastSeenAt: startedAt,
             missingSyncCount: 0,
             feedAbsenceStatus: "IN_FEED",
@@ -171,7 +171,7 @@ export async function runSyncSource(syncSourceId: string): Promise<SyncResult> {
                 }),
             condition: v.condition,
             status,
-            soldAt: status === "SOLD" ? new Date() : null,
+            soldAt: status === "SOLD" ? undefined : null,
             lastSeenAt: startedAt,
             missingSyncCount: 0,
             feedAbsenceStatus: "IN_FEED",
@@ -184,7 +184,46 @@ export async function runSyncSource(syncSourceId: string): Promise<SyncResult> {
                 ? startedAt
                 : undefined,
           },
-        });
+        } satisfies Prisma.VehicleUpsertArgs;
+        let newSales = 0;
+        const vehicle =
+          status === "SOLD"
+            ? await prisma.$transaction(async (tx) => {
+                const sold = await tx.vehicle.upsert(upsert);
+                // The upsert holds the vehicle row lock until this transaction commits.
+                if (sold.soldAt === null) {
+                  await tx.vehicle.update({
+                    where: { id: sold.id },
+                    data: { soldAt: startedAt },
+                  });
+                  newSales = 1;
+                }
+                const listings = await tx.listing.updateManyAndReturn({
+                  where: {
+                    vehicleId: sold.id,
+                    organizationId: source.organizationId,
+                    status: "ACTIVE",
+                  },
+                  data: {
+                    status: "STALE",
+                    staleSince: startedAt,
+                    lastCheckedAt: startedAt,
+                    removalReminderSentAt: null,
+                  },
+                  select: { userId: true, vehicleId: true },
+                });
+                if (listings.length) {
+                  await notifySoldVehicles(
+                    source.organizationId,
+                    [sold],
+                    listings,
+                    tx,
+                  );
+                }
+                return sold;
+              })
+            : await prisma.vehicle.upsert(upsert);
+        reportedSold += newSales;
 
         if (
           existing &&
@@ -218,23 +257,27 @@ export async function runSyncSource(syncSourceId: string): Promise<SyncResult> {
       .filter(
         (vin): vin is string => typeof vin === "string" && vin.length > 0,
       );
-    const missingVehicles = await prisma.vehicle.findMany({
-      where: {
-        syncSourceId: source.id,
-        status: { in: ["AVAILABLE", "PENDING"] },
-        vin: { notIn: activeVins },
-      },
-      select: {
-        id: true,
-        vin: true,
-        year: true,
-        make: true,
-        model: true,
-        assignedToId: true,
-        missingSyncCount: true,
-        feedAbsenceStatus: true,
-      },
-    });
+    // Absence is actionable only after all observed vehicles were processed.
+    const missingVehicles =
+      errorCount === 0
+        ? await prisma.vehicle.findMany({
+            where: {
+              syncSourceId: source.id,
+              status: { in: ["AVAILABLE", "PENDING"] },
+              vin: { notIn: activeVins },
+            },
+            select: {
+              id: true,
+              vin: true,
+              year: true,
+              make: true,
+              model: true,
+              assignedToId: true,
+              missingSyncCount: true,
+              feedAbsenceStatus: true,
+            },
+          })
+        : [];
 
     const trackedActiveCount = await prisma.vehicle.count({
       where: {
@@ -259,7 +302,9 @@ export async function runSyncSource(syncSourceId: string): Promise<SyncResult> {
     if (anomalousDrop && freshMissingVehicles.length > 0) {
       queuedForReview = freshMissingVehicles.length;
       await prisma.vehicle.updateMany({
-        where: { id: { in: freshMissingVehicles.map((vehicle) => vehicle.id) } },
+        where: {
+          id: { in: freshMissingVehicles.map((vehicle) => vehicle.id) },
+        },
         data: {
           feedAbsenceStatus: "PENDING_REVIEW",
           feedAbsenceNotedAt: startedAt,
@@ -273,7 +318,9 @@ export async function runSyncSource(syncSourceId: string): Promise<SyncResult> {
       );
     } else if (freshMissingVehicles.length > 0) {
       await prisma.vehicle.updateMany({
-        where: { id: { in: freshMissingVehicles.map((vehicle) => vehicle.id) } },
+        where: {
+          id: { in: freshMissingVehicles.map((vehicle) => vehicle.id) },
+        },
         data: { missingSyncCount: { increment: 1 } },
       });
     }
@@ -342,7 +389,7 @@ export async function runSyncSource(syncSourceId: string): Promise<SyncResult> {
           successCount,
           errorCount,
           priceChanges,
-          soldCount: confirmedMissingVehicles.length,
+          soldCount: reportedSold + confirmedMissingVehicles.length,
           durationMs: completedAt.getTime() - startedAt.getTime(),
           error: runError,
           completedAt,
@@ -354,7 +401,7 @@ export async function runSyncSource(syncSourceId: string): Promise<SyncResult> {
       synced: successCount,
       errors: errorCount,
       priceChanges,
-      sold: confirmedMissingVehicles.length,
+      sold: reportedSold + confirmedMissingVehicles.length,
       queuedForReview,
     };
   } catch (err) {
@@ -603,12 +650,13 @@ async function notifySoldVehicles(
   organizationId: string,
   vehicles: MissingVehicle[],
   activeListings: Array<{ userId: string; vehicleId: string }>,
+  db: Prisma.TransactionClient = prisma,
 ) {
-  const organization = await prisma.organization.findUnique({
+  const organization = await db.organization.findUnique({
     where: { id: organizationId },
     select: { name: true },
   });
-  const managers = await prisma.organizationMember.findMany({
+  const managers = await db.organizationMember.findMany({
     where: { organizationId, role: { in: ["OWNER", "ADMIN", "MANAGER"] } },
     select: { userId: true },
   });
@@ -629,12 +677,12 @@ async function notifySoldVehicles(
       .filter(Boolean)
       .join(" ");
     for (const userId of recipients) {
-      await prisma.notification.create({
+      await db.notification.create({
         data: {
           userId,
           type: "SOLD_ALERT",
           title: "Véhicule vendu : retirez votre annonce",
-          message: `${title || "Véhicule"} (stock ${vehicle.vin ?? "s. o."}) n’est plus dans l’inventaire de ${organization?.name ?? "la concession"}. Retirez l’annonce sur Facebook, puis confirmez le retrait dans Suivia.`,
+          message: `${title || "Véhicule"} (NIV ${vehicle.vin ?? "s. o."}) est marqué vendu chez ${organization?.name ?? "la concession"}. Retirez l’annonce sur Facebook, puis confirmez le retrait dans Suivia.`,
           metadata: { vehicleId: vehicle.id, vin: vehicle.vin },
         },
       });
