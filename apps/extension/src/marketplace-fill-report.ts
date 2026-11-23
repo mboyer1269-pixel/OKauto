@@ -25,6 +25,8 @@ const FIELD_LABELS_FR: Record<string, string> = {
   title: "Titre",
   price: "Prix",
   description: "Description",
+  interiorColor: "Couleur intérieure",
+  video: "Vidéo publicitaire",
   bodyStyle: "Style de carrosserie",
   exteriorColor: "Couleur extérieure",
   fuelType: "Type de carburant",

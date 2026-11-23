@@ -125,9 +125,18 @@ export const GET = withAuth(async (request, { auth }) => {
   const counts = Object.fromEntries(
     countsByStatus.map((entry) => [entry.status, entry._count._all]),
   ) as Record<string, number>;
-  counts.PRICE_MISMATCH = activeForHealth.filter(
+  const priceMismatches = activeForHealth.filter(
     (listing) => listingHealthPayload(listing).priceMismatch,
-  ).length;
+  );
+  counts.PRICE_MISMATCH = priceMismatches.length;
+  const listingsToCorrect = priceMismatches.length ? await prisma.listing.findMany({
+    where: { ...where, status: "ACTIVE", id: { in: priceMismatches.map((listing) => listing.id) } },
+    include: {
+      user: { select: { name: true } },
+      vehicle: { include: { photos: { where: { isPrimary: true }, take: 1 } } },
+    },
+    orderBy: { listedAt: "asc" },
+  }) : [];
   counts.RENEW_DUE = activeForHealth.filter(
     (listing) => listingHealthPayload(listing).renewDue,
   ).length;
@@ -154,6 +163,7 @@ export const GET = withAuth(async (request, { auth }) => {
   return jsonResponse({
     listings: withHealth,
     listingsToRemove,
+    listingsToCorrect: listingsToCorrect.map((listing) => ({ ...listing, health: listingHealthPayload(listing) })),
     counts,
     pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
   });

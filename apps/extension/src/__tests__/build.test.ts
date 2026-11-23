@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
+import { Script } from 'vm';
 
 const dist = resolve(__dirname, '../../dist');
 const hasDist = existsSync(resolve(dist, 'manifest.json'));
@@ -29,7 +30,9 @@ describe.skipIf(!hasDist)('extension build output', () => {
     const content = readFileSync(resolve(dist, 'content.js'), 'utf-8');
     const appBridge = readFileSync(resolve(dist, 'app-bridge.js'), 'utf-8');
 
-    expect(content).not.toMatch(/^\s*import\s/m);
-    expect(appBridge).not.toMatch(/^\s*import\s/m);
+    // Minified imports use `import{...}`; a whitespace regex misses them.
+    // Chrome loads manifest content scripts as classic scripts, not modules.
+    expect(() => new Script(content, { filename: 'content.js' })).not.toThrow();
+    expect(() => new Script(appBridge, { filename: 'app-bridge.js' })).not.toThrow();
   });
 });

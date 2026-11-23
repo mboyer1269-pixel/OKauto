@@ -133,7 +133,9 @@ jobs:
         run: pnpm db:seed
 
       - name: Unit tests
-        run: pnpm test:unit --concurrency=1
+        run: |
+          pnpm --filter @okauto/extension build
+          pnpm test:unit --concurrency=1
 
       - name: Integration tests
         run: pnpm test:int --concurrency=1
@@ -361,5 +363,17 @@ jobs:
       - name: Install Playwright
         run: pnpm --filter @okauto/web exec playwright install --with-deps chromium
 
+      - name: Test shipped extension photo transfer
+        run: pnpm --filter @okauto/extension test:browser
+
       - name: Run E2E tests
         run: pnpm --filter @okauto/web test:e2e
+
+      - name: Upload responsive browser regression report
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dashboard-brand-playwright
+          path: apps/web/playwright-report/
+          if-no-files-found: ignore
+          retention-days: 7
