@@ -30,6 +30,7 @@ for (const scenario of [
       <input id="video" type="file" accept="video/*" multiple>
       <input id="photos" type="file" accept=".jpg,.png" multiple hidden>
       <div id="previews"></div>
+      <button id="publish">Publier</button>
     `);
     await page.evaluate((mode) => {
       const pending = {
@@ -145,6 +146,16 @@ for (const scenario of [
       () => (window as unknown as { received: string[] }).received,
     );
     expect(errors).toEqual([]);
+    if (scenario === "normal") {
+      // A popup can fill an already-open tab with no pending state at startup.
+      // The trusted user click must use the vehicle just prepared by that message.
+      await page.getByRole("button", { name: "Publier", exact: true }).click();
+      const intent = await page.evaluate(() => JSON.parse(
+        sessionStorage.getItem("suivia-marketplace-publish-intent-v1") || "null",
+      ));
+      expect(intent?.vehicleId).toBe("fixture");
+      expect(intent?.publishClickedAt).toBeGreaterThanOrEqual(intent?.startedAt);
+    }
     await expect(page.locator('[role=option][data-selected=yes]')).toHaveCount(2);
     if (scenario === "denied") {
       expect(received).toEqual([]);
