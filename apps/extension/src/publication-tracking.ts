@@ -48,6 +48,34 @@ export function hasMatchingPublicationSessionIntent<T extends { id: string }>(
   }
 }
 
+
+/**
+ * Restore a human Publish click if Chrome navigated before the asynchronous
+ * chrome.storage.local.set callback completed. The tab-scoped session record
+ * must exactly match the pending vehicle and its startedAt.
+ */
+export function recoverPendingPublicationClick<T extends { id: string }>(
+  pending: PendingPublication<T>,
+  rawIntent: string | null,
+  now = Date.now(),
+): PendingPublication<T> {
+  if (pending.publishClickedAt != null || !rawIntent || !isPendingPublicationFresh(pending, now)) {
+    return pending;
+  }
+  try {
+    const saved = JSON.parse(rawIntent) as Record<string, unknown>;
+    if (saved.vehicleId !== pending.vehicle.id ||
+        saved.startedAt !== pending.startedAt ||
+        typeof saved.publishClickedAt !== "number") {
+      return pending;
+    }
+    const recovered = { ...pending, publishClickedAt: saved.publishClickedAt };
+    return isPendingPublicationArmed(recovered, now) ? recovered : pending;
+  } catch {
+    return pending;
+  }
+}
+
 export function isPendingPublicationArmed(
   pending: PendingPublication<unknown> | null | undefined,
   now = Date.now(),
@@ -128,6 +156,21 @@ export function findPublishedListingForVehicle<T extends PublicationVehicleIdent
   if (matches.size !== 1) return null;
   const [externalId, externalUrl] = [...matches][0];
   return { externalId, externalUrl };
+}
+
+
+/** Fail closed if a banner is stale or Facebook now shows conflicting matches. */
+export function canConfirmPublicationCandidate<T extends PublicationVehicleIdentity>(
+  pending: PendingPublication<T>,
+  rawIntent: string | null,
+  candidateUrl: string,
+  listings: readonly MarketplaceListingCandidate[],
+  now = Date.now(),
+): boolean {
+  if (!hasMatchingPublicationSessionIntent(pending, rawIntent, now)) return false;
+  const proposedId = extractFacebookMarketplaceItemId(candidateUrl);
+  const matched = findPublishedListingForVehicle(pending, listings, now);
+  return Boolean(proposedId && matched && matched.externalId === proposedId);
 }
 
 export const PENDING_PUBLICATION_KEY = 'pendingPublication';

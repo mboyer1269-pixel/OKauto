@@ -26,7 +26,9 @@ import {
   isMarketplacePublishButtonLabel,
   isPendingPublicationFresh,
   findPublishedListingForVehicle,
+  canConfirmPublicationCandidate,
   hasMatchingPublicationSessionIntent,
+  recoverPendingPublicationClick,
   markPendingPublicationClicked,
   publicationSessionIntent,
   PUBLICATION_SESSION_INTENT_KEY,
@@ -712,6 +714,7 @@ async function fillForm(vehicle: VehiclePayload): Promise<FillReport> {
 interface BannerOptions {
   actionLabel?: string;
   onAction?: () => void;
+  onDismiss?: () => void;
   tone?: "blue" | "green" | "red";
 }
 
@@ -784,6 +787,7 @@ function mountAssistBanner(
   document.body.style.marginTop = "60px";
 
   dismissButton.addEventListener("click", () => {
+    options.onDismiss?.();
     banner.remove();
     document.body.style.marginTop = "";
   });
@@ -812,6 +816,7 @@ function reportFillTelemetry(vehicleId: string, report: FillReport) {
 
 let confirmationUrl: string | null = null;
 let suggestedUrl: string | null = null;
+let dismissedUrl: string | null = null;
 let publicationTimer: number | null = null;
 let activePendingPublication: PendingPublication<VehiclePayload> | null = null;
 
@@ -883,6 +888,19 @@ function confirmPublishedListing(vehicle: VehiclePayload, externalUrl: string) {
  * human confirmation before sending LISTING_CONFIRMED to the service worker.
  * No opening of the Facebook item page is required.
  */
+function getPublishedCandidatesFromCurrentPage(): Array<{
+  externalUrl: string; title: string; text: string;
+}> {
+  const href = window.location.href;
+  if (isMarketplaceSellingUrl(href)) return collectMarketplaceListingsFromDocument();
+  if (!isMarketplaceItemUrl(href)) return [];
+  return [{
+    externalUrl: href,
+    title: document.title,
+    text: document.querySelector("main")?.textContent ?? "",
+  }];
+}
+
 function promptPublishedListingConfirmation(
   vehicle: VehiclePayload,
   externalUrl: string,
@@ -890,17 +908,43 @@ function promptPublishedListingConfirmation(
   const itemId = extractFacebookMarketplaceItemId(externalUrl);
   if (!itemId || suggestedUrl || confirmationUrl) return;
   const canonicalUrl = `https://www.facebook.com/marketplace/item/${itemId}/`;
+  if (dismissedUrl === canonicalUrl) return;
   suggestedUrl = canonicalUrl;
-  mountAssistBanner(
+  const { status } = mountAssistBanner(
     vehicle,
     `Annonce Facebook n° ${itemId} détectée. Confirmez que c’est bien l’annonce que vous venez de publier avant de la relier.`,
     {
       tone: "blue",
       actionLabel: "Confirmer la liaison",
+      onDismiss: () => {
+        if (suggestedUrl !== canonicalUrl) return;
+        suggestedUrl = null;
+        dismissedUrl = canonicalUrl;
+      },
       onAction: () => {
         if (suggestedUrl !== canonicalUrl || confirmationUrl) return;
-        suggestedUrl = null;
-        confirmPublishedListing(vehicle, canonicalUrl);
+        chrome.storage.local.get([PENDING_PUBLICATION_KEY], (result) => {
+          if (suggestedUrl !== canonicalUrl || confirmationUrl) return;
+          const stored = result[PENDING_PUBLICATION_KEY] as
+            PendingPublication<VehiclePayload> | undefined;
+          const current = stored && recoverPendingPublicationClick(
+            stored,
+            getTabPublicationIntent(),
+          );
+          if (!current || current.vehicle.id !== vehicle.id ||
+              !canConfirmPublicationCandidate(
+                current,
+                getTabPublicationIntent(),
+                canonicalUrl,
+                getPublishedCandidatesFromCurrentPage(),
+              )) {
+            status.textContent =
+              "Liaison non confirmée : annonce absente, ambiguë ou confirmation expirée. Recommencez depuis Suivia Auto.";
+            return;
+          }
+          suggestedUrl = null;
+          confirmPublishedListing(vehicle, canonicalUrl);
+        });
       },
     },
   );
@@ -911,16 +955,16 @@ function watchForPublishedListing(pending: PendingPublication<VehiclePayload>) {
   if (publicationTimer !== null) window.clearInterval(publicationTimer);
   const timer = window.setInterval(() => {
     chrome.storage.local.get([PENDING_PUBLICATION_KEY], (result) => {
-      const current = result[PENDING_PUBLICATION_KEY] as
+      const stored = result[PENDING_PUBLICATION_KEY] as
         PendingPublication<VehiclePayload> | undefined;
-      if (!current ||
-          current.vehicle?.id !== pending.vehicle.id ||
-          current.startedAt !== pending.startedAt) {
+      if (!stored ||
+          stored.vehicle?.id !== pending.vehicle.id ||
+          stored.startedAt !== pending.startedAt) {
         window.clearInterval(timer);
         if (publicationTimer === timer) publicationTimer = null;
         return;
       }
-      if (!isPendingPublicationFresh(current)) {
+      if (!isPendingPublicationFresh(stored)) {
         window.clearInterval(timer);
         if (publicationTimer === timer) publicationTimer = null;
         chrome.storage.local.remove([
@@ -928,23 +972,17 @@ function watchForPublishedListing(pending: PendingPublication<VehiclePayload>) {
         ]);
         return;
       }
+      const intent = getTabPublicationIntent();
+      const current = recoverPendingPublicationClick(stored, intent);
+      // Recover the click locally. Never write an old snapshot back to
+      // shared extension storage: another Marketplace tab may have started
+      // a newer vehicle while this storage callback was in flight.
       if (confirmationUrl || suggestedUrl ||
-          !hasMatchingPublicationSessionIntent(current, getTabPublicationIntent())) return;
-      const href = window.location.href;
-      let listings: Array<{ externalUrl: string; title: string; text: string }>;
-      if (isMarketplaceSellingUrl(href)) {
-        listings = collectMarketplaceListingsFromDocument();
-      } else if (isMarketplaceItemUrl(href)) {
-        listings = [{
-          externalUrl: href,
-          title: document.title,
-          text: document.querySelector("main")?.textContent ?? "",
-        }];
-      } else {
-        return;
-      }
-
-      const match = findPublishedListingForVehicle(current, listings);
+          !hasMatchingPublicationSessionIntent(current, intent)) return;
+      const match = findPublishedListingForVehicle(
+        current,
+        getPublishedCandidatesFromCurrentPage(),
+      );
       if (match) promptPublishedListingConfirmation(current.vehicle, match.externalUrl);
     });
   }, 850);
@@ -1301,6 +1339,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     const vehicle = message.vehicle as VehiclePayload;
     confirmationUrl = null;
     suggestedUrl = null;
+    dismissedUrl = null;
     try { window.sessionStorage.removeItem(PUBLICATION_SESSION_INTENT_KEY); } catch { /* fail closed */ }
     const pending = createPendingPublication(vehicle);
     chrome.storage.local.set({ [PENDING_PUBLICATION_KEY]: pending });
