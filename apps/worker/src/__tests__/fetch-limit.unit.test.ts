@@ -2,6 +2,20 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { fetchTextLimited } from "../fetch-limit.js";
 
 describe("fetchTextLimited", () => {
+  it("decodes the dealership's declared ISO-8859-1 encoding", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(
+      Uint8Array.from([80, 114, 105, 120, 32, 58, 32, 53, 49, 160, 57, 57, 53, 32, 36, 32, 233]),
+      { headers: { "Content-Type": "text/html; charset=iso-8859-1" } },
+    )));
+    expect((await fetchTextLimited("https://mock.test/inventory")).body).toBe("Prix : 51\u00a0995 $ é");
+  });
+
+  it("falls back to UTF-8 for unsupported charset labels", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("Véhicule", {
+      headers: { "Content-Type": "text/html; charset=unsupported-charset" },
+    })));
+    expect((await fetchTextLimited("https://mock.test/inventory")).body).toBe("Véhicule");
+  });
   afterEach(() => {
     vi.unstubAllGlobals();
     delete process.env.SYNC_FETCH_MAX_BYTES;

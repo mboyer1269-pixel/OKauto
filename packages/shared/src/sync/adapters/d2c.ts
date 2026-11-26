@@ -115,6 +115,28 @@ function parseNumber(value?: string | null): number | null {
   return Number.isFinite(number) ? number : null;
 }
 
+function parsePrice(value: unknown): number | null {
+  if (typeof value === 'number') return Number.isFinite(value) && value > 0 ? value : null;
+  if (typeof value !== 'string') return null;
+  const compact = decodeHtml(value).replace(/\s/g, '').replace(/(?:CAD|CA|\$)/gi, '');
+  const normalized = /^\d+(?:[.,]\d{1,2})?$/.test(compact)
+    ? compact.replace(',', '.')
+    : /^\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?$/.test(compact)
+      ? compact.replace(/,/g, '')
+      : '';
+  const price = Number(normalized);
+  return Number.isFinite(price) && price > 0 ? price : null;
+}
+
+function extractCardPrice(card: string, structuredPrice: unknown): number | null {
+  // Current D2C inventory uses page-level ItemList JSON-LD without offers.
+  // p-base is the advertised selling price; p-final can be a struck-out MSRP.
+  // Stay inside this card's price block, never financing or recommendation text.
+  const priceBlock = /<div[^>]*class=["'][^"']*\bcarPrice\b[^"']*["'][^>]*>([\s\S]*?)<\/div>/i.exec(card)?.[1];
+  return parsePrice(priceBlock ? findClassText(priceBlock, 'p-base') : null)
+    ?? parsePrice(structuredPrice);
+}
+
 function mapCondition(value: string | undefined, sourceUrl: string | undefined): string | null {
   const normalizedUrl = sourceUrl?.toLowerCase() ?? '';
   if (normalizedUrl.includes('/demonstrateurs/')) return 'Demo';
@@ -207,7 +229,7 @@ function parseCard(card: string, detailUrls: Map<string, string>): SyncVehicle |
     model: model || null,
     trim,
     mileage,
-    price: offers?.price != null ? Number(offers.price) : null,
+    price: extractCardPrice(card, offers?.price),
     exteriorColor: specs.get('couleur extérieure') ?? null,
     interiorColor: specs.get('couleur intérieure') ?? null,
     description: [title, summary].filter(Boolean).join('. ') || cleanText(String(jsonLd?.description ?? '')),

@@ -81,6 +81,43 @@ describe("runSyncSource", () => {
     expect(source?.lastSyncStatus).toBe("success");
   });
 
+  it("imports current D2C displayed prices, refreshes them and preserves a known price when absent", async () => {
+    await prisma.syncSource.update({ where: { id: sourceId }, data: {
+      adapter: "d2c", url: "https://mock.test/inventory.html",
+    } });
+    await prisma.vehicle.create({ data: {
+      organizationId: orgId, syncSourceId: sourceId, vin: testVin, price: null,
+      photos: { create: [
+        { url: "https://mock.test/1.jpg", sortOrder: 0 },
+        { url: "https://mock.test/2.jpg", sortOrder: 1 },
+      ] },
+    } });
+    const filter = Buffer.from(JSON.stringify({ url: "/inventory-q0.html", basic: { fltPageId: [0, 36] } })).toString("base64");
+    let priceHtml = '<span class="dollarsigned p-base format-price">51&nbsp;995</span>';
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => new Response(
+      url.includes("filterid=") ? "<ul></ul>" : `
+        <input id="filterid" value="${filter}">
+        <li class="carBoxWrapper" data-carid="123">
+          <input name="vehicledata" data-vin="${testVin}" data-carid="123">
+          <div class="carPrice">${priceHtml}</div>
+        </li>`,
+      { headers: { "Content-Type": "text/html; charset=utf-8" } },
+    )));
+
+    expect((await runSyncSource(sourceId)).errors).toBe(0);
+    const findVehicle = () => prisma.vehicle.findUniqueOrThrow({ where: {
+      organizationId_vin: { organizationId: orgId, vin: testVin },
+    } });
+    expect(Number((await findVehicle()).price)).toBe(51995);
+    priceHtml = '<span class="p-base">49 995</span><span class="p-final ttStrike">51 995</span>';
+    expect((await runSyncSource(sourceId)).priceChanges).toBe(1);
+    expect(Number((await findVehicle()).price)).toBe(49995);
+    expect((await findVehicle()).priceDroppedAt).not.toBeNull();
+    priceHtml = '<span class="p-msg">Appelez pour un prix</span>';
+    expect((await runSyncSource(sourceId)).priceChanges).toBe(0);
+    expect(Number((await findVehicle()).price)).toBe(49995);
+  });
+
   it("does not let an empty feed overwrite a vPIC field", async () => {
     await runSyncSource(sourceId);
     await prisma.vehicle.updateMany({
