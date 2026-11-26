@@ -50,8 +50,15 @@ export async function fetchTextLimited(
       }
     }
     const merged = Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)));
+    const charset = /charset\s*=\s*["']?([^\s;"']+)/i.exec(contentType ?? "")?.[1] ?? "utf-8";
+    let decoder: TextDecoder;
+    try {
+      decoder = new TextDecoder(charset);
+    } catch {
+      decoder = new TextDecoder("utf-8");
+    }
     return {
-      body: merged.toString("utf8"),
+      body: decoder.decode(merged),
       contentType,
       url: response.url || url,
       status: response.status,
